@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block navbar %}
+<!-- No content here means no navbar will be displayed -->
+{% endblock %}
+
+{% block title %}Pickers{% endblock %}
+
+{% block head %}
+{{ super() }}
+<meta http-equiv="refresh" content="300"> <!-- This line adds the auto-refresh feature -->
+<style>
+    .card {
+        cursor: pointer;
+        transition: transform .2s; /* Animation */
+    }
+    .card:hover {
+        transform: scale(1.05); /* Slightly increase size */
+        background-color: #f8f9fa; /* Change background color */
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>Select your name from the list below</h1>
+    <div class="row">
+        {% for picker in pickers %}
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <a href="{{ url_for('main.confirm_picker', picker_id=picker.id) }}" class="stretched-link" style="text-decoration: none; color: inherit;">
+                            {{ picker.name }}
+                        </a>
+                    </h5>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

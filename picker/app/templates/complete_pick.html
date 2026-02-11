@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block navbar %}
+<!-- No content here means no navbar will be displayed -->
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Incomplete Picks for {{ picker.name }}</h1>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Barcode Number</th>
+                <th>Pick Type</th>
+                <th>Start Time</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pick in incomplete_picks %}
+            <tr>
+                <td>{{ pick.barcode_number }}</td>
+                <td>{{ pick.pick_type_id }}</td>
+                <td>{{ pick.start_time.strftime('%m/%d/%y %H:%M') }}</td>
+                <td>
+                    <form action="{{ url_for('main.complete_pick', pick_id=pick.id) }}" method="post" class="btn btn-success">
+                        <button type="submit">Complete Pick</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+<div class="btn-group" role="group" aria-label="Pick Actions" style="width: 100%; padding: 20px;">
+        <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=1) }}" class="pick-button btn btn-primary">
+            <i class="fas fa-box-open"></i><br>Input New Pick
+        </a>
+        <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=6) }}" class="pick-button btn btn-info">
+            <i class="fas fa-phone-volume"></i><br>Input Will Call
+        </a>
+        <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=2) }}" class="pick-button btn btn-warning">
+            <i class="fas fa-door-open"></i><br>Input Door 1
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <style>
+    .pick-button {
+        width: 100px; /* Set a fixed width */
+        height: 100px; /* Set a fixed height */
+        margin: 10px; /* Space between buttons */
+        display: inline-flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 10px;
+        font-size: 0.9em; /* Adjust text size */
+    }
+    </style>
+{% endblock %}

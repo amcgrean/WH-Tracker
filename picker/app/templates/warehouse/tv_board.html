@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ handling_code }} - Open Picks</title>
+    <!-- TV Mode specific styles -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <style>
+        body {
+            background-color: #0b0c10;
+            color: #c5c6c7;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            /* No scrollbars for TV */
+        }
+
+        .tv-container {
+            padding: 2vh 2vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tv-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #45a29e;
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .dept-title {
+            color: #66fcf1;
+            font-weight: 800;
+            font-size: 3rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .order-card {
+            background-color: #1f2833;
+            border: 1px solid #45a29e;
+            border-radius: 15px;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .assigned-card {
+            border-color: #28a745;
+            opacity: 0.8;
+        }
+
+        .card-body {
+            padding: 1.5rem 2rem;
+        }
+
+        .so-num {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #66fcf1;
+        }
+
+        .cust-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .line-badge {
+            font-size: 1.2rem;
+            background: #45a29e;
+            color: #0b0c10;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 800;
+        }
+
+        .picker-info {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #28a745;
+        }
+
+        .wait-text {
+            color: #ffc107;
+            font-weight: 800;
+            font-size: 1.2rem;
+        }
+
+        .clock {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+    </style>
+    <!-- Auto Refresh every 30 seconds -->
+    <meta http-equiv="refresh" content="30">
+</head>
+
+<body>
+    <div class="tv-container">
+        <div class="tv-header">
+            <div>
+                <span class="dept-title">{{ handling_code }}</span>
+                <span class="ml-4 h3 text-muted">OPEN PICK LIST</span>
+            </div>
+            <div class="text-right">
+                <div id="clock" class="clock">00:00:00</div>
+                <div class="h5 mt-n1">{{ summary|length }} Active Orders</div>
+            </div>
+        </div>
+
+        <div class="row">
+            {% for item in summary %}
+            <div class="col-4">
+                <div class="card order-card {{ 'assigned-card' if item.assigned_picker }}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="so-num">#{{ item.so_number }}</span>
+                            <span class="line-badge text-uppercase">{{ item.line_count }} Lines</span>
+                        </div>
+                        <div class="cust-name mb-1">{{ item.customer_name }}</div>
+                        <div class="text-muted mb-3 font-italic" style="font-size: 1rem;">Ref: {{ item.reference or
+                            'NONE' }}</div>
+
+                        <div class="border-top pt-2 d-flex justify-content-between">
+                            {% if item.assigned_picker %}
+                            <div class="picker-info">
+                                <i class="fas fa-check-circle mr-2"></i>{{ item.assigned_picker.name }}
+                            </div>
+                            {% else %}
+                            <div class="wait-text">
+                                <i class="fas fa-clock mr-2"></i>PENDING ASSIGNMENT
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center mt-5">
+                <h1 class="display-1 text-muted">NO OPEN PICKS</h1>
+                <p class="h3 text-muted">Waiting for new orders...</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            document.getElementById('clock').innerText = timeStr;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block navbar %}
+<!-- No content here means no navbar will be displayed -->
+{% endblock %}
+
+{% block title %}Confirmation{% endblock %}
+
+{% block content %}
+    <h2>Confirm Action</h2>
+    <p>{{ message }}</p>
+
+    <!-- Confirmation Buttons -->
+    <button id="confirmBtn">Confirm</button>
+    <button id="cancelBtn" onclick="window.history.back();">Cancel</button>
+
+    <script>
+        document.getElementById('confirmBtn').addEventListener('click', function() {
+            // Perform action on confirm, e.g., sending an AJAX request or redirecting
+            // For demonstration, we'll just redirect back
+            window.location.href = "{{ url_for('index') }}";
+        });
+    </script>
+{% endblock %}

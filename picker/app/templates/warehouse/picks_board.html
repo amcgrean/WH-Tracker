@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .handling-section {
+        margin-bottom: 2rem;
+        background: #fdfdfd;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid #eee;
+    }
+
+    .handling-header {
+        border-bottom: 2px solid #333;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .so-card {
+        border-radius: 10px;
+        border: 1px solid #e0e0e0;
+        transition: all 0.2s ease;
+        background: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .so-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        border-color: #adb5bd;
+    }
+
+    .status-indicator {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 6px;
+        height: 100%;
+    }
+
+    .status-unassigned-mark {
+        background: #ffc107;
+    }
+
+    .status-assigned-mark {
+        background: #28a745;
+    }
+
+    .cust-info {
+        font-size: 0.82rem;
+        line-height: 1.25;
+        min-height: 45px;
+    }
+
+    .cust-name {
+        font-weight: 700;
+        color: #2c3e50;
+        display: block;
+        margin-bottom: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cust-addr {
+        color: #6c757d;
+        font-size: 0.72rem;
+    }
+
+    .action-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 1px solid #dee2e6;
+        background: white;
+        color: #495057;
+        transition: all 0.2s;
+        padding: 0;
+    }
+
+    .action-btn:hover {
+        background: #f8f9fa;
+        color: #007bff;
+        border-color: #007bff;
+    }
+
+    .line-badge {
+        background: #e9ecef;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: 800;
+        font-size: 0.75rem;
+    }
+</style>
+
+<div class="container-fluid mt-3">
+    <div class="d-flex justify-content-between align-items-end mb-4 bg-white p-3 rounded shadow-sm border">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb bg-transparent p-0 mb-1">
+                    <li class="breadcrumb-item active">Warehouse Board (By Dept)</li>
+                </ol>
+            </nav>
+            <h1 class="font-weight-bold mb-0">Warehouse Command Board</h1>
+            <div class="d-flex align-items-center mt-1">
+                {% set unassigned_total = summary | selectattr('assigned_picker', 'none') | list | length %}
+                <span class="badge badge-warning mr-2">{{ unassigned_total }} Unassigned</span>
+                <span class="badge badge-success mr-2">{{ summary|length - unassigned_total }} Assigned</span>
+                <small class="text-muted">| Total Records: {{ summary|length }}</small>
+            </div>
+        </div>
+        <div class="d-flex">
+            <div class="btn-group shadow-sm mr-3">
+                <a href="{{ url_for('main.warehouse_board') }}" class="btn btn-dark active">Grouping: Dept</a>
+                <a href="{{ url_for('main.board_orders') }}" class="btn btn-outline-dark">Grouping: SO</a>
+            </div>
+            <a href="{{ url_for('main.work_center') }}" class="btn btn-dark shadow-sm">
+                <i class="fas fa-th mr-1"></i> Work Center
+            </a>
+        </div>
+    </div>
+
+    <!-- Dynamic Grouping by Handling Code -->
+    {% for code, picks in summary|groupby('handling_code') %}
+    <div class="handling-section shadow-sm">
+        <div class="handling-header">
+            <h3 class="mb-0 font-weight-bold">
+                <i class="fas fa-shipping-fast mr-2 text-primary"></i>
+                {{ code or 'General / No Code' }}
+            </h3>
+            <span class="badge badge-pill badge-dark px-3 py-2">{{ picks|length }} Active Orders</span>
+        </div>
+
+        <div class="row">
+            {% for item in picks %}
+            <div class="col-12 col-md-6 col-lg-4 col-xl-2 mb-3 px-2">
+                <div class="card so-card h-100">
+                    <div
+                        class="status-indicator {{ 'status-unassigned-mark' if not item.assigned_picker else 'status-assigned-mark' }}">
+                    </div>
+                    <div class="card-body p-3 pl-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="mb-0 font-weight-bold">
+                                <a href="{{ url_for('main.pick_detail', so_number=item.so_number) }}"
+                                    class="text-dark">#{{ item.so_number }}</a>
+                            </h5>
+                            <button type="button" class="action-btn" title="Assign Picker"
+                                onclick="openAssignModal('{{ item.so_number }}', '{{ item.assigned_picker.id if item.assigned_picker else '' }}', '{{ item.assigned_picker.name if item.assigned_picker else '' }}')">
+                                <i class="fas fa-user-plus"></i>
+                            </button>
+                        </div>
+
+                        <div class="cust-info mb-3">
+                            <span class="cust-name" title="{{ item.customer_name }}">{{ item.customer_name }}</span>
+                            <span class="cust-addr" title="{{ item.address }}">{{ item.address }}</span>
+                            {% if item.reference %}
+                            <div class="small text-muted mt-1 font-italic text-truncate"
+                                title="Ref: {{ item.reference }}">
+                                <i class="fas fa-tag mr-1"></i>{{ item.reference }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                            <span class="line-badge">{{ item.line_count }} Lines</span>
+                            {% if item.assigned_picker %}
+                            <div class="small text-success font-weight-bold ml-2 text-truncate"
+                                title="Assigned to {{ item.assigned_picker.name }}">
+                                <i class="fas fa-check-circle"></i> {{ item.assigned_picker.name.split(' ')[0] }}
+                            </div>
+                            {% else %}
+                            <div class="small text-warning font-weight-bold">
+                                <i class="fas fa-exclamation-triangle"></i> WAIT
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Assign Picker Modal -->
+<div class="modal fade" id="assignModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title font-weight-bold" id="modalTitle">Assign Picker</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form action="{{ url_for('main.assign_picker') }}" method="post">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="so_number" id="modalSoNumber">
+                    <div id="currentAssignmentText" class="alert alert-info py-2 small mb-3">
+                        Order is currently unassigned.
+                    </div>
+                    <div class="form-group">
+                        <label class="font-weight-bold mb-1">Select Field Staff</label>
+                        <select name="picker_id" id="modalPickerSelect" class="form-control form-control-lg">
+                            <option value="">-- Clear Assignment --</option>
+                            {% for picker in pickers %}
+                            <option value="{{ picker.id }}">{{ picker.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-secondary px-4" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary px-4 font-weight-bold shadow-sm">Save & Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openAssignModal(soNumber, currentPickerId, currentPickerName) {
+        document.getElementById('modalSoNumber').value = soNumber;
+        document.getElementById('modalTitle').innerText = 'Assign Order #' + soNumber;
+
+        const alertBox = document.getElementById('currentAssignmentText');
+        if (currentPickerId) {
+            alertBox.innerHTML = '<i class="fas fa-info-circle mr-1"></i> Currently assigned to: <strong>' + currentPickerName + '</strong>';
+            alertBox.className = 'alert alert-success py-2 small mb-3';
+        } else {
+            alertBox.innerHTML = '<i class="fas fa-info-circle mr-1"></i> Order is currently <strong>unassigned</strong>.';
+            alertBox.className = 'alert alert-info py-2 small mb-3';
+        }
+
+        const select = document.getElementById('modalPickerSelect');
+        select.value = currentPickerId;
+
+        $('#assignModal').modal('show');
+    }
+</script>
+{% endblock %}

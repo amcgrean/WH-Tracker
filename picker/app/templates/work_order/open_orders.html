@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page" id="page2">
+    <h1>Open Work Orders for {{ user.name }}</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Work Order #</th>
+                <th>Description</th>
+                <th>Start Time</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for wo in open_orders %}
+            <tr>
+                <td>{{ wo.work_order_number }}</td>
+                <td>{{ wo.description }}</td>
+                <td>{{ wo.created_at.strftime('%m/%d/%y %H:%M') }}</td>
+                <td>
+                    <form action="{{ url_for('main.complete_work_order', wo_id=wo.id) }}" method="post">
+                        <button type="submit">Complete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4">No open work orders.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="input-group">
+        <a href="{{ url_for('main.work_order_scan', user_id=user.id) }}" class="button">+ Input New Work Order</a>
+    </div>
+</div>
+
+<style>
+    .page {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 30px;
+        max-width: 900px;
+        margin: 40px auto;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+        width: 100%;
+        margin-top: 20px;
+        border-collapse: collapse;
+        background-color: #fff;
+    }
+
+    th,
+    td {
+        padding: 16px;
+        border: 1px solid #ddd;
+        text-align: center;
+    }
+
+    th {
+        background-color: #f1f1f1;
+    }
+
+    tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
+    .input-group {
+        text-align: center;
+        margin-top: 30px;
+    }
+
+    .button {
+        padding: 15px 30px;
+        font-size: 1.1em;
+        border-radius: 8px;
+        background-color: #28a745;
+        color: white;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    button {
+        padding: 10px 20px;
+        border-radius: 8px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}

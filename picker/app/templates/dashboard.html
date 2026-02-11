@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1>Pick Dashboard</h1>
+    <div class="stats">
+        <div class="card">
+            <h3>Today</h3>
+            Picks: <span id="todayPicks">0</span><br>
+            Will Calls: <span id="todayWillCalls">0</span>
+        </div>
+        <div class="card">
+            <h3>This Week</h3>
+            Picks: <span id="weekPicks">0</span><br>
+            Will Calls: <span id="weekWillCalls">0</span>
+        </div>
+        <div class="card">
+            <h3>This Month</h3>
+            Picks: <span id="monthPicks">0</span><br>
+            Will Calls: <span id="monthWillCalls">0</span>
+        </div>
+    </div>
+
+    <table id="openPicksTable" class="table">
+        <thead>
+            <tr>
+                <th>Order #</th>
+                <th>Picker Name</th>
+                <th>Start Time</th>
+                <th>Elapsed Time</th>
+                <th>Pick Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be loaded here via JavaScript -->
+        </tbody>
+    </table>
+
+    <h2>Completed Picks Today</h2>
+    <table id="completedPicksTable" class="table">
+        <thead>
+            <tr>
+                <th>Picker</th>
+                <th>Barcode</th>
+                <th>Type</th>
+                <th>Start Time</th>
+                <th>Complete Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be loaded here via JavaScript -->
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  fetchData('today');
+
+  function fetchData(period = 'today') {
+    fetch(`/api/dashboard?period=${period}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => updateDashboard(data))
+      .catch(error => console.error('Error loading dashboard data:', error));
+
+    fetch('/api/pickers_picks')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => updateOpenPicksTable(data.picks))
+      .catch(error => console.error('Error loading open picks data:', error));
+  }
+
+  function updateDashboard(data) {
+    if (!data.todayStats) {
+      console.error('Statistical data is missing:', data);
+      return;
+    }
+
+    document.getElementById('todayPicks').textContent = data.todayStats.picks;
+    document.getElementById('todayWillCalls').textContent = data.todayStats.willCalls;
+    document.getElementById('weekPicks').textContent = data.weekStats.picks;
+    document.getElementById('weekWillCalls').textContent = data.weekStats.willCalls;
+    document.getElementById('monthPicks').textContent = data.monthStats.picks;
+    document.getElementById('monthWillCalls').textContent = data.monthStats.willCalls;
+
+    updateCompletedPicksTable(data.completedPicks);
+  }
+
+  function updateCompletedPicksTable(entries) {
+    if (!Array.isArray(entries)) {
+      console.error('Expected an array for completed picks entries but got:', entries);
+      return;
+    }
+
+    const table = document.getElementById('completedPicksTable').getElementsByTagName('tbody')[0];
+    while (table.firstChild) {
+      table.removeChild(table.firstChild);
+    }
+
+    entries.forEach(entry => {
+      if (!entry.picker_name || !entry.barcode_number || !entry.pick_type || !entry.start_time || !entry.complete_time) {
+        console.error('Invalid entry:', entry);
+        return;
+      }
+
+      let row = table.insertRow();
+      row.insertCell(0).textContent = entry.picker_name;
+      row.insertCell(1).textContent = entry.barcode_number;
+      row.insertCell(2).textContent = entry.pick_type;
+      row.insertCell(3).textContent = entry.start_time;
+      row.insertCell(4).textContent = entry.complete_time;
+    });
+  }
+
+  function updateOpenPicksTable(entries) {
+    if (!Array.isArray(entries)) {
+      console.error('Expected an array for open picks entries but got:', entries);
+      return;
+    }
+
+    const table = document.getElementById('openPicksTable').getElementsByTagName('tbody')[0];
+    while (table.firstChild) {
+      table.removeChild(table.firstChild);
+    }
+
+    entries.forEach(entry => {
+      if (!entry.picker_name || !entry.barcode_number || !entry.pick_type || !entry.start_time) {
+        console.error('Invalid entry:', entry);
+        return;
+      }
+
+      let row = table.insertRow();
+      row.insertCell(0).textContent = entry.barcode_number;
+      row.insertCell(1).textContent = entry.picker_name;
+      row.insertCell(2).textContent = entry.start_time;
+      row.insertCell(3).textContent = entry.elapsed_time;
+      row.insertCell(4).textContent = entry.pick_type;
+    });
+  }
+
+  window.setPeriod = function(period) {
+    fetchData(period);
+  };
+});
+</script>
+{% endblock %}
+

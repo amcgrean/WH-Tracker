@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page" id="page4">
+    <h1>Work Orders for Sales Order #{{ barcode }}</h1>
+    <form action="{{ url_for('main.start_work_orders') }}" method="post">
+        <input type="hidden" name="user_id" value="{{ user.id }}">
+        <table>
+            <thead>
+                <tr>
+                    <th>Select</th>
+                    <th>WO #</th>
+                    <th>Item #</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td><input type="checkbox" name="selected_items"
+                            value="{{ item.wo_number }}|{{ item.item_number }}|{{ item.description }}"></td>
+                    <td>{{ item.wo_number }}</td>
+                    <td>{{ item.item_number }}</td>
+                    <td>{{ item.description }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="input-group">
+            <button type="submit">Start Work</button>
+        </div>
+    </form>
+</div>
+
+<style>
+    .page {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 30px;
+        max-width: 900px;
+        margin: 40px auto;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+        width: 100%;
+        margin-top: 20px;
+        border-collapse: collapse;
+        background-color: #fff;
+    }
+
+    th,
+    td {
+        padding: 16px;
+        border: 1px solid #ddd;
+        text-align: center;
+    }
+
+    th {
+        background-color: #f1f1f1;
+    }
+
+    tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
+    input[type="checkbox"] {
+        transform: scale(1.5);
+        cursor: pointer;
+    }
+
+    .input-group {
+        text-align: center;
+        margin-top: 30px;
+    }
+
+    button {
+        padding: 15px 30px;
+        font-size: 1.1em;
+        border-radius: 8px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}

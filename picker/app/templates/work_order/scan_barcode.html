@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <h1 class="display-4 mb-4">Scan Sales Order</h1>
+            <p class="lead mb-4">Hello, <strong>{{ user.name }}</strong>. Please scan the Sales Order barcode to begin.
+            </p>
+
+            <div class="card shadow-lg">
+                <div class="card-body p-5">
+                    <form action="{{ url_for('main.work_order_select') }}" method="get">
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
+
+                        <div class="form-group">
+                            <input type="text" class="form-control form-control-lg text-center" id="barcode"
+                                name="barcode" placeholder="Scan Barcode Here..."
+                                style="font-size: 2rem; height: 80px; border: 3px solid #007bff;" autofocus required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg btn-block mt-4"
+                            style="font-size: 1.5rem; padding: 15px;">
+                            Search Work Orders
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <a href="{{ url_for('main.work_orders') }}" class="btn btn-outline-secondary">Change User</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Ensure the input field always has focus for continuous scanning
+    document.addEventListener('DOMContentLoaded', function () {
+        const input = document.getElementById('barcode');
+        if (input) {
+            input.focus();
+            // Optional: Re-focus if user clicks away (uncomment if strict usage)
+            // document.addEventListener('click', () => input.focus());
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block navbar %}
+<!-- No content here means no navbar will be displayed -->
+{% endblock %}
+
+{% block title %}Confirm Picker{% endblock %}
+
+{% block content %}
+<h1>Confirm Picker</h1>
+<p>Are you sure you want to select {{ picker.name }}?</p>
+<form action="{{ url_for('main.confirm_picker', picker_id=picker.id) }}" method="post">
+    <input type="submit" value="Confirm">
+</form>
+
+{% endblock %}

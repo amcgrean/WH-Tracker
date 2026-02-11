@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1>Picks Detail for {{ picker.name }}</h1>
+    <table id="detailsTable" class="table">
+        <thead>
+            <tr>
+                <th>Barcode Number</th>
+                <th>Customer</th>
+                <th>Reference</th>
+                <th>Start Date/Time</th>
+                <th>Time to Complete</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pick in picks %}
+            <tr>
+                <td><a href="{{ url_for('main.pick_detail', so_number=pick['barcode_number']) }}">{{
+                        pick['barcode_number'] }}</a></td>
+                <td>{{ pick['customer_name'] }}</td>
+                <td>{{ pick['reference'] }}</td>
+                <td>{{ pick['start_time'] }}</td>
+                <td>{{ pick['time_to_complete'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.20/js/jquery.dataTables.min.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#detailsTable').DataTable({
+            "order": [[1, "asc"]],
+            "pageLength": 10
+        });
+    });
+</script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.20/css/jquery.dataTables.min.css">
+{% endblock %}

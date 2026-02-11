@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block navbar %}
+<!-- No content here means no navbar will be displayed -->
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="text-center">Open Picks</h1>
+    <div class="summary-box d-flex justify-content-around border p-3 mb-4" style="font-size: 1.2em; font-weight: bold;">
+        <p style="margin: 0; color: {{ 'green' if today_count > average_count else 'red' }}">
+            Picks completed today: {{ today_count }}
+        </p>
+        <p style="margin: 0;">
+            Will Calls today: {{ will_call_count }}
+        </p>
+        <p style="margin: 0;">
+            Daily Average: {{ average_count | round(0, 'common') }}
+        </p>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <!-- <h2>Column 1</h2> -->
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Picker Name</th>
+                        <th>Start Time</th>
+                        <th>Elapsed Time</th>
+                        <th>Pick Type</th>
+                    </tr>
+                </thead>
+                <tbody id="picksTableBody1">
+                    <!-- Rows will be dynamically added by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-6">
+           <!--  <h2>Column 2</h2> -->
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Picker Name</th>
+                        <th>Start Time</th>
+                        <th>Elapsed Time</th>
+                        <th>Pick Type</th>
+                    </tr>
+                </thead>
+                <tbody id="picksTableBody2">
+                    <!-- Rows will be dynamically added by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    function fetchData() {
+        fetch('/api/pickers_picks')  // Adjusted to use the dedicated API endpoint
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const tbody1 = document.getElementById('picksTableBody1');
+                const tbody2 = document.getElementById('picksTableBody2');
+                const todayCountElement = document.querySelector('.summary-box p:first-child');
+                const willCallCountElement = document.querySelector('.summary-box p:nth-child(2)'); // Updated to select the second paragraph
+                const averageCountElement = document.querySelector('.summary-box p:last-child');
+
+                tbody1.innerHTML = '';  // Clear table body before repopulating
+                tbody2.innerHTML = '';  // Clear table body before repopulating
+
+                todayCountElement.innerHTML = `Picks completed today: ${data.today_count}`;
+                willCallCountElement.innerHTML = `Will Calls today: ${data.will_call_count}`;  // Update the will call count
+                averageCountElement.innerHTML = `Daily Average: ${Math.round(data.average_count)}`;
+
+                data.picks.forEach((pick, index) => {
+                    const formattedDate = new Date(pick.start_time).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
+                    const formattedTime = new Date(pick.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    const row = `<tr>
+                                    <td>${pick.barcode_number}</td>
+                                    <td>${pick.picker_name}</td>
+                                    <td>${formattedDate} ${formattedTime}</td>
+                                    <td>${pick.elapsed_time}</td>
+                                    <td>${pick.pick_type}</td>
+                                 </tr>`;
+                    if (index % 2 === 0) {
+                        tbody1.innerHTML += row;  // Add the new row to the first table
+                    } else {
+                        tbody2.innerHTML += row;  // Add the new row to the second table
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+                // Optionally update the webpage to inform the user of the error
+            });
+    }
+
+    // Call fetchData every 60 seconds to update the page with the latest data.
+    setInterval(fetchData, 60000);
+
+    // Also, fetch data immediately on page load.
+    fetchData();
+});
+</script>
+{% endblock %}
+
+

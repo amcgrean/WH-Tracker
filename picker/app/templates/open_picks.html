@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Warehouse Open Picks</h1>
+    <a href="{{ url_for('main.work_center') }}" class="btn btn-secondary mb-3">Back to Work Center</a>
+
+    {% for so_number, handling_groups in grouped_picks.items() %}
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+            <h4>Sales Order #{{ so_number }}</h4>
+        </div>
+        <div class="card-body">
+            {% for code, items in handling_groups.items() %}
+            <div class="mb-3 p-3 border rounded bg-light">
+                <h5 class="text-primary">Handling Code: {{ code }}</h5>
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Seq</th>
+                            <th>Item</th>
+                            <th>Description</th>
+                            <th>Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.sequence }}</td>
+                            <td>{{ item.item_number }}</td>
+                            <td>{{ item.description }}</td>
+                            <td>{{ item.qty }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <button class="btn btn-success btn-sm">Start Pick Group</button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">No open picks found in Agility.</div>
+    {% endfor %}
+</div>
+{% endblock %}

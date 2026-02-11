@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block navbar %}
+<!-- No content here means no navbar will be displayed -->
+{% endblock %}
+
+{% block title %}Input Pick{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Input Pick for {{ picker.name }}</h1>
+    <form id="pickForm" action="{{ url_for('main.start_pick', picker_id=picker.id, pick_type_id=pick_type_id) }}" method="post">
+        <div class="form-group">
+            <label for="barcodeInput">Barcode:</label>
+            <input type="text" class="form-control" id="barcodeInput" name="barcode" pattern="[0-9\s\-]+" required autofocus>
+            <small class="form-text text-muted">Enter the barcode. Only numbers, spaces, and hyphens are allowed.</small>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    document.getElementById('pickForm').onsubmit = function() {
+        var input = document.getElementById('barcodeInput');
+        var valid = /^[0-9\s\-]+$/.test(input.value);
+        if (!valid) {
+            alert("Invalid input. Only numbers, spaces, and hyphens are allowed.");
+            return false;
+        }
+        return true;
+    };
+</script>
+{% endblock %}

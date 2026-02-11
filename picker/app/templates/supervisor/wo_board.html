@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .wo-card {
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        transition: all 0.2s ease;
+        background: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .wo-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        border-color: #adb5bd;
+    }
+
+    .status-indicator {
+        position: absolute;
+        top: 0;
+        right: 0;
+        padding: 4px 12px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        border-bottom-left-radius: 12px;
+    }
+
+    .status-open {
+        background: #f8f9fa;
+        color: #6c757d;
+    }
+
+    .status-assigned {
+        background: #e7f5ff;
+        color: #1c7ed6;
+    }
+
+    .status-in-progress {
+        background: #fff4e6;
+        color: #d9480f;
+    }
+
+    .dept-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 50px;
+        background: #004526;
+        color: #fff;
+        margin-bottom: 8px;
+    }
+</style>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-end mb-4 bg-white p-3 rounded shadow-sm border">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb bg-transparent p-0 mb-1">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.supervisor_dashboard') }}">Supervisor</a></li>
+                    <li class="breadcrumb-item active">Work Order Board</li>
+                </ol>
+            </nav>
+            <h1 class="font-weight-bold mb-0">Open Work Orders Board</h1>
+            <p class="text-muted mb-0">Monitor and assign builders to door shop and production orders.</p>
+        </div>
+        <div>
+            <a href="{{ url_for('main.supervisor_dashboard') }}" class="btn btn-outline-dark shadow-sm">
+                <i class="fas fa-chevron-left mr-2"></i>Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for wo in work_orders %}
+        <div class="col-12 col-md-6 col-lg-4 col-xl-3 mb-4 px-3">
+            <div class="card wo-card h-100 border-0 shadow-sm">
+                <div class="status-indicator {{ 'status-assigned' if wo.assigned_to else 'status-open' }}">
+                    {{ wo.local_status }}
+                </div>
+                <div class="card-body p-4">
+                    <div class="dept-badge d-inline-block">{{ wo.department }}</div>
+
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h4 class="mb-0 font-weight-bold text-dark">WO #{{ wo.wo_id }}</h4>
+                            <small class="text-muted">Source SO: <strong>#{{ wo.so_number }}</strong></small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="text-muted small font-weight-bold text-uppercase d-block mb-1">Item &
+                            Description</label>
+                        <div class="font-weight-bold text-dark mb-1">{{ wo.item_number }}</div>
+                        <div class="small text-muted text-truncate" title="{{ wo.description }}">{{ wo.description }}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded mb-4">
+                        <span class="small font-weight-bold text-muted text-uppercase">Ordered Qty</span>
+                        <span class="h5 mb-0 font-weight-bold text-dark">{{ wo.qty | int }}</span>
+                    </div>
+
+                    <div class="pt-3 border-top">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                {% if wo.assigned_to %}
+                                <div class="text-primary font-weight-bold small">
+                                    <i class="fas fa-hammer mr-1"></i>{{ wo.assigned_to }}
+                                </div>
+                                {% else %}
+                                <div class="text-muted font-weight-bold small">
+                                    <i class="fas fa-user-clock mr-1"></i>Unassigned
+                                </div>
+                                {% endif %}
+                            </div>
+                            <button class="btn btn-sm btn-ops-primary"
+                                onclick="openAssignModal('{{ wo.wo_id }}', '{{ wo.so_number }}', '{{ wo.item_number }}', '{{ wo.description }}', '{{ wo.assigned_to }}')">
+                                <i class="fas fa-user-plus mr-1"></i> Assign
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <div class="p-5 bg-white rounded shadow-sm border">
+                <i class="fas fa-check-double fa-3x text-success mb-3"></i>
+                <h3 class="text-muted">All Work Orders Completed</h3>
+                <p>No open work orders found in the ERP system.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Assignment Modal -->
+<div class="modal fade" id="assignModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header bg-ops-primary text-white border-0"
+                style="border-top-left-radius: 20px; border-top-right-radius: 20px; background-color: #004526;">
+                <h5 class="modal-title font-weight-bold" id="modalTitle">Assign Builder</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form action="{{ url_for('main.assign_wo') }}" method="POST">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="wo_id" id="modal_wo_id">
+                    <input type="hidden" name="so_number" id="modal_so_number">
+                    <input type="hidden" name="item_number" id="modal_item_number">
+                    <input type="hidden" name="description" id="modal_description">
+
+                    <div class="bg-light p-3 rounded mb-4">
+                        <div id="modal_wo_display" class="h6 font-weight-bold text-dark mb-1"></div>
+                        <div id="modal_item_display" class="small text-muted"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="text-muted small font-weight-bold text-uppercase">Select Builder / Staff</label>
+                        <select name="staff_id" class="form-control form-control-lg custom-select border-0 shadow-sm"
+                            style="background-color: #f8f9fa;">
+                            <option value="">-- Remove Assignment --</option>
+                            {% for person in staff %}
+                            <option value="{{ person.id }}">{{ person.name }} ({{ person.user_type | replace('_', ' ') |
+                                capitalize }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4">
+                    <button type="button" class="btn btn-light font-weight-bold" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-ops-primary px-4 shadow-sm">Update Assignment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openAssignModal(woId, soNum, itemNum, desc, currentAssigned) {
+        document.getElementById('modal_wo_id').value = woId;
+        document.getElementById('modal_so_number').value = soNum;
+        document.getElementById('modal_item_number').value = itemNum;
+        document.getElementById('modal_description').value = desc;
+
+        document.getElementById('modal_wo_display').innerText = 'Work Order #' + woId;
+        document.getElementById('modal_item_display').innerText = itemNum + ' - ' + desc;
+
+        $('#assignModal').modal('show');
+    }
+</script>
+{% endblock %}

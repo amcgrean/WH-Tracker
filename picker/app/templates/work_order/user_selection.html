@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page active" id="page1">
+    <h1>Select Your Name</h1>
+    <div class="grid">
+        {% for picker in pickers %}
+        <a href="{{ url_for('main.work_orders_open', user_id=picker.id) }}" class="button">{{ picker.name }}</a>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .page {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 30px;
+        max-width: 900px;
+        margin: 40px auto;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    .grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        justify-content: center;
+    }
+
+    .button {
+        padding: 20px;
+        font-size: 1.2em;
+        border: none;
+        border-radius: 10px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        min-width: 200px;
+        text-align: center;
+        transition: background-color 0.3s;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .button:hover {
+        background-color: #0056b3;
+    }
+</style>
+{% endblock %}

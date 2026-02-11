@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <h1>Select Handling Code</h1>
+            <p class="lead">Choose the zone you are picking for.</p>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="button-grid">
+                <a href="{{ url_for('main.warehouse_list', code='Deck Bldg') }}" class="button"
+                    style="background-color: #17a2b8;">Deck Bldg</a>
+                <a href="{{ url_for('main.warehouse_list', code='Door1') }}" class="button"
+                    style="background-color: #28a745;">Door1</a>
+                <a href="{{ url_for('main.warehouse_list', code='EWP') }}" class="button"
+                    style="background-color: #ffc107; color: black;">EWP</a>
+                <a href="{{ url_for('main.warehouse_list', code='Metals') }}" class="button"
+                    style="background-color: #6c757d;">Metals</a>
+            </div>
+            <div class="mt-4 text-center">
+                <a href="{{ url_for('main.work_center') }}" class="btn btn-secondary btn-lg">Back to Work Center</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .button-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+
+    .button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: white;
+        text-decoration: none;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+
+    .button:hover {
+        transform: translateY(-5px);
+        text-decoration: none;
+        color: white;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}

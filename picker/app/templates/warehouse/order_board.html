@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .so-card {
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        transition: all 0.2s ease;
+        background: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .so-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        border-color: #adb5bd;
+    }
+
+    .status-indicator {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 8px;
+        height: 100%;
+    }
+
+    .status-unassigned-mark {
+        background: #ffbc00;
+    }
+
+    .status-assigned-mark {
+        background: #20c997;
+    }
+
+    .cust-info {
+        min-height: 45px;
+    }
+
+    .cust-name {
+        font-weight: 800;
+        color: #1a1a1a;
+        display: block;
+        margin-bottom: 2px;
+        font-size: 1rem;
+    }
+
+    .cust-addr {
+        color: #727b84;
+        font-size: 0.8rem;
+    }
+
+    .code-pill {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 50px;
+        background: #f1f3f5;
+        color: #495057;
+        margin-right: 4px;
+        margin-bottom: 4px;
+        border: 1px solid #dee2e6;
+    }
+
+    .line-count-badge {
+        background: #212529;
+        color: #fff;
+        padding: 2px 10px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+</style>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-end mb-4 bg-white p-3 rounded shadow-sm border">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb bg-transparent p-0 mb-1">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.warehouse_board') }}">Warehouse</a></li>
+                    <li class="breadcrumb-item active">Order Board</li>
+                </ol>
+            </nav>
+            <h1 class="font-weight-bold mb-0">Main Order Monitoring</h1>
+            <p class="text-muted mb-0">Overview of all unique Sales Orders across departments.</p>
+        </div>
+        <div class="btn-group shadow-sm">
+            <a href="{{ url_for('main.warehouse_board') }}" class="btn btn-outline-dark">Grouping: Dept</a>
+            <a href="{{ url_for('main.board_orders') }}" class="btn btn-dark active">Grouping: SO</a>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for order in orders %}
+        <div class="col-12 col-md-6 col-lg-4 col-xl-3 mb-4 px-3">
+            <div class="card so-card h-100 border-0 shadow-sm">
+                <div
+                    class="status-indicator {{ 'status-unassigned-mark' if not order.assigned_picker else 'status-assigned-mark' }}">
+                </div>
+                <div class="card-body p-4 pl-5">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h4 class="mb-0 font-weight-bold">
+                                <a href="{{ url_for('main.pick_detail', so_number=order.so_number) }}"
+                                    class="text-dark">#{{ order.so_number }}</a>
+                            </h4>
+                            {% if order.reference %}
+                            <small class="text-muted font-italic">Ref: {{ order.reference }}</small>
+                            {% endif %}
+                        </div>
+                        <span class="line-count-badge">{{ order.line_count }} Lines</span>
+                    </div>
+
+                    <div class="cust-info mb-4">
+                        <span class="cust-name text-truncate d-block" title="{{ order.customer_name }}">{{
+                            order.customer_name }}</span>
+                        <span class="cust-addr d-block text-truncate" title="{{ order.address }}">{{ order.address
+                            }}</span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="text-muted small font-weight-bold text-uppercase d-block mb-2">Required
+                            Sections</label>
+                        <div class="d-flex flex-wrap">
+                            {% for code in order.handling_codes %}
+                            <span class="code-pill">{{ code }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-top d-flex justify-content-between align-items-center">
+                        {% if order.assigned_picker %}
+                        <div class="text-success font-weight-bold small">
+                            <i class="fas fa-check-circle mr-1"></i>{{ order.assigned_picker.name }}
+                        </div>
+                        {% else %}
+                        <div class="text-warning font-weight-bold small">
+                            <i class="fas fa-pause-circle mr-1"></i>Unassigned
+                        </div>
+                        {% endif %}
+                        <a href="{{ url_for('main.pick_detail', so_number=order.so_number) }}"
+                            class="btn btn-sm btn-light border">
+                            Details <i class="fas fa-chevron-right ml-1 small"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <div class="p-5 bg-white rounded shadow-sm border">
+                <i class="fas fa-box-open fa-3x text-light mb-3"></i>
+                <h3 class="text-muted">No Open Orders Found</h3>
+                <p>All clear in the warehouse!</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

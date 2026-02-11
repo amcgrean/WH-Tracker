@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Select Work Center</title>
+    <style>
+        body {
+            font-family: "Segoe UI", sans-serif;
+            background-color: #f2f4f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #333;
+            margin-bottom: 40px;
+        }
+
+        .button-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 30px 40px;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.5em;
+            cursor: pointer;
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s;
+            text-decoration: none;
+            /* For anchor tags */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        .button-secondary {
+            background-color: #28a745;
+        }
+
+        .button-secondary:hover {
+            background-color: #1e7e34;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Select Your Work Center</h1>
+    <div class="button-grid">
+        <a href="{{ url_for('main.index') }}" class="button">Pick Tracker</a>
+        <a href="{{ url_for('main.work_orders') }}" class="button button-secondary">Work Order Tracker</a>
+        <a href="{{ url_for('main.warehouse_select') }}" class="button" style="background-color: #6f42c1;">Warehouse
+            Picks</a>
+    </div>
+    <div class="mt-5">
+        <a href="{{ url_for('main.supervisor_dashboard') }}" class="button"
+            style="background-color: #343a40; min-width: 400px;">
+            <i class="fas fa-user-shield mr-2"></i> Supervisor Dashboard
+        </a>
+    </div>
+</body>
+
+</html>

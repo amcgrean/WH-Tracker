@@ -1,0 +1,178 @@
+/* Global Design System - Modern Warehouse Ops */
+:root {
+    --primary-bg: #f8f9fa;
+    --beisser-green: #004526;
+    --beisser-green-light: #006834;
+    --beisser-gold: #c5a059;
+    --dark-charcoal: #1a1a1b;
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --border-radius-lg: 16px;
+    --border-radius-md: 12px;
+    --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--primary-bg);
+    color: var(--dark-charcoal);
+    line-height: 1.6;
+}
+
+/* Typography Enhancements */
+h1,
+h2,
+h3,
+h4,
+.navbar-brand {
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    color: var(--beisser-green);
+}
+
+/* Modern Navbar (Glassmorphism) */
+.navbar-ops {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8rem 2rem;
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+}
+
+.navbar-brand {
+    font-size: 1.5rem;
+    background: linear-gradient(45deg, var(--beisser-green), var(--beisser-green-light));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.nav-link {
+    font-weight: 600;
+    color: var(--dark-charcoal) !important;
+    padding: 0.5rem 1.2rem !important;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+}
+
+.nav-link:hover {
+    background: rgba(0, 69, 38, 0.05);
+    color: var(--beisser-green) !important;
+}
+
+/* Premium Cards */
+.card-ops {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.card-ops:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--beisser-green-light);
+}
+
+.card-ops .card-header {
+    background-color: var(--beisser-green);
+    color: #fff;
+    font-weight: 700;
+    border-bottom: none;
+    padding: 1rem 1.5rem;
+}
+
+/* Refined Tables */
+.table-ops {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    margin-top: 1rem;
+    background: #fff;
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.table-ops th {
+    background-color: var(--beisser-green);
+    color: #fff;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 1.2rem 1rem;
+    border: none;
+}
+
+.table-ops td {
+    padding: 1.2rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+/* Button Refinement */
+.btn-ops-primary {
+    background-color: var(--beisser-green);
+    color: #fff;
+    border: none;
+    font-weight: 700;
+    padding: 0.6rem 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 0 0 #002d18;
+    transition: all 0.1s;
+}
+
+.btn-ops-primary:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 0 #002d18;
+}
+
+.btn-ops-gold {
+    background-color: var(--beisser-gold);
+    color: #fff;
+    border: none;
+    font-weight: 700;
+}
+
+/* Status Badges */
+.badge-pill {
+    padding: 0.4rem 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+}
+
+/* Footer Style */
+.footer-ops {
+    background-color: var(--dark-charcoal);
+    color: #a0a0a0;
+    padding: 3rem 0;
+    margin-top: 4rem;
+}
+
+.footer-link {
+    color: #fff;
+    transition: opacity 0.2s;
+}
+
+.footer-link:hover {
+    text-decoration: none;
+    opacity: 0.8;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+    .navbar-ops {
+        padding: 0.5rem 1rem;
+    }
+
+    .dept-title {
+        font-size: 2rem !important;
+    }
+}

@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1>Picker Stats</h1>
+    <div class="btn-group" role="group">
+        <a href="?period=7days" class="btn btn-secondary">Last 7 Days</a>
+        <a href="?period=30days" class="btn btn-secondary">Last 30 Days</a>
+        <a href="?period=ytd" class="btn btn-secondary">Year to Date</a>
+    </div>
+    <form id="dateFilterForm" action="" method="get" style="display:inline;">
+        <input type="date" name="start_date" value="{{ start_date }}" class="form-control-sm">
+        <input type="date" name="end_date" value="{{ end_date }}" class="form-control-sm">
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    </form>
+    <br><br>
+
+    <!-- New Stats Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">Total Picks</div>
+                <div class="card-body">
+                    <h2 class="card-title">{{ total_picks }}</h2>
+                    <p class="card-text">Avg Time: {{ avg_time }} min</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card mb-3">
+                <div class="card-header">Breakdown by Type</div>
+                <ul class="list-group list-group-flush">
+                    {% for type in type_stats %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ type.name }}
+                        <span>
+                            <span class="badge badge-primary badge-pill">{{ type.count }}</span>
+                            <small class="text-muted ml-2">({{ type.avg_time }} min)</small>
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header">Top Pickers</div>
+                <ul class="list-group list-group-flush">
+                    {% for picker in top_pickers %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ picker.name }}
+                        <span class="badge badge-success badge-pill">{{ picker.pick_count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th><a
+                        href="?sort=picker_id&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Picker
+                        ID</a></th>
+                <th><a
+                        href="?sort=name&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Picker
+                        Name</a></th>
+                <th><a
+                        href="?sort=yard_picks&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Number
+                        of Yard Picks</a></th>
+                <th><a
+                        href="?sort=will_call_picks&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Number
+                        of Will Calls</a></th>
+                <th><a
+                        href="?sort=avg_pick_time&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Average
+                        Pick Time (HH:MM)</a></th>
+                <th><a
+                        href="?sort=avg_picks_per_day&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Average
+                        Picks per Day</a></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in stats %}
+            <tr>
+                <td>{{ stat.id }}</td>
+                <td><a href="{{ url_for('main.picker_details', picker_id=stat.id) }}">{{ stat.name }}</a></td>
+                <td>{{ stat.yard_picks }}</td>
+                <td>{{ stat.will_call_picks }}</td>
+                <td>{{ stat.avg_pick_time }}</td>
+                <td>{{ stat.avg_picks_per_day }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Sales Order #{{ so_number }}</h1>
+            <span class="badge badge-secondary">Detail View</span>
+        </div>
+        <div>
+            <a href="{{ url_for('main.warehouse_board') }}" class="btn btn-outline-secondary">Back to Board</a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0 bg-light">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 border-right">
+                            <label class="text-muted small font-weight-bold text-uppercase mb-1">Customer</label>
+                            <div class="h5 mb-0 font-weight-bold text-primary">{{ header.customer_name if header else
+                                'Unknown Customer' }}</div>
+                            <div class="text-muted small mt-1">{{ header.address if header else 'Address Not Available'
+                                }}</div>
+                        </div>
+                        <div class="col-md-6 pl-md-4">
+                            <label class="text-muted small font-weight-bold text-uppercase mb-1">SO Reference</label>
+                            <div class="h6 mb-0 font-weight-bold text-dark">{{ header.reference if header and
+                                header.reference else 'No Reference Provided' }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">Line Items</h4>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 10%">Seq</th>
+                        <th style="width: 20%">Item Number</th>
+                        <th style="width: 40%">Description</th>
+                        <th style="width: 15%">Handling</th>
+                        <th style="width: 15%">Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.sequence }}</td>
+                        <td class="font-weight-bold">{{ item.item_number }}</td>
+                        <td>{{ item.description }}</td>
+                        <td>{{ item.handling_code }}</td>
+                        <td><span class="badge badge-light" style="font-size: 1.2em; border: 1px solid #ccc;">{{
+                                item.qty }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4">No items found for this order.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

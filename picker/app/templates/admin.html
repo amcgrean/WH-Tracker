@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Panel{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    /* Custom hover style for table rows */
+    .hover-golden:hover {
+        background-color: gold;
+        /* Change to a goldish color upon hover */
+        transform: scale(1.05);
+        /* Enlarge by 5% */
+        transition: transform .2s, background-color .2s;
+        /* Smooth transition for both scale and color */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h2>Manage Pickers</h2>
+<br>
+<!-- Add Picker Form -->
+
+<form action="/add_picker" method="post">
+    <label for="picker_name">
+        <h6>Add New Picker:</h6>
+    </label>
+    <input type="text" id="picker_name" name="picker_name" placeholder="Picker Name" required>
+    <select name="user_type" id="user_type">
+        <option value="picker">Picker</option>
+        <option value="door_builder">Door Builder</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Add Picker</button>
+</form>
+
+<!-- List of Pickers -->
+<h3>Current Pickers</h3>
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th scope="col">Picker Name</th>
+            <th scope="col">Type</th>
+            <th scope="col">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for picker in pickers %}
+        <tr class="hover-golden">
+            <td>{{ picker.name }}</td>
+            <td>{{ picker.user_type }}</td>
+            <td>
+                <a href="/edit_picker/{{ picker.id }}" class="btn btn-warning btn-sm">Edit</a>
+                <button type="button" class="btn btn-danger btn-sm" data-toggle="modal"
+                    data-target="#deletePickerModal{{ picker.id }}">Delete</button>
+
+                <!-- Modal -->
+                <div class="modal fade" id="deletePickerModal{{ picker.id }}" tabindex="-1" role="dialog"
+                    aria-labelledby="deletePickerLabel{{ picker.id }}" aria-hidden="true">
+                    <div class="modal-dialog" role="document">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="deletePickerLabel{{ picker.id }}">Confirm Delete</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <form action="/delete_picker/{{ picker.id }}" method="post">
+                                    <div class="form-group">
+                                        <label>Enter password to confirm:</label>
+                                        <input type="password" name="password" class="form-control" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-danger">Confirm Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
