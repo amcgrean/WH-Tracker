@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Select Work Center</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background-color: #f2f4f6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 2.5em;
+      color: #333;
+      margin-bottom: 40px;
+    }
+
+    .button-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .button {
+      background-color: #007bff;
+      color: white;
+      padding: 30px 40px;
+      border: none;
+      border-radius: 15px;
+      font-size: 1.5em;
+      cursor: pointer;
+      min-width: 300px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: background-color 0.3s;
+    }
+
+    .button:hover {
+      background-color: #0056b3;
+    }
+
+    .button-secondary {
+      background-color: #28a745;
+    }
+
+    .button-secondary:hover {
+      background-color: #1e7e34;
+    }
+  </style>
+</head>
+<body>
+  <h1>Select Your Work Center</h1>
+  <div class="button-grid">
+    <button class="button" onclick="location.href='modules/pick-tracker/index.html'">Pick Tracker</button>
+    <button class="button button-secondary" onclick="location.href='modules/work-order-tracker/index.html'">Work Order Tracker</button>
+  </div>
+</body>
+</html>

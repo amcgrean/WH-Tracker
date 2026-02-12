@@ -7,3 +7,4 @@ pytz
 pyodbc
 requests
 gunicorn
+psycopg2-binary
