@@ -4,7 +4,7 @@ from app.Models.models import ERPMirrorPick, ERPMirrorWorkOrder
 
 try:
     import pyodbc
-except ImportError:
+except (ImportError, OSError):
     pyodbc = None
 
 class ERPService:
