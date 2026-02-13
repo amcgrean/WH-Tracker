@@ -364,7 +364,6 @@ def api_picks():
 
     return jsonify(data)
 
-import pandas as pd
 @main.route('/picker_stats', methods=['GET'])
 def picker_stats():
     sort_by = request.args.get('sort', 'id')

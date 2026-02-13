@@ -1,7 +1,11 @@
-import pyodbc
 import os
 from datetime import datetime
 from app.Models.models import ERPMirrorPick, ERPMirrorWorkOrder
+
+try:
+    import pyodbc
+except (ImportError, OSError):
+    pyodbc = None
 
 class ERPService:
     def __init__(self):
@@ -14,6 +18,8 @@ class ERPService:
         self.cloud_mode = os.environ.get('CLOUD_MODE') == 'True'
         
     def get_connection(self):
+        if pyodbc is None:
+            raise RuntimeError("pyodbc is not installed. Set CLOUD_MODE=True for serverless deployments.")
         connection_string = f'DRIVER={self.driver};SERVER={self.server};DATABASE={self.database};UID={self.username};PWD={self.password}'
         return pyodbc.connect(connection_string)
 
