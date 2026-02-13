@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Work Order Tracker MVP</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f6f8;
+      padding: 20px;
+      margin: 0;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2em;
+      color: #333;
+      margin-bottom: 30px;
+    }
+
+    .page {
+      display: none;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 900px;
+      margin: 40px auto;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    .active {
+      display: block;
+    }
+
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    .button {
+      padding: 20px;
+      font-size: 1.2em;
+      border: none;
+      border-radius: 10px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      min-width: 200px;
+      text-align: center;
+      transition: background-color 0.3s;
+    }
+
+    .button:hover {
+      background-color: #0056b3;
+    }
+
+    .input-group {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    input[type="text"] {
+      padding: 15px;
+      font-size: 1.1em;
+      width: 300px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      padding: 15px 30px;
+      font-size: 1.1em;
+      margin-top: 20px;
+      border-radius: 8px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #218838;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+      background-color: #fff;
+    }
+
+    th, td {
+      padding: 16px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f1f1f1;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    input[type="checkbox"] {
+      transform: scale(1.5);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: User Selection -->
+  <div class="page active" id="page1">
+    <h1>Select Your Name</h1>
+    <div class="grid">
+      <div class="button" onclick="goToPage(2)">Al Dembinski</div>
+      <div class="button" onclick="goToPage(2)">Angel Rojas</div>
+      <div class="button" onclick="goToPage(2)">STETSON</div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: Open Work Orders for User -->
+  <div class="page" id="page2">
+    <h1>Open Work Orders for STETSON</h1>
+    <table>
+      <thead>
+        <tr><th>Barcode</th><th>Pick Type</th><th>Start Time</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1344</td>
+          <td>1</td>
+          <td>07/02/25 17:43</td>
+          <td><button onclick="completeWork()">Complete</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="input-group">
+      <button onclick="goToPage(3)">+ Input New Work Order</button>
+    </div>
+  </div>
+
+  <!-- PAGE 3: Input Barcode -->
+  <div class="page" id="page3">
+    <h1>Scan or Enter Sales Order Barcode</h1>
+    <div class="input-group">
+      <input type="text" placeholder="Enter barcode..." id="barcodeInput">
+      <br>
+      <button onclick="goToPage(4)">Submit</button>
+    </div>
+  </div>
+
+  <!-- PAGE 4: Select Work Orders -->
+  <div class="page" id="page4">
+    <h1>Work Orders for Sales Order #12345</h1>
+    <form id="woForm">
+      <table>
+        <thead>
+          <tr><th>Select</th><th>WO #</th><th>Item #</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" name="wo"></td>
+            <td>WO-001</td>
+            <td>874125</td>
+            <td>Interior Door - Oak</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" name="wo"></td>
+            <td>WO-002</td>
+            <td>874128</td>
+            <td>Exterior Frame - Pine</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" name="wo"></td>
+            <td>WO-003</td>
+            <td>874129</td>
+            <td>Threshold Kit</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="input-group">
+        <button type="button" onclick="goToPage(1)">Start Work</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function goToPage(pageNum) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('page' + pageNum).classList.add('active');
+    }
+
+    function completeWork() {
+      alert('Work order marked complete!');
+      goToPage(2);
+    }
+  </script>
+</body>
+</html>

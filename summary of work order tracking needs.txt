@@ -1,0 +1,34 @@
+Work Order Tracker MVP - AI Prompt Summary
+-------------------------------------------
+
+Project Overview:
+We're developing a new module called the **Work Order Tracker**, which will function alongside an existing **Pick Tracker** module. Both will be accessed from a central "Work Center" selector screen where the user picks which workflow to begin. This system is being designed for warehouse/millwork operations with a touchscreen-friendly interface.
+
+Purpose of This Mockup:
+This mockup is a **non-functional proof of concept** to demonstrate the core flow and user experience of the Work Order Tracker module. It is intended for internal review by the Millwork Manager before development proceeds.
+
+Tech Stack (MVP):
+- HTML/CSS/JS (touchscreen optimized)
+- Flask or similar backend (future phase)
+- SQL database (PostgreSQL preferred in production)
+
+Core Workflow:
+1. **Main Page** – User selects the work center (Pick Tracker or Work Order Tracker).
+2. **User Selection Page** – User taps their name to begin.
+3. **Open Work Orders Page** – Displays any open (in-progress) work orders for the user.
+4. **New Work Order Input Page** – User enters or scans a Sales Order barcode.
+5. **Work Order Selection Page** – The system retrieves matching work orders tied to the barcode.
+   - User checks the items they will begin picking.
+   - Tapping "Start" sends them back to the Open Work Orders screen with the new ones listed.
+
+Future Integration:
+- This module will reuse backend logic and structure from the Pick Tracker where possible.
+- A shared login/session system will eventually allow picker continuity across modules.
+- Barcode scan will trigger dynamic DB queries for linked work orders.
+- Work orders will be stored in a new table similar to the existing picks table.
+
+Current State:
+The included HTML file represents a mockup of the full user flow using placeholder data.
+All UI components are touchscreen-friendly and ready to be wired to real data and endpoints.
+
+Date Prepared: 2026-02-09
