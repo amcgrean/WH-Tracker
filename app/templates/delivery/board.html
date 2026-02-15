@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Delivery Board{% endblock %}
+{% block content %}
+<div class="container-fluid py-4 px-4">
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0"><i class="fas fa-truck mr-2"></i>Delivery Board</h2>
+            <p class="text-muted mb-0">Real-time delivery operations &amp; KPIs</p>
+        </div>
+        <div class="d-flex align-items-center">
+            <span class="badge badge-pill badge-success mr-2 p-2" id="liveIndicator">
+                <i class="fas fa-circle mr-1" style="font-size:0.5rem;"></i> LIVE
+            </span>
+            <a href="{{ url_for('main.delivery_map') }}" class="btn btn-ops-primary">
+                <i class="fas fa-map-marked-alt mr-1"></i> Fleet Map
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card card-ops h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small text-uppercase font-weight-bold mb-1">Open Deliveries</div>
+                    <div class="display-4 font-weight-bold" style="color: var(--beisser-green);" id="kpiOpenDeliveries">
+                        {{ open_delivery_count }}
+                    </div>
+                    <div class="small text-muted">Scheduled today</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card card-ops h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small text-uppercase font-weight-bold mb-1">In Transit</div>
+                    <div class="display-4 font-weight-bold text-info" id="kpiInTransit">
+                        {{ in_transit_count }}
+                    </div>
+                    <div class="small text-muted">Trucks on the road</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card card-ops h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small text-uppercase font-weight-bold mb-1">Completed Today</div>
+                    <div class="display-4 font-weight-bold text-success" id="kpiCompleted">
+                        {{ completed_count }}
+                    </div>
+                    <div class="small text-muted">Delivered &amp; confirmed</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card card-ops h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small text-uppercase font-weight-bold mb-1">Active Trucks</div>
+                    <div class="display-4 font-weight-bold text-warning" id="kpiActiveTrucks">
+                        {{ active_trucks }}
+                    </div>
+                    <div class="small text-muted">
+                        <a href="{{ url_for('main.delivery_map') }}" class="text-decoration-none">View on map &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fleet Status Quick-View -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card card-ops">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-satellite-dish mr-2"></i> Fleet Status (Samsara)</span>
+                    <small class="text-white-50">Auto-refreshes every 60s</small>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-ops mb-0">
+                        <thead>
+                            <tr>
+                                <th>Vehicle</th>
+                                <th>Location</th>
+                                <th>Speed</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for loc in vehicle_locations %}
+                            <tr>
+                                <td class="font-weight-bold">{{ loc.name }}</td>
+                                <td>{{ loc.address or 'GPS: %.4f, %.4f'|format(loc.latitude, loc.longitude) }}</td>
+                                <td>
+                                    {% if loc.speed_mph > 0 %}
+                                        <span class="text-info font-weight-bold">{{ loc.speed_mph }} mph</span>
+                                    {% else %}
+                                        <span class="text-muted">Stopped</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if loc.speed_mph > 0 %}
+                                        <span class="badge badge-pill badge-info">In Transit</span>
+                                    {% else %}
+                                        <span class="badge badge-pill badge-secondary">Idle</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small text-muted">{{ loc.time[:19] if loc.time else 'N/A' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="fas fa-plug mr-2"></i> No vehicle data available. Check Samsara connection.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open Deliveries Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-ops">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-clipboard-list mr-2"></i> Open Deliveries</span>
+                    <span class="badge badge-light">{{ deliveries|length }} orders</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-ops mb-0">
+                        <thead>
+                            <tr>
+                                <th>SO #</th>
+                                <th>Customer</th>
+                                <th>Address</th>
+                                <th>Reference</th>
+                                <th>Items</th>
+                                <th>Status</th>
+                                <th>Truck</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in deliveries %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}" class="font-weight-bold" style="color: var(--beisser-green);">
+                                        #{{ d.so_number }}
+                                    </a>
+                                </td>
+                                <td class="font-weight-bold">{{ d.customer_name }}</td>
+                                <td>{{ d.address }}</td>
+                                <td class="small">{{ d.reference or '-' }}</td>
+                                <td><span class="badge badge-pill badge-light">{{ d.line_count }} lines</span></td>
+                                <td>
+                                    {% if d.get('status') == 'in_transit' %}
+                                        <span class="badge badge-pill badge-info">In Transit</span>
+                                    {% elif d.get('status') == 'delivered' %}
+                                        <span class="badge badge-pill badge-success">Delivered</span>
+                                    {% elif d.get('status') == 'loading' %}
+                                        <span class="badge badge-pill badge-warning">Loading</span>
+                                    {% else %}
+                                        <span class="badge badge-pill badge-secondary">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small">{{ d.get('assigned_truck', 'Unassigned') }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    No open deliveries found.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh page every 60 seconds
+    setTimeout(function() {
+        window.location.reload();
+    }, 60000);
+</script>
+{% endblock %}

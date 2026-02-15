@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Map - Beisser Ops</title>
+
+    <!-- Leaflet CSS (open-source map library, no API key required) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0b0c10;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: #c5c6c7;
+            overflow: hidden;
+        }
+
+        .map-container {
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        #fleetMap {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+
+        /* Overlay Header */
+        .map-overlay-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: linear-gradient(180deg, rgba(11,12,16,0.95) 0%, rgba(11,12,16,0.7) 70%, transparent 100%);
+            padding: 1.5rem 2rem 3rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+
+        .map-overlay-header > * {
+            pointer-events: auto;
+        }
+
+        .map-title {
+            color: #66fcf1;
+            font-weight: 800;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .map-subtitle {
+            color: #45a29e;
+            font-size: 0.9rem;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .stat-box {
+            text-align: center;
+            background: rgba(31, 40, 51, 0.9);
+            border: 1px solid #45a29e;
+            border-radius: 12px;
+            padding: 0.8rem 1.5rem;
+        }
+
+        .stat-box .stat-val {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #66fcf1;
+            line-height: 1;
+        }
+
+        .stat-box .stat-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+            color: #c5c6c7;
+            margin-top: 0.2rem;
+        }
+
+        /* Truck sidebar panel */
+        .truck-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: linear-gradient(0deg, rgba(11,12,16,0.95) 0%, rgba(11,12,16,0.8) 80%, transparent 100%);
+            padding: 3rem 2rem 1.5rem 2rem;
+            pointer-events: none;
+        }
+
+        .truck-panel > * {
+            pointer-events: auto;
+        }
+
+        .truck-cards {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+        }
+
+        .truck-card {
+            min-width: 220px;
+            background: rgba(31, 40, 51, 0.95);
+            border: 1px solid #45a29e;
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            flex-shrink: 0;
+            transition: border-color 0.3s;
+            cursor: pointer;
+        }
+
+        .truck-card:hover {
+            border-color: #66fcf1;
+        }
+
+        .truck-card.moving {
+            border-color: #17a2b8;
+        }
+
+        .truck-card.stopped {
+            border-color: #6c757d;
+        }
+
+        .truck-name {
+            font-weight: 800;
+            font-size: 1rem;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        .truck-loc {
+            font-size: 0.8rem;
+            color: #c5c6c7;
+            margin-top: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 190px;
+        }
+
+        .truck-speed {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-top: 0.3rem;
+        }
+
+        .speed-moving { color: #17a2b8; }
+        .speed-stopped { color: #6c757d; }
+
+        .clock-display {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #66fcf1;
+        }
+
+        .back-link {
+            color: #66fcf1;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .back-link:hover {
+            color: #fff;
+            text-decoration: none;
+        }
+
+        /* Custom map markers */
+        .truck-marker {
+            background: none;
+            border: none;
+        }
+
+        .marker-icon {
+            width: 40px;
+            height: 40px;
+            background: #004526;
+            border: 3px solid #66fcf1;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1rem;
+            box-shadow: 0 0 15px rgba(102, 252, 241, 0.4);
+        }
+
+        .marker-icon.moving {
+            background: #17a2b8;
+            border-color: #fff;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 5px rgba(23, 162, 184, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(23, 162, 184, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(23, 162, 184, 0.5); }
+        }
+
+        .marker-label {
+            position: absolute;
+            top: -22px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #66fcf1;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+            text-transform: uppercase;
+        }
+    </style>
+
+    <!-- Auto Refresh every 30 seconds -->
+    <meta http-equiv="refresh" content="30">
+</head>
+
+<body>
+    <div class="map-container">
+        <!-- Map -->
+        <div id="fleetMap"></div>
+
+        <!-- Overlay Header -->
+        <div class="map-overlay-header">
+            <div>
+                <a href="{{ url_for('main.delivery_board') }}" class="back-link">
+                    <i class="fas fa-arrow-left mr-1"></i> DELIVERY BOARD
+                </a>
+                <div class="map-title mt-1">
+                    <i class="fas fa-satellite-dish mr-2"></i> Fleet Tracker
+                </div>
+                <div class="map-subtitle">Live vehicle positions via Samsara GPS</div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-box">
+                    <div class="stat-val" id="movingCount">{{ moving_count }}</div>
+                    <div class="stat-label">Moving</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="stoppedCount">{{ stopped_count }}</div>
+                    <div class="stat-label">Stopped</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="totalVehicles">{{ locations|length }}</div>
+                    <div class="stat-label">Total Fleet</div>
+                </div>
+                <div>
+                    <div class="clock-display" id="clock">00:00:00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Truck Panel -->
+        <div class="truck-panel">
+            <div class="truck-cards" id="truckCards">
+                {% for loc in locations %}
+                <div class="truck-card {{ 'moving' if loc.speed_mph > 0 else 'stopped' }}"
+                     data-lat="{{ loc.latitude }}" data-lng="{{ loc.longitude }}"
+                     onclick="panToTruck({{ loc.latitude }}, {{ loc.longitude }})">
+                    <div class="truck-name">
+                        <i class="fas fa-truck mr-1"></i> {{ loc.name }}
+                    </div>
+                    <div class="truck-loc">{{ loc.address or 'Locating...' }}</div>
+                    <div class="truck-speed {{ 'speed-moving' if loc.speed_mph > 0 else 'speed-stopped' }}">
+                        {% if loc.speed_mph > 0 %}
+                            <i class="fas fa-tachometer-alt mr-1"></i> {{ loc.speed_mph }} mph
+                        {% else %}
+                            <i class="fas fa-parking mr-1"></i> Stopped
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Vehicle location data from server
+        const locations = {{ locations | tojson }};
+
+        // Initialize map centered on Omaha, NE area (Beisser Lumber HQ area)
+        const map = L.map('fleetMap', {
+            zoomControl: false
+        }).setView([41.2565, -95.9345], 12);
+
+        // Dark tile layer for TV display readability
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Add zoom control to bottom-right (out of way of overlays)
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // Add truck markers
+        const markers = [];
+        locations.forEach(function(loc) {
+            if (!loc.latitude || !loc.longitude) return;
+
+            const isMoving = loc.speed_mph > 0;
+            const iconClass = isMoving ? 'moving' : '';
+
+            const icon = L.divIcon({
+                className: 'truck-marker',
+                html: `
+                    <div style="position:relative;">
+                        <div class="marker-label">${loc.name}</div>
+                        <div class="marker-icon ${iconClass}">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                    </div>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            });
+
+            const marker = L.marker([loc.latitude, loc.longitude], { icon: icon }).addTo(map);
+
+            const popupContent = `
+                <div style="min-width:180px;">
+                    <strong>${loc.name}</strong><br/>
+                    <small>${loc.address || 'No address'}</small><br/>
+                    <hr style="margin:4px 0;"/>
+                    <strong>Speed:</strong> ${loc.speed_mph} mph<br/>
+                    <strong>Heading:</strong> ${loc.heading}&deg;
+                </div>
+            `;
+            marker.bindPopup(popupContent);
+            markers.push(marker);
+        });
+
+        // Fit map bounds to show all trucks
+        if (markers.length > 0) {
+            const group = new L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.15));
+        }
+
+        // Pan to truck on card click
+        function panToTruck(lat, lng) {
+            map.setView([lat, lng], 15, { animate: true });
+        }
+
+        // Clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+    </script>
+</body>
+
+</html>
