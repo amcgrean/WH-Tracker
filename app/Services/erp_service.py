@@ -368,6 +368,79 @@ class ERPService:
             print(f"ERP Connection Error (Detail): {e}")
             return []
 
+    def get_delivery_orders(self):
+        """
+        Fetches open Sales Orders that are ready for delivery (status 'K').
+        Returns a list of dicts with SO header info plus line counts, suitable for the delivery board.
+        This reuses the open SO summary but could be refined to filter by delivery-specific handling codes.
+        """
+        if self.cloud_mode:
+            picks = ERPMirrorPick.query.all()
+            # Aggregate by SO number for delivery view
+            so_map = {}
+            for p in picks:
+                so_num = p.so_number
+                if so_num not in so_map:
+                    so_map[so_num] = {
+                        'so_number': so_num,
+                        'customer_name': p.customer_name,
+                        'address': p.address,
+                        'reference': p.reference,
+                        'handling_codes': set(),
+                        'line_count': 0
+                    }
+                if p.handling_code:
+                    so_map[so_num]['handling_codes'].add(p.handling_code)
+                so_map[so_num]['line_count'] += p.line_count or 0
+
+            results = []
+            for so_num, data in so_map.items():
+                data['handling_codes'] = sorted(list(data['handling_codes']))
+                results.append(data)
+            return results
+
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            query = """
+                SELECT
+                    soh.so_id,
+                    c.cust_name,
+                    cs.address_1,
+                    cs.city,
+                    soh.reference,
+                    COUNT(sod.sequence) as line_count
+                FROM so_detail sod
+                JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
+                LEFT JOIN cust c ON soh.cust_key = c.cust_key
+                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
+                WHERE soh.so_status = 'k'
+                    AND sod.bo = 0
+                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference
+                ORDER BY soh.so_id
+            """
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            orders = []
+            for row in rows:
+                orders.append({
+                    'so_number': str(row.so_id),
+                    'customer_name': row.cust_name or 'Unknown',
+                    'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
+                    'reference': row.reference,
+                    'line_count': row.line_count
+                })
+
+            conn.close()
+            return orders
+
+        except Exception as e:
+            print(f"ERP Connection Error (Delivery Orders): {e}")
+            return []
+
     def get_open_work_orders(self):
         """
         Fetches all Open Work Orders (wo_status != 'C') from ERP.

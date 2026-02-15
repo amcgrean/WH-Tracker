@@ -1,6 +1,7 @@
 import os
 from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify
 from app.Services.erp_service import ERPService
+from app.Services.samsara_service import SamsaraService
 from app.extensions import db
 from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder
 from datetime import datetime, timedelta
@@ -1012,5 +1013,79 @@ def start_work_orders():
     db.session.commit()
     flash(f'{len(selected_items)} work orders started.')
     return redirect(url_for('main.work_orders_open', user_id=user_id))
+
+
+### DELIVERY BOARD ROUTES ###
+
+@main.route('/delivery')
+def delivery_board():
+    """
+    Main Delivery Board: KPIs, fleet status, and open deliveries list.
+    """
+    erp = ERPService()
+    samsara = SamsaraService()
+
+    # Get open deliveries from ERP (status 'k' orders that have delivery-related handling codes)
+    deliveries = erp.get_delivery_orders()
+
+    # Get vehicle locations from Samsara
+    vehicle_locations = samsara.get_vehicle_locations()
+
+    # Calculate KPIs
+    open_delivery_count = len(deliveries)
+    in_transit_count = sum(1 for loc in vehicle_locations if loc.get('speed_mph', 0) > 0)
+    completed_count = 0  # TODO: Wire to ERP delivered status query
+    active_trucks = len(vehicle_locations)
+
+    return render_template('delivery/board.html',
+                           deliveries=deliveries,
+                           vehicle_locations=vehicle_locations,
+                           open_delivery_count=open_delivery_count,
+                           in_transit_count=in_transit_count,
+                           completed_count=completed_count,
+                           active_trucks=active_trucks)
+
+
+@main.route('/delivery/map')
+def delivery_map():
+    """
+    Full-screen fleet map page designed for large TV display in dispatch office.
+    Shows all truck locations via Samsara GPS on an interactive map.
+    """
+    samsara = SamsaraService()
+    locations = samsara.get_vehicle_locations()
+
+    moving_count = sum(1 for loc in locations if loc.get('speed_mph', 0) > 0)
+    stopped_count = len(locations) - moving_count
+
+    return render_template('delivery/map.html',
+                           locations=locations,
+                           moving_count=moving_count,
+                           stopped_count=stopped_count)
+
+
+@main.route('/delivery/detail/<so_number>')
+def delivery_detail(so_number):
+    """
+    Delivery detail page for a specific Sales Order.
+    Shows SO header, line items, and delivery/truck assignment info.
+    """
+    erp = ERPService()
+    header = erp.get_so_header(so_number)
+    items = erp.get_so_details(so_number)
+    return render_template('delivery/detail.html',
+                           so_number=so_number,
+                           header=header,
+                           items=items)
+
+
+@main.route('/api/delivery/locations')
+def api_delivery_locations():
+    """
+    JSON API endpoint for vehicle locations (used by map auto-refresh).
+    """
+    samsara = SamsaraService()
+    locations = samsara.get_vehicle_locations()
+    return jsonify(locations)
 
 
