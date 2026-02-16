@@ -1047,13 +1047,32 @@ def delivery_board():
 
 
 @main.route('/delivery/map')
-def delivery_map():
+@main.route('/delivery/map/<branch>')
+def delivery_map(branch=None):
     """
     Full-screen fleet map page designed for large TV display in dispatch office.
-    Shows all truck locations via Samsara GPS on an interactive map.
+    Shows truck locations via Samsara GPS on an interactive map.
+    Can be filtered by branch (e.g., Grimes, Birchwood).
     """
     samsara = SamsaraService()
-    locations = samsara.get_vehicle_locations()
+    tag_ids = None
+    display_name = "All Branches"
+
+    if branch:
+        all_tags = samsara.get_tags()
+        # Search for tags matching the branch name or its common abbreviations
+        # Grimes -> "Grimes", "GR"
+        # Birchwood -> "Birchwood", "BW"
+        if branch.lower() in ['grimes', 'gr']:
+            matches = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['GRIMES', 'GR'])]
+            tag_ids = matches if matches else None
+            display_name = "Grimes Branch"
+        elif branch.lower() in ['birchwood', 'bw']:
+            matches = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['BIRCHWOOD', 'BW'])]
+            tag_ids = matches if matches else None
+            display_name = "Birchwood Branch"
+
+    locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
 
     moving_count = sum(1 for loc in locations if loc.get('speed_mph', 0) > 0)
     stopped_count = len(locations) - moving_count
@@ -1061,7 +1080,9 @@ def delivery_map():
     return render_template('delivery/map.html',
                            locations=locations,
                            moving_count=moving_count,
-                           stopped_count=stopped_count)
+                           stopped_count=stopped_count,
+                           current_branch=display_name,
+                           branch_code=(branch or 'all').lower())
 
 
 @main.route('/delivery/detail/<so_number>')
@@ -1080,12 +1101,22 @@ def delivery_detail(so_number):
 
 
 @main.route('/api/delivery/locations')
-def api_delivery_locations():
+@main.route('/api/delivery/locations/<branch>')
+def api_delivery_locations(branch=None):
     """
     JSON API endpoint for vehicle locations (used by map auto-refresh).
     """
     samsara = SamsaraService()
-    locations = samsara.get_vehicle_locations()
+    tag_ids = None
+
+    if branch and branch.lower() != 'all':
+        all_tags = samsara.get_tags()
+        if branch.lower() in ['grimes', 'gr']:
+            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['GRIMES', 'GR'])]
+        elif branch.lower() in ['birchwood', 'bw']:
+            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['BIRCHWOOD', 'BW'])]
+
+    locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
     return jsonify(locations)
 
 

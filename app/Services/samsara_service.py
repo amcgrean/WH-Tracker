@@ -35,6 +35,15 @@ class SamsaraService:
             print(f"Samsara API Error: {e}")
             return None
 
+    def get_tags(self):
+        """
+        GET /tags - List all tags for the organization.
+        """
+        data = self._get('/tags')
+        if data and 'data' in data:
+            return data['data']
+        return self._mock_tags()
+
     def get_vehicles(self):
         """
         GET /fleet/vehicles - List all vehicles in the fleet.
@@ -46,12 +55,19 @@ class SamsaraService:
         # Mock data for development/demo
         return self._mock_vehicles()
 
-    def get_vehicle_locations(self):
+    def get_vehicle_locations(self, tag_ids=None):
         """
-        GET /fleet/vehicles/locations - Get real-time GPS locations for all vehicles.
-        Returns list of dicts: {vehicle_id, name, latitude, longitude, speed, heading, time}
+        GET /fleet/vehicles/locations - Get real-time GPS locations for vehicles.
+        Optional tag_ids parameter (comma-separated string or list) to filter.
         """
-        data = self._get('/fleet/vehicles/locations')
+        params = {}
+        if tag_ids:
+            if isinstance(tag_ids, list):
+                params['tagIds'] = ','.join(map(str, tag_ids))
+            else:
+                params['tagIds'] = tag_ids
+
+        data = self._get('/fleet/vehicles/locations', params=params)
         if data and 'data' in data:
             locations = []
             for v in data['data']:
@@ -164,4 +180,13 @@ class SamsaraService:
             {'id': 'd-003', 'name': 'Dave Brown', 'phone': '402-555-0103', 'status': 'onDuty'},
             {'id': 'd-004', 'name': 'Chris Davis', 'phone': '402-555-0104', 'status': 'offDuty'},
             {'id': 'd-005', 'name': 'Steve Miller', 'phone': '402-555-0105', 'status': 'onDuty'},
+        ]
+
+    def _mock_tags(self):
+        return [
+            {'id': '1001', 'name': 'Grimes'},
+            {'id': '1002', 'name': 'Birchwood'},
+            {'id': '1003', 'name': 'Warehouse'},
+            {'id': '1004', 'name': 'GR'},
+            {'id': '1005', 'name': 'BW'}
         ]

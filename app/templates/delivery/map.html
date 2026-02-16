@@ -59,6 +59,48 @@
             letter-spacing: 2px;
         }
 
+        .branch-badge {
+            display: inline-block;
+            background: #45a29e;
+            color: #0b0c10;
+            padding: 0.2rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .branch-selector {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .branch-btn {
+            background: rgba(31, 40, 51, 0.8);
+            border: 1px solid #45a29e;
+            color: #c5c6c7;
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+
+        .branch-btn:hover {
+            background: #45a29e;
+            color: #0b0c10;
+        }
+
+        .branch-btn.active {
+            background: #66fcf1;
+            border-color: #66fcf1;
+            color: #0b0c10;
+        }
+
         .map-subtitle {
             color: #45a29e;
             font-size: 0.9rem;
@@ -248,8 +290,14 @@
                 </a>
                 <div class="map-title mt-1">
                     <i class="fas fa-satellite-dish mr-2"></i> Fleet Tracker
+                    <span class="branch-badge">{{ current_branch }}</span>
                 </div>
                 <div class="map-subtitle">Live vehicle positions via Samsara GPS</div>
+                <div class="branch-selector">
+                    <a href="{{ url_for('main.delivery_map') }}" class="branch-btn {{ 'active' if branch_code == 'all' else '' }}">All Locations</a>
+                    <a href="{{ url_for('main.delivery_map', branch='grimes') }}" class="branch-btn {{ 'active' if branch_code == 'grimes' else '' }}">Grimes (GR)</a>
+                    <a href="{{ url_for('main.delivery_map', branch='birchwood') }}" class="branch-btn {{ 'active' if branch_code == 'birchwood' else '' }}">Birchwood (BW)</a>
+                </div>
             </div>
             <div class="header-stats">
                 <div class="stat-box">
