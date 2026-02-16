@@ -13,6 +13,9 @@ def create_app():
 
     # Ensure tables exist (needed for serverless/fresh deployments)
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+        except Exception as e:
+            app.logger.error(f"Error during db.create_all(): {e}")
 
     return app
