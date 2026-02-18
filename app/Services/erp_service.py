@@ -130,7 +130,7 @@ class ERPService:
                     'item_number': row.item,
                     'description': row.description,
                     'handling_code': row.handling_code,
-                    'qty': row.qty_ordered
+                    'qty': float(row.qty_ordered) if row.qty_ordered is not None else 0
                 })
                 
             conn.close()
@@ -205,7 +205,7 @@ class ERPService:
                         'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
                         'reference': row.reference,
                         'handling_code': row.handling_code,
-                        'line_count': row.line_count
+                        'line_count': int(row.line_count) if row.line_count is not None else 0
                     })
             
             conn.close()
@@ -386,11 +386,11 @@ class ERPService:
                         'customer_name': p.customer_name,
                         'address': p.address,
                         'reference': p.reference,
-                        'handling_codes': set(),
+                        'handling_codes': [],   # Use list instead of set
                         'line_count': 0
                     }
-                if p.handling_code:
-                    so_map[so_num]['handling_codes'].add(p.handling_code)
+                if p.handling_code and p.handling_code not in so_map[so_num]['handling_codes']:
+                    so_map[so_num]['handling_codes'].append(p.handling_code)
                 so_map[so_num]['line_count'] += p.line_count or 0
 
             results = []
@@ -491,7 +491,7 @@ class ERPService:
                     'description': row.description,
                     'item_number': row.item_number,
                     'status': row.wo_status,
-                    'qty': row.qty_ordered,
+                    'qty': float(row.qty_ordered) if row.qty_ordered is not None else 0,
                     'department': row.department
                 })
             

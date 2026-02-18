@@ -567,10 +567,14 @@ def sync_erp_data():
         return jsonify({'error': 'No data provided'}), 400
 
     try:
+        # Determine if we should clear existing data (default to True for backward compatibility)
+        should_reset = request.args.get('reset', 'true').lower() == 'true'
+
         # 1. Sync Picks
         if 'picks' in data:
-            # Clear existing Mirror table
-            db.session.query(ERPMirrorPick).delete()
+            if should_reset:
+                # Clear existing Mirror table
+                db.session.query(ERPMirrorPick).delete()
             
             # Bulk insert new records
             for p in data['picks']:
@@ -580,14 +584,15 @@ def sync_erp_data():
                     address=p.get('address'),
                     reference=p.get('reference'),
                     handling_code=p.get('handling_code'),
-                    line_count=p.get('line_count')
+                    line_count=int(p.get('line_count', 0))
                 )
                 db.session.add(new_pick)
 
         # 2. Sync Work Orders
         if 'work_orders' in data:
-            # Clear existing Mirror table
-            db.session.query(ERPMirrorWorkOrder).delete()
+            if should_reset:
+                # Clear existing Mirror table
+                db.session.query(ERPMirrorWorkOrder).delete()
             
             # Bulk insert new records
             for wo in data['work_orders']:
@@ -597,7 +602,7 @@ def sync_erp_data():
                     description=wo.get('description'),
                     item_number=wo.get('item_number'),
                     status=wo.get('status'),
-                    qty=int(wo.get('qty', 0)),  # Ensure int
+                    qty=float(wo.get('qty', 0)),  # Ensure float
                     department=wo.get('department')
                 )
                 db.session.add(new_wo)

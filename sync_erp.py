@@ -35,17 +35,40 @@ class LocalSync:
             return None
 
     def push_to_cloud(self, data):
-        print(f"[{datetime.now()}] Pushing data to cloud ({len(data['picks'])} picks, {len(data['work_orders'])} WOs)...")
+        """Pushes data to cloud in chunks to avoid payload size limits."""
+        chunk_size = 500
+        
+        # 1. Push Picks
+        picks = data.get('picks', [])
+        for i in range(0, len(picks), chunk_size):
+            chunk = picks[i:i + chunk_size]
+            is_first = (i == 0)
+            print(f"[{datetime.now()}] Pushing Picks chunk {i//chunk_size + 1} ({len(chunk)} items)...")
+            self._send_payload({'picks': chunk}, reset=is_first)
+
+        # 2. Push Work Orders
+        wos = data.get('work_orders', [])
+        for i in range(0, len(wos), chunk_size):
+            chunk = wos[i:i + chunk_size]
+            # Reset only on the absolute first push of the whole cycle
+            # (If we already pushed picks, we should append WOs)
+            is_first = (i == 0 and not picks) 
+            print(f"[{datetime.now()}] Pushing WOs chunk {i//chunk_size + 1} ({len(chunk)} items)...")
+            self._send_payload({'work_orders': chunk}, reset=is_first)
+
+    def _send_payload(self, payload, reset=True):
+        """Helper to send a single chunk to the API."""
         try:
             headers = {'X-API-KEY': API_KEY}
-            response = requests.post(API_URL, json=data, headers=headers)
+            params = {'reset': 'true' if reset else 'false'}
+            response = requests.post(API_URL, json=payload, headers=headers, params=params)
             
             if response.status_code == 200:
-                print("Sync successful!")
+                print("Chunk sync successful!")
             else:
-                print(f"Sync failed: {response.status_code} - {response.text}")
+                print(f"Chunk sync failed: {response.status_code} - {response.text}")
         except Exception as e:
-            print(f"Error pushing to cloud: {e}")
+            print(f"Error pushing chunk: {e}")
 
     def run(self):
         print("Starting Local ERP Sync Service...")
