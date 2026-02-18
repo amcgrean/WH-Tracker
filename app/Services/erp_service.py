@@ -27,6 +27,16 @@ class ERPService:
         """
         Queries the ERP system for work orders associated with a Sales Order barcode.
         """
+        if self.cloud_mode:
+            wos = ERPMirrorWorkOrder.query.filter_by(so_number=barcode).all()
+            return [{
+                'wo_number': wo.wo_id,
+                'item_number': wo.item_number,
+                'description': wo.description,
+                'status': wo.status,
+                'handling_code': wo.department
+            } for wo in wos]
+
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -98,6 +108,17 @@ class ERPService:
         Fetches all open picks (status 'k') from the ERP, joined with details and handling codes.
         Returns a list of dictionaries.
         """
+        if self.cloud_mode:
+            picks = ERPMirrorPick.query.all()
+            return [{
+                'so_number': p.so_number,
+                'customer_name': p.customer_name,
+                'address': p.address,
+                'reference': p.reference,
+                'handling_code': p.handling_code,
+                'line_count': p.line_count
+            } for p in picks]
+
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -220,6 +241,20 @@ class ERPService:
         Fetches summary info for specific SOs (or all if None), ignoring status constraints.
         Useful for statistics and historical lookups.
         """
+        if self.cloud_mode:
+            query = ERPMirrorPick.query
+            if so_numbers:
+                query = query.filter(ERPMirrorPick.so_number.in_(so_numbers))
+            picks = query.all()
+            return [{
+                'so_number': p.so_number,
+                'customer_name': p.customer_name,
+                'address': p.address,
+                'reference': p.reference,
+                'handling_code': p.handling_code,
+                'line_count': p.line_count
+            } for p in picks]
+
         try:
             conn = self.get_connection()
             cursor = conn.cursor()

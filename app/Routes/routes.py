@@ -555,7 +555,8 @@ def search_results():
         return jsonify(results)
     return jsonify([])
 
-@main.route('/api/sync', methods=['POST'])
+@main.route('/erp-cloud-sync', methods=['GET', 'POST'])
+@main.route('/erp-cloud-sync/', methods=['GET', 'POST'])
 def sync_erp_data():
     api_key = request.headers.get('X-API-KEY')
     # Simple security check

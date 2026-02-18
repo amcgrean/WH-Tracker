@@ -93,8 +93,10 @@
                         </a>
                         <div class="dropdown-menu border-0 shadow-lg p-2">
                             <div class="nav-category-header">Delivery Operations</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.delivery_board') }}">Delivery Board</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.delivery_map') }}">Fleet Map (TV)</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('main.delivery_board') }}">Delivery
+                                Board</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('main.delivery_map') }}">Fleet Map
+                                (TV)</a>
                         </div>
                     </li>
 
@@ -161,7 +163,11 @@
                 <a href="{{ url_for('main.admin') }}" class="footer-link mx-3 small">Admin</a>
             </div>
             <p class="small text-muted mb-0">&copy; 2026 Beisser Lumber Co. | <span
-                    class="text-white-50">v2.1.0-Emerald</span></p>
+                    class="text-white-50">v2.1.0-Emerald</span>
+                {% if config.SQLALCHEMY_DATABASE_URI and 'sqlite' not in config.SQLALCHEMY_DATABASE_URI %}
+                <span class="badge badge-success ml-2" style="opacity: 0.6;">Mirror Mode</span>
+                {% endif %}
+            </p>
         </div>
     </footer>
 
