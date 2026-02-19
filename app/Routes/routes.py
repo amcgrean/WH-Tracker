@@ -623,16 +623,12 @@ def debug_counts():
         pick_count = ERPMirrorPick.query.count()
         wo_count = ERPMirrorWorkOrder.query.count()
         
-        sample_pick = None
-        if raw_summary:
-            sample_pick = raw_summary[0]
-
         return jsonify({
             'picks': pick_count,
             'work_orders': wo_count,
             'erp_cloud_mode': erp.cloud_mode,
             'summary_length': len(raw_summary),
-            'sample_pick': sample_pick,
+            'raw_summary': raw_summary,
             'db_uri': str(db.engine.url).split('@')[1] if '@' in str(db.engine.url) else 'local',
             'cloud_mode_env': str(os.environ.get('CLOUD_MODE')).lower() == 'true'
         })
