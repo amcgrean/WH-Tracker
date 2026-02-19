@@ -15,7 +15,9 @@ class ERPService:
         self.username = 'amcgrean'
         self.password = 'Forgefrog69!'
         self.driver = '{ODBC Driver 17 for SQL Server}'
-        self.cloud_mode = str(os.environ.get('CLOUD_MODE', '')).lower() == 'true'
+        raw_mode = os.environ.get('CLOUD_MODE', '')
+        self.cloud_mode = str(raw_mode).lower() == 'true'
+        print(f"ERPService Init: CLOUD_MODE raw='{raw_mode}', parsed={self.cloud_mode}")
         
     def get_connection(self):
         if pyodbc is None:

@@ -630,7 +630,8 @@ def debug_counts():
             'summary_length': len(raw_summary),
             'raw_summary': raw_summary,
             'db_uri': str(db.engine.url).split('@')[1] if '@' in str(db.engine.url) else 'local',
-            'cloud_mode_env': str(os.environ.get('CLOUD_MODE')).lower() == 'true'
+            'cloud_mode_env': str(os.environ.get('CLOUD_MODE')).lower() == 'true',
+            'version': 'v4-final'
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
