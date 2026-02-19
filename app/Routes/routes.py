@@ -615,6 +615,20 @@ def sync_erp_data():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@main.route('/debug/counts')
+def debug_counts():
+    try:
+        pick_count = ERPMirrorPick.query.count()
+        wo_count = ERPMirrorWorkOrder.query.count()
+        return jsonify({
+            'picks': pick_count,
+            'work_orders': wo_count,
+            'db_uri': str(db.engine.url).split('@')[1] if '@' in str(db.engine.url) else 'local',
+            'cloud_mode': str(os.environ.get('CLOUD_MODE')).lower() == 'true'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @main.route('/api/dashboard', methods=['GET'])
 def api_dashboard():
     period = request.args.get('period', default='today')
