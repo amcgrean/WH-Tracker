@@ -618,13 +618,23 @@ def sync_erp_data():
 @main.route('/debug/counts')
 def debug_counts():
     try:
+        erp = ERPService()
+        raw_summary = erp.get_open_so_summary()
         pick_count = ERPMirrorPick.query.count()
         wo_count = ERPMirrorWorkOrder.query.count()
+        
+        sample_pick = None
+        if raw_summary:
+            sample_pick = raw_summary[0]
+
         return jsonify({
             'picks': pick_count,
             'work_orders': wo_count,
+            'erp_cloud_mode': erp.cloud_mode,
+            'summary_length': len(raw_summary),
+            'sample_pick': sample_pick,
             'db_uri': str(db.engine.url).split('@')[1] if '@' in str(db.engine.url) else 'local',
-            'cloud_mode': str(os.environ.get('CLOUD_MODE')).lower() == 'true'
+            'cloud_mode_env': str(os.environ.get('CLOUD_MODE')).lower() == 'true'
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
