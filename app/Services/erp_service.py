@@ -325,6 +325,17 @@ class ERPService:
         """
         Fetches header info (Customer, Reference, etc.) for a single Sales Order.
         """
+        if self.cloud_mode:
+            p = ERPMirrorPick.query.filter_by(so_number=so_number).first()
+            if p:
+                return {
+                    'so_number': p.so_number,
+                    'customer_name': p.customer_name,
+                    'address': p.address,
+                    'reference': p.reference
+                }
+            return None
+
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -363,6 +374,17 @@ class ERPService:
         """
         Fetches all line items for a specific Sales Order.
         """
+        if self.cloud_mode:
+            wos = ERPMirrorWorkOrder.query.filter_by(so_number=so_number).order_by(ERPMirrorWorkOrder.id.asc()).all()
+            return [{
+                'so_number': wo.so_number,
+                'sequence': i + 1,
+                'item_number': wo.item_number,
+                'description': wo.description,
+                'handling_code': wo.department,
+                'qty': wo.qty
+            } for i, wo in enumerate(wos)]
+
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
