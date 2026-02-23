@@ -128,22 +128,37 @@ def process_credit_emails(upload_base_dir, mark_as_read=True):
 
             logger.info("Processing RMA #%s from %s (subject: %s)", rma_number, sender, subject)
 
-            # Walk all MIME parts looking for image attachments
+            # Walk all MIME parts looking for image attachments and inline images
             attachments_found = 0
             for part in msg.walk():
+                content_type = part.get_content_type()
                 content_disposition = part.get('Content-Disposition', '')
-                if not content_disposition:
+
+                # Skip container and plain-text parts immediately
+                if content_type.startswith('multipart/') or content_type.startswith('text/'):
                     continue
 
+                # get_filename() checks both Content-Disposition filename= and
+                # Content-Type name= params, covering most inline images
                 raw_filename = part.get_filename()
-                if not raw_filename:
-                    continue
 
-                # Decode filename if encoded
-                try:
-                    raw_filename = str(make_header(decode_header(raw_filename)))
-                except Exception:
-                    pass
+                if raw_filename:
+                    # Decode RFC2047-encoded filenames
+                    try:
+                        raw_filename = str(make_header(decode_header(raw_filename)))
+                    except Exception:
+                        pass
+                elif content_type.startswith('image/'):
+                    # Pasted/CID-referenced inline image with no explicit filename.
+                    # Build a name from Content-ID (e.g. <image001.jpg@...>) or a timestamp.
+                    cid = part.get('Content-ID', '').strip('<>').split('@')[0]
+                    ext = content_type.split('/')[-1].split(';')[0].strip()  # e.g. "jpeg"
+                    ext = 'jpg' if ext == 'jpeg' else ext
+                    raw_filename = f"{cid}.{ext}" if cid else f"inline_image.{ext}"
+                    logger.debug("Inline image without filename; using generated name: %s", raw_filename)
+                else:
+                    # Non-image part with no filename — not relevant
+                    continue
 
                 if not _is_allowed_attachment(raw_filename):
                     logger.debug("Skipping non-image attachment: %s", raw_filename)
