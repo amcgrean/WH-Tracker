@@ -24,15 +24,20 @@ class SamsaraService:
     def _get(self, endpoint, params=None):
         """Generic GET request to Samsara API."""
         if not self.api_token:
-            print("SamsaraService: No API token configured. Returning mock data.")
+            print("SamsaraService: No API token configured. Falling back to MOCK data.")
             return None
         try:
             url = f"{self.BASE_URL}{endpoint}"
+            print(f"Samsara API Request: {url} with params {params}")
             resp = requests.get(url, headers=self.headers, params=params, timeout=10)
+            
+            if resp.status_code != 200:
+                print(f"Samsara API HTTP Error: {resp.status_code} - {resp.text}")
+            
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            print(f"Samsara API Error: {e}")
+            print(f"Samsara API Exception: {e}")
             return None
 
     def get_tags(self):
@@ -82,7 +87,10 @@ class SamsaraService:
                     'time': loc.get('time', ''),
                     'address': loc.get('reverseGeo', {}).get('formattedLocation', '')
                 })
+            print(f"Samsara API: Successfully retrieved {len(locations)} vehicles.")
             return locations
+            
+        print("Samsara API: Failed to get location data or no data returned. Falling back to MOCK data.")
         # Mock data for development/demo
         return self._mock_locations()
 
