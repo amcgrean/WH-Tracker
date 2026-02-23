@@ -67,7 +67,11 @@ class ERPMirrorPick(db.Model):
     address = db.Column(db.String(256))
     reference = db.Column(db.String(256))
     handling_code = db.Column(db.String(50))
-    line_count = db.Column(db.Integer)
+    sequence = db.Column(db.Integer)
+    item_number = db.Column(db.String(128))
+    description = db.Column(db.String(256))
+    qty = db.Column(db.Float)
+    line_count = db.Column(db.Integer) # Still keep for summary rows if needed, but will likely be 1 for lines
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ERPMirrorWorkOrder(db.Model):

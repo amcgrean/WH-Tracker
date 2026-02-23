@@ -44,8 +44,8 @@ class LocalSync:
     def fetch_local_data(self):
         print(f"[{datetime.now()}] Fetching data from local ERP...")
         try:
-            # Fetch Picks
-            picks = self.erp.get_open_so_summary()
+            # Fetch Picks (Individual line items now)
+            picks = self.erp.get_open_picks()
             
             # Fetch Work Orders
             work_orders = self.erp.get_open_work_orders()
@@ -86,6 +86,10 @@ class LocalSync:
                         'address': p.get('address'),
                         'reference': p.get('reference'),
                         'handling_code': p.get('handling_code'),
+                        'sequence': p.get('sequence'),
+                        'item_number': p.get('item_number'),
+                        'description': p.get('description'),
+                        'qty': float(p.get('qty', 0)),
                         'line_count': int(p.get('line_count', 0)),
                         'synced_at': datetime.utcnow()
                     } for p in picks_data

@@ -118,7 +118,11 @@ class ERPService:
                 'address': p.address,
                 'reference': p.reference,
                 'handling_code': p.handling_code,
-                'line_count': p.line_count
+                'sequence': p.sequence,
+                'item_number': p.item_number,
+                'description': p.description,
+                'qty': p.qty,
+                'line_count': 1
             } for p in picks]
 
         try:
@@ -132,11 +136,17 @@ class ERPService:
                     i.item,
                     i.description,
                     ib.handling_code,
-                    sod.qty_ordered
+                    sod.qty_ordered,
+                    c.cust_name,
+                    cs.address_1,
+                    cs.city,
+                    soh.reference
                 FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
+                LEFT JOIN cust c ON soh.cust_key = c.cust_key 
+                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
                 WHERE soh.so_status = 'k' 
                   AND sod.bo = 0
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
@@ -153,7 +163,10 @@ class ERPService:
                     'item_number': row.item,
                     'description': row.description,
                     'handling_code': row.handling_code,
-                    'qty': float(row.qty_ordered) if row.qty_ordered is not None else 0
+                    'qty': float(row.qty_ordered) if row.qty_ordered is not None else 0,
+                    'customer_name': row.cust_name or 'Unknown',
+                    'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
+                    'reference': row.reference
                 })
                 
             conn.close()
@@ -188,7 +201,7 @@ class ERPService:
                 'address': p.address,
                 'reference': p.reference,
                 'handling_code': p.handling_code,
-                'line_count': p.line_count
+                'line_count': 1
             } for p in picks]
 
         try:
@@ -375,6 +388,19 @@ class ERPService:
         Fetches all line items for a specific Sales Order.
         """
         if self.cloud_mode:
+            # First try to find individual pick lines
+            pick_lines = ERPMirrorPick.query.filter_by(so_number=so_number).order_by(ERPMirrorPick.sequence.asc()).all()
+            if pick_lines and any(p.item_number for p in pick_lines):
+                return [{
+                    'so_number': p.so_number,
+                    'sequence': p.sequence,
+                    'item_number': p.item_number,
+                    'description': p.description,
+                    'handling_code': p.handling_code,
+                    'qty': p.qty
+                } for p in pick_lines]
+
+            # Fallback to Work Orders
             wos = ERPMirrorWorkOrder.query.filter_by(so_number=so_number).order_by(ERPMirrorWorkOrder.id.asc()).all()
             return [{
                 'so_number': wo.so_number,
