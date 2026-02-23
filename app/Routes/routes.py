@@ -634,6 +634,25 @@ def debug_counts():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@main.route('/debug/query/<so_number>')
+def debug_query(so_number):
+    try:
+        from app.Models.models import ERPMirrorPick
+        pick = ERPMirrorPick.query.filter_by(so_number=so_number).first()
+        pick_str = ERPMirrorPick.query.filter(ERPMirrorPick.so_number == str(so_number)).first()
+        all_picks = ERPMirrorPick.query.limit(5).all()
+        
+        return jsonify({
+            'input_so': so_number,
+            'input_type': str(type(so_number)),
+            'found_via_filter_by': pick.id if pick else None,
+            'found_via_filter_str': pick_str.id if pick_str else None,
+            'sample_sos': [p.so_number for p in all_picks],
+            'sample_reprs': [repr(p.so_number) for p in all_picks]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @main.route('/api/dashboard', methods=['GET'])
 def api_dashboard():
     period = request.args.get('period', default='today')
