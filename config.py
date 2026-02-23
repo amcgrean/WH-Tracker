@@ -14,6 +14,9 @@ class Config(object):
         'sqlite:///' + os.path.join('/tmp', 'picker.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Credit / RMA image uploads — stored on local disk; path relative to project root
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads/credits')
+
 class DevelopmentConfig(Config):
     DEBUG = True
     TESTING = True
