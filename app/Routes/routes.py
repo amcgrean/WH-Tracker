@@ -586,6 +586,10 @@ def sync_erp_data():
                     address=p.get('address'),
                     reference=p.get('reference'),
                     handling_code=p.get('handling_code'),
+                    sequence=p.get('sequence'),
+                    item_number=p.get('item_number'),
+                    description=p.get('description'),
+                    qty=p.get('qty'),
                     line_count=int(p.get('line_count', 0))
                 )
                 db.session.add(new_pick)
