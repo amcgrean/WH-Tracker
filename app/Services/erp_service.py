@@ -339,14 +339,17 @@ class ERPService:
         Fetches header info (Customer, Reference, etc.) for a single Sales Order.
         """
         if self.cloud_mode:
-            p = ERPMirrorPick.query.filter_by(so_number=so_number).first()
+            print(f"DEBUG DETAIL: Querying Header for SO='{so_number}' (type: {type(so_number)})")
+            p = ERPMirrorPick.query.filter(ERPMirrorPick.so_number == str(so_number)).first()
             if p:
+                print(f"DEBUG DETAIL: Found Pick record for {so_number}")
                 return {
                     'so_number': p.so_number,
                     'customer_name': p.customer_name,
                     'address': p.address,
                     'reference': p.reference
                 }
+            print(f"DEBUG DETAIL: No Pick record found for {so_number}")
             return None
 
         try:
@@ -388,9 +391,11 @@ class ERPService:
         Fetches all line items for a specific Sales Order.
         """
         if self.cloud_mode:
+            print(f"DEBUG DETAIL: Querying Details for SO='{so_number}'")
             # First try to find individual pick lines
-            pick_lines = ERPMirrorPick.query.filter_by(so_number=so_number).order_by(ERPMirrorPick.sequence.asc()).all()
+            pick_lines = ERPMirrorPick.query.filter(ERPMirrorPick.so_number == str(so_number)).order_by(ERPMirrorPick.sequence.asc()).all()
             if pick_lines and any(p.item_number for p in pick_lines):
+                print(f"DEBUG DETAIL: Found {len(pick_lines)} pick lines")
                 return [{
                     'so_number': p.so_number,
                     'sequence': p.sequence,
@@ -401,7 +406,8 @@ class ERPService:
                 } for p in pick_lines]
 
             # Fallback to Work Orders
-            wos = ERPMirrorWorkOrder.query.filter_by(so_number=so_number).order_by(ERPMirrorWorkOrder.id.asc()).all()
+            wos = ERPMirrorWorkOrder.query.filter(ERPMirrorWorkOrder.so_number == str(so_number)).order_by(ERPMirrorWorkOrder.id.asc()).all()
+            print(f"DEBUG DETAIL: Found {len(wos)} work orders")
             return [{
                 'so_number': wo.so_number,
                 'sequence': i + 1,
