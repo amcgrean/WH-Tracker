@@ -194,15 +194,32 @@ class ERPService:
         Returns: List of dicts {so_number, customer_name, address, reference, handling_code, line_count}
         """
         if self.cloud_mode:
-            picks = ERPMirrorPick.query.all()
+            from sqlalchemy import func
+            from app.extensions import db
+            # Aggregate lines by SO and Handling Code
+            summary_query = db.session.query(
+                ERPMirrorPick.so_number,
+                ERPMirrorPick.customer_name,
+                ERPMirrorPick.address,
+                ERPMirrorPick.reference,
+                ERPMirrorPick.handling_code,
+                func.count(ERPMirrorPick.id).label('line_count')
+            ).group_by(
+                ERPMirrorPick.so_number,
+                ERPMirrorPick.customer_name,
+                ERPMirrorPick.address,
+                ERPMirrorPick.reference,
+                ERPMirrorPick.handling_code
+            ).all()
+            
             return [{
-                'so_number': p.so_number,
-                'customer_name': p.customer_name,
-                'address': p.address,
-                'reference': p.reference,
-                'handling_code': p.handling_code,
-                'line_count': 1
-            } for p in picks]
+                'so_number': s.so_number,
+                'customer_name': s.customer_name,
+                'address': s.address,
+                'reference': s.reference,
+                'handling_code': s.handling_code,
+                'line_count': s.line_count
+            } for s in summary_query]
 
         try:
             conn = self.get_connection()
