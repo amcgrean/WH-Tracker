@@ -550,6 +550,19 @@ class ERPService:
         """
         if self.cloud_mode:
             wos = ERPMirrorWorkOrder.query.all()
+            
+            # Try to enrich with customer info from Picks if available
+            so_numbers = list(set([str(wo.so_number) for wo in wos]))
+            so_info = {}
+            if so_numbers:
+                picks = ERPMirrorPick.query.filter(ERPMirrorPick.so_number.in_(so_numbers)).all()
+                for p in picks:
+                    if p.so_number not in so_info:
+                        so_info[p.so_number] = {
+                            'customer_name': p.customer_name,
+                            'reference': p.reference
+                        }
+
             return [{
                 'wo_id': wo.wo_id,
                 'so_number': wo.so_number,
@@ -557,16 +570,16 @@ class ERPService:
                 'item_number': wo.item_number,
                 'status': wo.status,
                 'qty': wo.qty,
-                'department': wo.department
+                'department': wo.department,
+                'customer_name': so_info.get(str(wo.so_number), {}).get('customer_name', 'Unknown'),
+                'reference': so_info.get(str(wo.so_number), {}).get('reference', '')
             } for wo in wos]
 
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            # Corrected query from User:
-            # - qty comes from so_detail
-            # - statuses are 'Open', 'Completed', 'Canceled'
+            # Enhanced query to include customer and reference
             query = """
                 SELECT 
                     wh.wo_id,
@@ -575,10 +588,14 @@ class ERPService:
                     i.description,
                     wh.wo_status,
                     sod.qty_ordered,
-                    wh.wo_rule as department
+                    wh.wo_rule as department,
+                    c.cust_name as customer_name,
+                    soh.reference
                 FROM wo_header wh
                 LEFT JOIN so_detail sod ON wh.source_id = sod.so_id AND wh.source_seq = sod.sequence
                 LEFT JOIN item i ON sod.item_ptr = i.item_ptr
+                LEFT JOIN so_header soh ON wh.source_id = soh.so_id
+                LEFT JOIN cust c ON soh.cust_key = c.cust_key
                 WHERE wh.wo_status NOT IN ('Completed', 'Canceled')
                 ORDER BY wh.wo_id DESC
             """
@@ -595,7 +612,9 @@ class ERPService:
                     'item_number': row.item_number,
                     'status': row.wo_status,
                     'qty': float(row.qty_ordered) if row.qty_ordered is not None else 0,
-                    'department': row.department
+                    'department': row.department,
+                    'customer_name': row.customer_name or 'Unknown',
+                    'reference': row.reference or ''
                 })
             
             conn.close()
@@ -603,4 +622,79 @@ class ERPService:
 
         except Exception as e:
             print(f"ERP Connection Error (Open WOs): {e}")
+            return []
+
+    def get_sales_delivery_tracker(self):
+        """
+        Fetches today's deliveries from ERP, combining SO header and Shipment statuses.
+        Returns a list of dictionaries with status, customer, address, and SO info.
+        """
+        if self.cloud_mode:
+            # Fallback to picks mirror for now (could be enhanced with more fields if synced)
+            picks = ERPMirrorPick.query.all()
+            results = []
+            for p in picks:
+                results.append({
+                    'so_number': p.so_number,
+                    'customer_name': p.customer_name,
+                    'address': p.address,
+                    'reference': p.reference,
+                    'so_status': 'K', # Default to Open for mirror
+                    'shipment_status': None,
+                    'pick_status': None,
+                    'ship_date': None,
+                    'expect_date': None
+                })
+            return results
+
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Use today's date for Agility query
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            query = f"""
+                SELECT 
+                    soh.so_id,
+                    c.cust_name,
+                    cs.address_1,
+                    cs.city,
+                    soh.reference,
+                    soh.so_status,
+                    sh.status_flag_delivery,
+                    sh.pick_status,
+                    sh.ship_date,
+                    soh.expect_date
+                FROM so_header soh
+                LEFT JOIN cust c ON soh.cust_key = c.cust_key
+                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.shipto_seq_num = soh.shipto_seq_num
+                LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id
+                WHERE (soh.expect_date = '{today}' OR sh.ship_date = '{today}')
+                   OR (soh.so_status IN ('k', 'p', 's'))
+                ORDER BY soh.so_id DESC
+            """
+            
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            
+            deliveries = []
+            for row in rows:
+                deliveries.append({
+                    'so_number': str(row.so_id),
+                    'customer_name': row.cust_name or 'Unknown',
+                    'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
+                    'reference': row.reference,
+                    'so_status': row.so_status,
+                    'shipment_status': row.status_flag_delivery,
+                    'pick_status': row.pick_status,
+                    'ship_date': row.ship_date,
+                    'expect_date': row.expect_date
+                })
+            
+            conn.close()
+            return deliveries
+
+        except Exception as e:
+            print(f"ERP Connection Error (Sales Tracker): {e}")
             return []

@@ -1,4 +1,5 @@
 import os
+import json
 from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
@@ -963,57 +964,96 @@ def supervisor_work_orders():
     # Staff for dropdown
     staff = Pickster.query.order_by(Pickster.name).all()
 
-    # Merge data
-    final_wos = []
+    # Merge and Group data
+    grouped_wos = {}
     for erp_wo in erp_wos:
         wo_id_str = str(erp_wo['wo_id'])
         local_wo = local_wos.get(wo_id_str)
         
         erp_wo['assigned_to'] = local_wo.assigned_to.name if local_wo and local_wo.assigned_to else None
         erp_wo['local_status'] = local_wo.status if local_wo else 'Open'
-        final_wos.append(erp_wo)
+        
+        so_num = str(erp_wo['so_number'])
+        if so_num not in grouped_wos:
+            grouped_wos[so_num] = {
+                'so_number': so_num,
+                'customer_name': erp_wo.get('customer_name', 'Unknown'),
+                'reference': erp_wo.get('reference', ''),
+                'items': [],
+                'count': 0
+            }
+        
+        grouped_wos[so_num]['items'].append(erp_wo)
+        grouped_wos[so_num]['count'] += 1
 
-    return render_template('supervisor/wo_board.html', work_orders=final_wos, staff=staff)
+    # Convert to list and sort (descending SO tends to be newest)
+    sorted_groups = sorted(grouped_wos.values(), key=lambda x: x['so_number'], reverse=True)
+
+    return render_template('supervisor/wo_board.html', grouped_wos=sorted_groups, staff=staff)
 
 @main.route('/supervisor/assign_wo', methods=['POST'])
 def assign_wo():
-    wo_id = request.form.get('wo_id')
+    # Support both bulk and single assignment
     staff_id = request.form.get('staff_id')
-    so_number = request.form.get('so_number')
-    item_number = request.form.get('item_number')
-    description = request.form.get('description')
-
-    if not wo_id:
-        flash("Work Order ID is required.", "danger")
-        return redirect(url_for('main.supervisor_work_orders'))
-
-    # Check if local record exists
-    local_wo = WorkOrder.query.filter_by(work_order_number=str(wo_id)).first()
-
-    if not staff_id:
-        # Clear assignment if staff_id is empty
-        if local_wo:
-            local_wo.assigned_to_id = None
-            local_wo.status = 'Open'
-    else:
-        if not local_wo:
-            # Create local record if it doesn't exist
-            local_wo = WorkOrder(
-                work_order_number=str(wo_id),
-                sales_order_number=str(so_number),
-                item_number=item_number,
-                description=description,
-                assigned_to_id=staff_id,
-                status='Assigned'
-            )
-            db.session.add(local_wo)
+    
+    # We expect a list of JSON-encoded WO objects if coming from bulk assign
+    selected_data = request.form.getlist('selected_wos[]')
+    
+    if not selected_data:
+        # Fallback for single legacy assignment if needed
+        wo_id = request.form.get('wo_id')
+        if wo_id:
+            # Construct a single list item
+            selected_data = [json.dumps({
+                'wo_id': wo_id,
+                'so_number': request.form.get('so_number'),
+                'item_number': request.form.get('item_number'),
+                'description': request.form.get('description')
+            })]
         else:
-            # Update existing record
-            local_wo.assigned_to_id = staff_id
-            local_wo.status = 'Assigned'
+            flash("No work orders selected.", "danger")
+            return redirect(url_for('main.supervisor_work_orders'))
+
+    count = 0
+    for item_json in selected_data:
+        try:
+            item = json.loads(item_json)
+            wo_id = str(item.get('wo_id'))
+            so_number = str(item.get('so_number'))
+            item_number = item.get('item_number')
+            description = item.get('description')
+
+            # Check if local record exists
+            local_wo = WorkOrder.query.filter_by(work_order_number=wo_id).first()
+
+            if not staff_id:
+                # Clear assignment
+                if local_wo:
+                    local_wo.assigned_to_id = None
+                    local_wo.status = 'Open'
+            else:
+                if not local_wo:
+                    # Create local record
+                    local_wo = WorkOrder(
+                        work_order_number=wo_id,
+                        sales_order_number=so_number,
+                        item_number=item_number,
+                        description=description,
+                        assigned_to_id=staff_id,
+                        status='Assigned'
+                    )
+                    db.session.add(local_wo)
+                else:
+                    # Update existing record
+                    local_wo.assigned_to_id = staff_id
+                    local_wo.status = 'Assigned'
+            count += 1
+        except Exception as e:
+            print(f"Error assigning WO: {e}")
+            continue
 
     db.session.commit()
-    flash(f"Work Order {wo_id} updated successfully.", "success")
+    flash(f"{count} Work Order(s) updated successfully.", "success")
     return redirect(url_for('main.supervisor_work_orders'))
 
 @main.route('/work_orders/start', methods=['POST'])
@@ -1149,6 +1189,21 @@ def api_delivery_locations(branch=None):
 
     locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
     return jsonify(locations)
+
+
+@main.route('/sales/tracker')
+@main.route('/sales/deliveries')
+def sales_delivery_tracker():
+    """
+    Sales Delivery Tracker: Real-time status for today's deliveries.
+    Grouped by status (Picked, Staged, Loaded, etc).
+    """
+    erp = ERPService()
+    deliveries = erp.get_sales_delivery_tracker()
+    
+    return render_template('sales/delivery_tracker.html', 
+                           deliveries=deliveries, 
+                           today=datetime.now().strftime('%Y-%m-%d'))
 
 
 ### CREDIT / RMA IMAGE ROUTES ###

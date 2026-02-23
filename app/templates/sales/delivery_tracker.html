@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 text-primary font-weight-bold mb-0">
+                <i class="fas fa-shipping-fast mr-2"></i> Sales Delivery Tracker
+            </h1>
+            <p class="text-muted mb-0">Real-time status for orders scheduled for {{ today }}</p>
+        </div>
+        <div class="col-auto text-right">
+            <button onclick="window.location.reload()" class="btn btn-outline-primary shadow-sm mr-2">
+                <i class="fas fa-sync-alt mr-1"></i> Refresh
+            </button>
+            <div class="badge badge-pill badge-info px-3 py-2 shadow-sm">
+                <i class="fas fa-clock mr-1"></i> <span id="lastUpdated">Updating...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center py-3 bg-white">
+                <div class="h3 font-weight-bold text-dark mb-0 count-all">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">Total Scheduled</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center py-3 bg-white"
+                style="border-bottom: 4px solid #f6c23e !important;">
+                <div class="h3 font-weight-bold text-warning mb-0 count-picking">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">Awaiting Picking</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center py-3 bg-white"
+                style="border-bottom: 4px solid #36b9cc !important;">
+                <div class="h3 font-weight-bold text-info mb-0 count-staged">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">Staged & Ready</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center py-3 bg-white"
+                style="border-bottom: 4px solid #1cc88a !important;">
+                <div class="h3 font-weight-bold text-success mb-0 count-transit">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">En Route</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Groupings -->
+    {% set status_groups = [
+    {'id': 'transit', 'label': 'En Route / Delivered', 'icon': 'fa-truck-loading', 'class': 'success'},
+    {'id': 'staged', 'label': 'Staged / Loaded', 'icon': 'fa-pallet', 'class': 'info'},
+    {'id': 'picking', 'label': 'Picking / In Progress', 'icon': 'fa-dolly-flatbed', 'class': 'warning'},
+    {'id': 'open', 'label': 'Awaiting Action', 'icon': 'fa-clock', 'class': 'secondary'}
+    ] %}
+
+    {% for group in status_groups %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 d-flex align-items-center">
+            <div class="rounded-circle bg-{{ group.class }} text-white mr-3 d-flex align-items-center justify-content-center"
+                style="width: 40px; height: 40px;">
+                <i class="fas {{ group.icon }}"></i>
+            </div>
+            <h5 class="m-0 font-weight-bold text-{{ group.class }}">{{ group.label }}</h5>
+            <div class="ml-auto">
+                <span class="badge badge-{{ group.class }} badge-pill group-count-{{ group.id }}">0</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="table-{{ group.id }}">
+                    <thead class="bg-light text-xs text-uppercase font-weight-bold">
+                        <tr>
+                            <th class="pl-4">SO #</th>
+                            <th>Customer</th>
+                            <th>Location</th>
+                            <th>Reference</th>
+                            <th>Status Badge</th>
+                            <th class="text-right pr-4">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set found = false %}
+                        {% for d in deliveries %}
+                        {% set so_s = d.so_status|upper %}
+                        {% set ship_s = d.shipment_status|upper if d.shipment_status else '' %}
+
+                        {# Logic for grouping #}
+                        {% set target_group = 'open' %}
+                        {% if ship_s in ['E', 'D', 'I'] %}
+                        {% set target_group = 'transit' %}
+                        {% elif ship_s in ['S', 'L'] %}
+                        {% set target_group = 'staged' %}
+                        {% elif so_s == 'P' %}
+                        {% set target_group = 'picking' %}
+                        {% elif so_s == 'K' %}
+                        {% set target_group = 'open' %}
+                        {% endif %}
+
+                        {% if target_group == group.id %}
+                        {% set found = true %}
+                        <tr data-group="{{ target_group }}">
+                            <td class="pl-4 font-weight-bold text-dark">{{ d.so_number }}</td>
+                            <td>{{ d.customer_name }}</td>
+                            <td><small class="text-muted">{{ d.address }}</small></td>
+                            <td>{{ d.reference }}</td>
+                            <td>
+                                {% if ship_s == 'E' %}<span class="badge badge-success px-2 py-1"><i
+                                        class="fas fa-truck mr-1"></i> EN ROUTE</span>
+                                {% elif ship_s == 'L' %}<span class="badge badge-info px-2 py-1"><i
+                                        class="fas fa-truck-loading mr-1"></i> LOADED</span>
+                                {% elif ship_s == 'S' %}<span class="badge badge-info px-2 py-1"><i
+                                        class="fas fa-pallet mr-1"></i> STAGED</span>
+                                {% elif ship_s == 'D' %}<span class="badge badge-success px-2 py-1"><i
+                                        class="fas fa-check-circle mr-1"></i> DELIVERED</span>
+                                {% elif ship_s == 'I' %}<span class="badge badge-success px-2 py-1"><i
+                                        class="fas fa-file-invoice mr-1"></i> INVOICED</span>
+                                {% elif so_s == 'P' %}<span class="badge badge-warning px-2 py-1"><i
+                                        class="fas fa-dolly-flatbed mr-1"></i> PICKED</span>
+                                {% else %}<span class="badge badge-secondary px-2 py-1">WAITING</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-right pr-4">
+                                <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}"
+                                    class="btn btn-sm btn-light border shadow-xs">
+                                    View <i class="fas fa-chevron-right ml-1"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+
+                        {% if not (deliveries|length > 0) %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">No deliveries found for today.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .shadow-xs {
+        box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .04) !important;
+    }
+
+    .text-xs {
+        font-size: 0.75rem;
+    }
+
+    .badge-pill {
+        border-radius: 50rem;
+    }
+
+    .card {
+        border-radius: 0.75rem;
+    }
+
+    .table thead th {
+        border-top: 0;
+    }
+
+    .bg-light {
+        background-color: #f8f9fc !important;
+    }
+
+    .font-weight-bold {
+        font-weight: 700 !important;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Update counts
+        const allRows = document.querySelectorAll('tr[data-group]');
+        document.querySelector('.count-all').innerText = allRows.length;
+
+        ['transit', 'staged', 'picking', 'open'].forEach(groupId => {
+            const count = document.querySelectorAll(`tr[data-group="${groupId}"]`).length;
+            document.querySelector(`.group-count-${groupId}`).innerText = count;
+
+            // Sync with top cards
+            if (groupId === 'transit') document.querySelector('.count-transit').innerText = count;
+            if (groupId === 'staged') document.querySelector('.count-staged').innerText = count;
+            if (groupId === 'picking' || groupId === 'open') {
+                const pickCount = parseInt(document.querySelector('.count-picking').innerText) || 0;
+                document.querySelector('.count-picking').innerText = pickCount + count;
+            }
+
+            // Hide table if empty
+            if (count === 0) {
+                const table = document.getElementById(`table-${groupId}`);
+                const tbody = table.querySelector('tbody');
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-3 text-muted">No orders in this status.</td></tr>';
+            }
+        });
+
+        // Set last updated time
+        document.getElementById('lastUpdated').innerText = new Date().toLocaleTimeString();
+    });
+</script>
+{% endblock %}
