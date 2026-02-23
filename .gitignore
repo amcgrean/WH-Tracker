@@ -11,3 +11,7 @@ env/
 *.db
 *.sqlite3
 *.log
+
+# Credit/RMA image uploads (actual image files — keep the .gitkeep placeholder)
+uploads/credits/*/
+logs/email_sync.log

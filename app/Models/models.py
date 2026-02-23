@@ -85,3 +85,21 @@ class ERPMirrorWorkOrder(db.Model):
     qty = db.Column(db.Integer)
     department = db.Column(db.String(50))
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# -------------------------------------------------------------------
+# Credit / RMA Image Tracking
+# Sales people email photos of credits; the poller saves them here
+# so dispatchers can view them on the portal.
+# -------------------------------------------------------------------
+
+class CreditImage(db.Model):
+    __tablename__ = 'credit_images'
+    id            = db.Column(db.Integer, primary_key=True)
+    rma_number    = db.Column(db.String(20), index=True, nullable=False)
+    filename      = db.Column(db.String(256), nullable=False)
+    filepath      = db.Column(db.String(512), nullable=False)  # relative to UPLOAD_FOLDER
+    email_from    = db.Column(db.String(256))
+    email_subject = db.Column(db.String(512))
+    received_at   = db.Column(db.DateTime)   # when the email arrived
+    uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)

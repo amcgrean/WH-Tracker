@@ -1,6 +1,6 @@
 from flask import Flask
 from .extensions import db, migrate
-from .Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder  # noqa: F401
+from .Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage  # noqa: F401
 from .Routes.routes import main as main_blueprint
 def create_app():
     app = Flask(__name__)
