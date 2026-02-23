@@ -11,7 +11,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
 
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             background: #0b0c10;
@@ -39,7 +43,7 @@
             left: 0;
             right: 0;
             z-index: 1000;
-            background: linear-gradient(180deg, rgba(11,12,16,0.95) 0%, rgba(11,12,16,0.7) 70%, transparent 100%);
+            background: linear-gradient(180deg, rgba(11, 12, 16, 0.95) 0%, rgba(11, 12, 16, 0.7) 70%, transparent 100%);
             padding: 1.5rem 2rem 3rem 2rem;
             display: flex;
             justify-content: space-between;
@@ -47,7 +51,7 @@
             pointer-events: none;
         }
 
-        .map-overlay-header > * {
+        .map-overlay-header>* {
             pointer-events: auto;
         }
 
@@ -142,12 +146,12 @@
             left: 0;
             right: 0;
             z-index: 1000;
-            background: linear-gradient(0deg, rgba(11,12,16,0.95) 0%, rgba(11,12,16,0.8) 80%, transparent 100%);
+            background: linear-gradient(0deg, rgba(11, 12, 16, 0.95) 0%, rgba(11, 12, 16, 0.8) 80%, transparent 100%);
             padding: 3rem 2rem 1.5rem 2rem;
             pointer-events: none;
         }
 
-        .truck-panel > * {
+        .truck-panel>* {
             pointer-events: auto;
         }
 
@@ -204,8 +208,13 @@
             margin-top: 0.3rem;
         }
 
-        .speed-moving { color: #17a2b8; }
-        .speed-stopped { color: #6c757d; }
+        .speed-moving {
+            color: #17a2b8;
+        }
+
+        .speed-stopped {
+            color: #6c757d;
+        }
 
         .clock-display {
             font-size: 1.8rem;
@@ -252,9 +261,17 @@
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 5px rgba(23, 162, 184, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(23, 162, 184, 0.8); }
-            100% { box-shadow: 0 0 5px rgba(23, 162, 184, 0.5); }
+            0% {
+                box-shadow: 0 0 5px rgba(23, 162, 184, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(23, 162, 184, 0.8);
+            }
+
+            100% {
+                box-shadow: 0 0 5px rgba(23, 162, 184, 0.5);
+            }
         }
 
         .marker-label {
@@ -270,6 +287,32 @@
             border-radius: 6px;
             white-space: nowrap;
             text-transform: uppercase;
+            z-index: 20;
+        }
+
+        /* Direction Arrow */
+        .direction-arrow-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 40px;
+            height: 40px;
+            z-index: 5;
+            pointer-events: none;
+            transition: transform 0.5s ease;
+        }
+
+        .direction-arrow {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 16px solid #66fcf1;
+            filter: drop-shadow(0 0 5px rgba(102, 252, 241, 0.8));
         }
     </style>
 
@@ -294,9 +337,12 @@
                 </div>
                 <div class="map-subtitle">Live vehicle positions via Samsara GPS</div>
                 <div class="branch-selector">
-                    <a href="{{ url_for('main.delivery_map') }}" class="branch-btn {{ 'active' if branch_code == 'all' else '' }}">All Locations</a>
-                    <a href="{{ url_for('main.delivery_map', branch='grimes') }}" class="branch-btn {{ 'active' if branch_code == 'grimes' else '' }}">Grimes (GR)</a>
-                    <a href="{{ url_for('main.delivery_map', branch='birchwood') }}" class="branch-btn {{ 'active' if branch_code == 'birchwood' else '' }}">Birchwood (BW)</a>
+                    <a href="{{ url_for('main.delivery_map') }}"
+                        class="branch-btn {{ 'active' if branch_code == 'all' else '' }}">All Locations</a>
+                    <a href="{{ url_for('main.delivery_map', branch='grimes') }}"
+                        class="branch-btn {{ 'active' if branch_code == 'grimes' else '' }}">Grimes (GR)</a>
+                    <a href="{{ url_for('main.delivery_map', branch='birchwood') }}"
+                        class="branch-btn {{ 'active' if branch_code == 'birchwood' else '' }}">Birchwood (BW)</a>
                 </div>
             </div>
             <div class="header-stats">
@@ -322,18 +368,17 @@
         <div class="truck-panel">
             <div class="truck-cards" id="truckCards">
                 {% for loc in locations %}
-                <div class="truck-card {{ 'moving' if loc.speed_mph > 0 else 'stopped' }}"
-                     data-lat="{{ loc.latitude }}" data-lng="{{ loc.longitude }}"
-                     onclick="panToTruck({{ loc.latitude }}, {{ loc.longitude }})">
+                <div class="truck-card {{ 'moving' if loc.speed_mph > 0 else 'stopped' }}" data-lat="{{ loc.latitude }}"
+                    data-lng="{{ loc.longitude }}" onclick="panToTruck({{ loc.latitude }}, {{ loc.longitude }})">
                     <div class="truck-name">
                         <i class="fas fa-truck mr-1"></i> {{ loc.name }}
                     </div>
                     <div class="truck-loc">{{ loc.address or 'Locating...' }}</div>
                     <div class="truck-speed {{ 'speed-moving' if loc.speed_mph > 0 else 'speed-stopped' }}">
                         {% if loc.speed_mph > 0 %}
-                            <i class="fas fa-tachometer-alt mr-1"></i> {{ loc.speed_mph }} mph
+                        <i class="fas fa-tachometer-alt mr-1"></i> {{ loc.speed_mph }} mph
                         {% else %}
-                            <i class="fas fa-parking mr-1"></i> Stopped
+                        <i class="fas fa-parking mr-1"></i> Stopped
                         {% endif %}
                     </div>
                 </div>
@@ -354,28 +399,44 @@
             zoomControl: false
         }).setView([41.2565, -95.9345], 12);
 
-        // Dark tile layer for TV display readability
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        // Dark tile layer
+        const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap &copy; CARTO',
             maxZoom: 19
+        });
+
+        // Satellite tile layer
+        const satelliteTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
         }).addTo(map);
 
-        // Add zoom control to bottom-right (out of way of overlays)
+        const baseMaps = {
+            "Satellite": satelliteTiles,
+            "Dark Mode": darkTiles
+        };
+
+        // Add layer control and zoom control
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
         L.control.zoom({ position: 'topright' }).addTo(map);
 
         // Add truck markers
         const markers = [];
-        locations.forEach(function(loc) {
+        locations.forEach(function (loc) {
             if (!loc.latitude || !loc.longitude) return;
 
             const isMoving = loc.speed_mph > 0;
             const iconClass = isMoving ? 'moving' : '';
 
+            const heading = loc.heading || 0;
             const icon = L.divIcon({
                 className: 'truck-marker',
                 html: `
-                    <div style="position:relative;">
+                    <div style="position:relative; width:40px; height:40px;">
                         <div class="marker-label">${loc.name}</div>
+                        <!-- Arrow container rotated by heading -->
+                        <div class="direction-arrow-container" style="transform: rotate(${heading}deg);">
+                            <div class="direction-arrow"></div>
+                        </div>
                         <div class="marker-icon ${iconClass}">
                             <i class="fas fa-truck"></i>
                         </div>
