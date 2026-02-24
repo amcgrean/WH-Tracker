@@ -489,13 +489,30 @@ class ERPService:
             for p in picks:
                 so_num = p.so_number
                 if so_num not in so_map:
+                    so_s = (p.so_status or '').upper()
+                    ship_s = (p.shipment_status or '').upper()
+                    
+                    # Compute status label for Cloud Mode
+                    label = so_s
+                    if so_s == 'K': label = 'PICKING'
+                    elif so_s == 'P': label = 'PICKED'
+                    elif so_s == 'S':
+                        if ship_s == 'E': label = 'STAGED - EN ROUTE'
+                        elif ship_s == 'L': label = 'STAGED - LOADED'
+                        elif ship_s == 'D': label = 'STAGED - DELIVERED'
+                        else: label = 'STAGED'
+                    elif so_s == 'I': label = 'INVOICED'
+
                     so_map[so_num] = {
                         'so_number': so_num,
-                        'customer_name': p.customer_name,
-                        'address': p.address,
+                        'customer_name': p.customer_name or 'Unknown',
+                        'address': p.address or 'No Address',
                         'reference': p.reference,
-                        'handling_codes': [],   # Use list instead of set
-                        'line_count': 0
+                        'handling_codes': [],
+                        'line_count': 0,
+                        'so_status': so_s,
+                        'shipment_status': ship_s,
+                        'status_label': label or 'OPEN'
                     }
                 if p.handling_code and p.handling_code not in so_map[so_num]['handling_codes']:
                     so_map[so_num]['handling_codes'].append(p.handling_code)
@@ -663,7 +680,7 @@ class ERPService:
                         'reference': p.reference,
                         'so_status': so_s,
                         'shipment_status': ship_s,
-                        'status_label': label,
+                        'status_label': label or 'OPEN',
                         'invoice_date': None # Date details not mirrored yet
                     }
             # Return as a list, sorted by SO number descending
