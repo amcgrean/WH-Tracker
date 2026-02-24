@@ -154,11 +154,10 @@ class ERPService:
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key AND soh.system_id = c.system_id
-                LEFT JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num AND soh.system_id = cs.system_id
+                LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR) AND soh.system_id = c.system_id
+                LEFT JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR) AND soh.system_id = cs.system_id
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE soh.system_id = 1
-                  AND soh.so_status != 'C'
+                WHERE soh.so_status != 'C'
                   AND (
                     (soh.so_status IN ('K', 'P', 'S'))
                     OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
@@ -244,8 +243,8 @@ class ERPService:
                 FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key 
-                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
+                LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR) 
+                JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 WHERE soh.so_status = 'k' 
                     AND sod.bo = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
@@ -310,8 +309,8 @@ class ERPService:
                 FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key 
-                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
+                LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR) 
+                JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 WHERE sod.bo = 0
             """
             
@@ -385,8 +384,8 @@ class ERPService:
                     cs.city,
                     soh.reference
                 FROM so_header soh
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key
-                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
+                LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
+                JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 WHERE soh.so_id = ?
             """
             cursor.execute(query, (so_number,))
@@ -522,8 +521,8 @@ class ERPService:
                     COUNT(sod.sequence) as line_count
                 FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key
-                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
+                LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
+                JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 WHERE soh.so_status = 'k'
                     AND sod.bo = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference
@@ -601,7 +600,7 @@ class ERPService:
                 LEFT JOIN so_detail sod ON wh.source_id = sod.so_id AND wh.source_seq = sod.sequence
                 LEFT JOIN item i ON sod.item_ptr = i.item_ptr
                 LEFT JOIN so_header soh ON wh.source_id = soh.so_id
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key
+                LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
                 WHERE wh.wo_status NOT IN ('Completed', 'Canceled')
                 ORDER BY wh.wo_id DESC
             """
@@ -678,7 +677,7 @@ class ERPService:
             today = datetime.now().strftime('%Y-%m-%d')
             
             # Refined Logic:
-            # 1. system_id = 1 for consistency
+            # 1. system_id = '1' for consistency
             # 2. Exclude 'C' (Cancelled)
             # 3. Only show:
             #    - Scheduled for Today (expect_date or ship_date)
@@ -710,11 +709,10 @@ class ERPService:
                         ELSE MAX(soh.so_status)
                     END as status_label
                 FROM so_header soh
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key AND soh.system_id = c.system_id
-                LEFT JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num AND soh.system_id = cs.system_id
+                LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR) AND soh.system_id = c.system_id
+                LEFT JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR) AND soh.system_id = cs.system_id
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE soh.system_id = 1
-                  AND soh.so_status != 'C'
+                WHERE soh.so_status != 'C'
                   AND (
                     (soh.expect_date = '{today}')
                     OR (sh.ship_date = '{today}')
