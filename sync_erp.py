@@ -50,8 +50,10 @@ class LocalSync:
             # Fetch Work Orders
             work_orders = self.erp.get_open_work_orders()
             
-            # Fetch KPIs (7-day history)
-            kpis = self.erp.get_historical_delivery_stats(days=14) # Get 2 weeks for better avg context
+            # Fetch KPIs for all branches
+            kpis = []
+            for b_id in [None, '20gr', '25bw', '10fd', '40cv']:
+                kpis.extend(self.erp.get_historical_delivery_stats(days=14, branch_id=b_id))
             
             return {
                 'picks': picks,

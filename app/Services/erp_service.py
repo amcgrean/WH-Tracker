@@ -799,11 +799,20 @@ class ERPService:
             return [] # Local only
 
         try:
+            branch_map = {
+                '20gr': '20GR',
+                '25bw': '25BW',
+                '10fd': '10FD',
+                '40cv': '40CV'
+            }
+            
             branch_filter = ""
             query_params = []
-            if branch_id:
+            if branch_id and branch_id.lower() != 'all':
+                normalized_id = branch_id.lower()
+                sys_id = branch_map.get(normalized_id, branch_id.upper()) # Fallback to uppercase
                 branch_filter = " AND soh.system_id = ?"
-                query_params.append(branch_id)
+                query_params.append(sys_id)
 
             query = f"""
                 SELECT 
