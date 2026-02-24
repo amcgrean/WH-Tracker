@@ -655,10 +655,14 @@ class ERPService:
             today = datetime.now().strftime('%Y-%m-%d')
             
             # Refined Logic:
-            # 1. No 'C' (Cancelled)
-            # 2. 'I' (Invoiced) only if invoice_date is today
-            # 3. K, P, S always included (Picking, Picked, Staged)
-            # 4. CASE statement for consolidated status label
+            # 1. system_id = 1 for consistency
+            # 2. Exclude 'C' (Cancelled)
+            # 3. Only show:
+            #    - Scheduled for Today (expect_date or ship_date)
+            #    - OR Invoiced Today (invoice_date)
+            #    - OR Open (K, P, S) ONLY IF scheduled for today (handled by above)
+            #    Actually, user wants "daily deliveries", so we filter by date.
+            
             query = f"""
                 SELECT 
                     soh.so_id,
@@ -683,15 +687,16 @@ class ERPService:
                         ELSE MAX(soh.so_status)
                     END as status_label
                 FROM so_header soh
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key
-                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
-                LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id
-                WHERE soh.so_status != 'C'
+                LEFT JOIN cust c ON soh.cust_key = c.cust_key AND soh.system_id = c.system_id
+                LEFT JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num AND soh.system_id = cs.system_id
+                LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
+                WHERE soh.system_id = 1
+                  AND soh.so_status != 'C'
                   AND (
-                    (soh.so_status IN ('K', 'P', 'S'))
+                    (soh.expect_date = '{today}')
+                    OR (sh.ship_date = '{today}')
                     OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
-                    OR (soh.expect_date = '{today}' AND soh.so_status != 'I')
-                    OR (sh.ship_date = '{today}' AND soh.so_status != 'I')
+                    OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = '{today}' OR soh.expect_date < '{today}')) -- Show backlog too but avoid future ones
                   )
                 GROUP BY soh.so_id
                 ORDER BY soh.so_id DESC

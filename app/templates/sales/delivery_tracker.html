@@ -97,10 +97,8 @@
                         {% set target_group = 'transit' %}
                         {% elif 'STAGED' in label or 'LOADED' in label %}
                         {% set target_group = 'staged' %}
-                        {% elif label == 'PICKED' %}
+                        {% elif label == 'PICKED' or label == 'PICKING' %}
                         {% set target_group = 'picking' %}
-                        {% elif label == 'PICKING' %}
-                        {% set target_group = 'open' %}
                         {% endif %}
 
                         {% if target_group == group.id %}
@@ -113,7 +111,7 @@
                             <td>
                                 {% if 'EN ROUTE' in label %}<span class="badge badge-success px-2 py-1"><i
                                         class="fas fa-truck mr-1"></i> {{ label }}</span>
-                                {% elif 'DELIVERED' in label %}<span class="badge badge-success px-2 py-1"><i
+                                {% elif 'DELIVERED' in label %"><span class="badge badge-success px-2 py-1"><i
                                         class="fas fa-check-circle mr-1"></i> {{ label }}</span>
                                 {% elif 'INVOICED' in label %}<span class="badge badge-success px-2 py-1"><i
                                         class="fas fa-file-invoice mr-1"></i> INVOICED</span>
@@ -124,7 +122,7 @@
                                 {% elif label == 'PICKED' %}<span class="badge badge-warning px-2 py-1"><i
                                         class="fas fa-dolly-flatbed mr-1"></i> PICKED</span>
                                 {% elif label == 'PICKING' %}<span
-                                    class="badge badge-secondary px-2 py-1">WAITING</span>
+                                    class="badge badge-secondary px-2 py-1">PICKING</span>
                                 {% else %}<span class="badge badge-secondary px-2 py-1">{{ label }}</span>
                                 {% endif %}
                             </td>
