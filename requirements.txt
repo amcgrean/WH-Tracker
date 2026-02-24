@@ -7,4 +7,3 @@ requests
 gunicorn
 psycopg2-binary
 sqlalchemy
-pyodbc

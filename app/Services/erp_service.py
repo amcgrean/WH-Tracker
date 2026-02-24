@@ -122,10 +122,12 @@ class ERPService:
                 'item_number': p.item_number,
                 'description': p.description,
                 'qty': p.qty,
-                'line_count': 1,
-                'so_status': p.so_status,
-                'shipment_status': p.shipment_status
-            } for p in picks]
+            'line_count': 1,
+            'so_status': p.so_status,
+            'shipment_status': p.shipment_status,
+            'system_id': p.system_id,
+            'expect_date': p.expect_date
+        } for p in picks]
 
         try:
             conn = self.get_connection()
@@ -143,14 +145,16 @@ class ERPService:
                     i.item,
                     i.description,
                     ib.handling_code,
-                    sod.qty_ordered,
-                    c.cust_name,
-                    cs.address_1,
-                    cs.city,
-                    soh.reference,
-                    soh.so_status,
-                    sh.status_flag_delivery
-                FROM so_detail sod
+                sod.qty_ordered,
+                c.cust_name,
+                cs.address_1,
+                cs.city,
+                soh.reference,
+                soh.so_status,
+                sh.status_flag_delivery,
+                soh.system_id,
+                soh.expect_date
+            FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
@@ -183,8 +187,10 @@ class ERPService:
                     'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
                     'reference': row.reference,
                     'so_status': row.so_status,
-                    'shipment_status': row.status_flag_delivery
-                })
+                'shipment_status': row.status_flag_delivery,
+                'system_id': row.system_id,
+                'expect_date': str(row.expect_date) if row.expect_date else ''
+            })
                 
             conn.close()
             return picks
@@ -646,14 +652,17 @@ class ERPService:
             print(f"ERP Connection Error (Open WOs): {e}")
             return []
 
-    def get_sales_delivery_tracker(self):
+    def get_sales_delivery_tracker(self, branch_id=None):
         """
         Fetches today's deliveries from ERP, combining SO header and Shipment statuses.
         Returns a list of dictionaries with status, customer, address, and SO info.
         """
         if self.cloud_mode:
             # Fallback to picks mirror for now (could be enhanced with more fields if synced)
-            picks = ERPMirrorPick.query.all()
+            query = ERPMirrorPick.query
+            if branch_id:
+                query = query.filter(ERPMirrorPick.system_id.ilike(f"%{branch_id}%"))
+            picks = query.all()
             
             # Group by SO Number to avoid duplicates in cloud mode
             grouped = {}
@@ -679,10 +688,12 @@ class ERPService:
                         'address': p.address or 'No Address',
                         'reference': p.reference,
                         'so_status': so_s,
-                        'shipment_status': ship_s,
-                        'status_label': label or 'OPEN',
-                        'invoice_date': None # Date details not mirrored yet
-                    }
+                    'shipment_status': ship_s,
+                    'status_label': label or 'OPEN',
+                    'system_id': p.system_id,
+                    'expect_date': p.expect_date,
+                    'invoice_date': None # Date details not mirrored yet
+                }
             # Return as a list, sorted by SO number descending
             return sorted(grouped.values(), key=lambda x: str(x['so_number']), reverse=True)
 
@@ -702,6 +713,12 @@ class ERPService:
             #    - OR Open (K, P, S) ONLY IF scheduled for today (handled by above)
             #    Actually, user wants "daily deliveries", so we filter by date.
             
+            query_params = []
+            branch_filter = ""
+            if branch_id:
+                branch_filter = " AND soh.system_id = ?"
+                query_params.append(branch_id)
+
             query = f"""
                 SELECT 
                     soh.so_id,
@@ -710,10 +727,12 @@ class ERPService:
                     MAX(cs.city) as city,
                     MAX(soh.reference) as reference,
                     MAX(soh.so_status) as so_status,
-                    MAX(sh.status_flag_delivery) as shipment_status,
-                    MAX(sh.invoice_date) as invoice_date,
-                    CASE 
-                        WHEN MAX(soh.so_status) = 'K' THEN 'PICKING'
+                MAX(sh.status_flag_delivery) as shipment_status,
+                MAX(sh.invoice_date) as invoice_date,
+                MAX(soh.system_id) as system_id,
+                MAX(soh.expect_date) as expect_date,
+                CASE 
+                    WHEN MAX(soh.so_status) = 'K' THEN 'PICKING'
                         WHEN MAX(soh.so_status) = 'P' THEN 'PICKED'
                         WHEN MAX(soh.so_status) = 'S' THEN 
                             CASE 
@@ -730,6 +749,7 @@ class ERPService:
                 LEFT JOIN cust_shipto cs ON TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
                 WHERE soh.so_status != 'C'
+                  {branch_filter}
                   AND (
                     (soh.expect_date = '{today}')
                     OR (sh.ship_date = '{today}')
@@ -740,7 +760,7 @@ class ERPService:
                 ORDER BY soh.so_id DESC
             """
             
-            cursor.execute(query)
+            cursor.execute(query, query_params)
             rows = cursor.fetchall()
             
             deliveries = []

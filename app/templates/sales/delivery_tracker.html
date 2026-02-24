@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block nav_items %}
+<!-- Empty to hide standard links -->
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
     <div class="row align-items-center mb-4">
@@ -9,12 +13,38 @@
             </h1>
             <p class="text-muted mb-0">Real-time status for orders scheduled for {{ today }}</p>
         </div>
-        <div class="col-auto text-right">
+        <div class="col-auto text-right d-flex align-items-center">
+            <a href="{{ url_for('main.delivery_map') }}" class="btn btn-primary shadow-sm mr-2">
+                <i class="fas fa-map-marked-alt mr-1"></i> View Fleet Map
+            </a>
             <button onclick="window.location.reload()" class="btn btn-outline-primary shadow-sm mr-2">
                 <i class="fas fa-sync-alt mr-1"></i> Refresh
             </button>
             <div class="badge badge-pill badge-info px-3 py-2 shadow-sm">
                 <i class="fas fa-clock mr-1"></i> <span id="lastUpdated">Updating...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Branch Selection -->
+    <div class="card border-0 shadow-sm mb-4 bg-white">
+        <div class="card-body py-2 px-3 d-flex align-items-center">
+            <span class="text-xs text-uppercase font-weight-bold text-muted mr-3">Filter Branch:</span>
+            <div class="btn-group btn-group-sm">
+                <a href="{{ url_for('main.sales_delivery_tracker') }}"
+                    class="btn btn-{% if not current_branch %}primary{% else %}outline-secondary{% endif %} px-4">All</a>
+                <a href="{{ url_for('main.sales_delivery_tracker', branch='20gr') }}"
+                    class="btn btn-{% if current_branch == '20gr' %}primary{% else %}outline-secondary{% endif %} px-4">Grimes
+                    (20GR)</a>
+                <a href="{{ url_for('main.sales_delivery_tracker', branch='25bw') }}"
+                    class="btn btn-{% if current_branch == '25bw' %}primary{% else %}outline-secondary{% endif %} px-4">Birchwood
+                    (25BW)</a>
+                <a href="{{ url_for('main.sales_delivery_tracker', branch='10fd') }}"
+                    class="btn btn-{% if current_branch == '10fd' %}primary{% else %}outline-secondary{% endif %} px-4">Fort
+                    Dodge (10FD)</a>
+                <a href="{{ url_for('main.sales_delivery_tracker', branch='40cv') }}"
+                    class="btn btn-{% if current_branch == '40cv' %}primary{% else %}outline-secondary{% endif %} px-4">Coralville
+                    (40CV)</a>
             </div>
         </div>
     </div>
@@ -78,18 +108,14 @@
                             <th class="pl-4">SO #</th>
                             <th>Customer</th>
                             <th>Location</th>
+                            <th>Expected</th>
                             <th>Reference</th>
                             <th>Status Badge</th>
                             <th class="text-right pr-4">Details</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% set found = false %}
                         {% for d in deliveries %}
-                        {% set so_s = d.so_status|upper %}
-                        {% set ship_s = d.shipment_status|upper if d.shipment_status else '' %}
-
-                        {# Logic for grouping #}
                         {% set label = d.status_label|upper %}
                         {% set target_group = 'open' %}
 
@@ -102,11 +128,11 @@
                         {% endif %}
 
                         {% if target_group == group.id %}
-                        {% set found = true %}
                         <tr data-group="{{ target_group }}">
                             <td class="pl-4 font-weight-bold text-dark">{{ d.so_number }}</td>
                             <td>{{ d.customer_name }}</td>
                             <td><small class="text-muted">{{ d.address }}</small></td>
+                            <td><span class="badge badge-light border">{{ d.expect_date }}</span></td>
                             <td>{{ d.reference }}</td>
                             <td>
                                 {% if 'EN ROUTE' in label %}<span class="badge badge-success px-2 py-1"><i
@@ -135,12 +161,6 @@
                         </tr>
                         {% endif %}
                         {% endfor %}
-
-                        {% if not (deliveries|length > 0) %}
-                        <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">No deliveries found for today.</td>
-                        </tr>
-                        {% endif %}
                     </tbody>
                 </table>
             </div>
@@ -201,7 +221,7 @@
             if (count === 0) {
                 const table = document.getElementById(`table-${groupId}`);
                 const tbody = table.querySelector('tbody');
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-3 text-muted">No orders in this status.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No orders in this status.</td></tr>';
             }
         });
 

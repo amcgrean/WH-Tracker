@@ -593,7 +593,9 @@ def sync_erp_data():
                     qty=p.get('qty'),
                     line_count=int(p.get('line_count', 0)),
                     so_status=p.get('so_status'),
-                    shipment_status=p.get('shipment_status')
+                    shipment_status=p.get('shipment_status'),
+                    system_id=p.get('system_id'),
+                    expect_date=p.get('expect_date')
                 )
                 db.session.add(new_pick)
 
@@ -1195,16 +1197,18 @@ def api_delivery_locations(branch=None):
 
 @main.route('/sales/tracker')
 @main.route('/sales/deliveries')
-def sales_delivery_tracker():
+@main.route('/sales/deliveries/<branch>')
+def sales_delivery_tracker(branch=None):
     """
     Sales Delivery Tracker: Real-time status for today's deliveries.
     Grouped by status (Picked, Staged, Loaded, etc).
     """
     erp = ERPService()
-    deliveries = erp.get_sales_delivery_tracker()
+    deliveries = erp.get_sales_delivery_tracker(branch_id=branch)
     
     return render_template('sales/delivery_tracker.html', 
                            deliveries=deliveries, 
+                           current_branch=branch,
                            today=datetime.now().strftime('%Y-%m-%d'))
 
 

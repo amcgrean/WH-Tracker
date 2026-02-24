@@ -74,6 +74,8 @@ class ERPMirrorPick(db.Model):
     line_count = db.Column(db.Integer)
     so_status = db.Column(db.String(10))
     shipment_status = db.Column(db.String(10))
+    system_id = db.Column(db.String(50))
+    expect_date = db.Column(db.String(50))
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ERPMirrorWorkOrder(db.Model):

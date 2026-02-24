@@ -66,6 +66,7 @@
 
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav mx-auto">
+                    {% block nav_items %}
                     <!-- Operations Group -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
@@ -129,6 +130,7 @@
                             <a class="dropdown-item rounded" href="#">ERP Sync Settings</a>
                         </div>
                     </li>
+                    {% endblock %}
                 </ul>
 
                 <!-- Global Search -->
