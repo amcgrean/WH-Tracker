@@ -91,6 +91,8 @@ class LocalSync:
                         'description': p.get('description'),
                         'qty': float(p.get('qty', 0)),
                         'line_count': int(p.get('line_count', 0)),
+                        'so_status': p.get('so_status'),
+                        'shipment_status': p.get('shipment_status'),
                         'synced_at': datetime.utcnow()
                     } for p in picks_data
                 ]

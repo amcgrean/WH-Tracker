@@ -122,14 +122,21 @@ class ERPService:
                 'item_number': p.item_number,
                 'description': p.description,
                 'qty': p.qty,
-                'line_count': 1
+                'line_count': 1,
+                'so_status': p.so_status,
+                'shipment_status': p.shipment_status
             } for p in picks]
 
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            query = """
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # Pulling a broader set of data for the cloud mirror:
+            # 1. Open Picking/Picked/Staged (K, P, S)
+            # 2. Invoiced Today (I)
+            query = f"""
                 SELECT 
                     soh.so_id,
                     sod.sequence,
@@ -140,15 +147,24 @@ class ERPService:
                     c.cust_name,
                     cs.address_1,
                     cs.city,
-                    soh.reference
+                    soh.reference,
+                    soh.so_status,
+                    sh.status_flag_delivery
                 FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
-                LEFT JOIN cust c ON soh.cust_key = c.cust_key 
-                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
-                WHERE soh.so_status = 'k' 
-                  AND sod.bo = 0
+                LEFT JOIN cust c ON soh.cust_key = c.cust_key AND soh.system_id = c.system_id
+                LEFT JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num AND soh.system_id = cs.system_id
+                LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
+                WHERE soh.system_id = 1
+                  AND soh.so_status != 'C'
+                  AND (
+                    (soh.so_status IN ('K', 'P', 'S'))
+                    OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
+                    OR (soh.expect_date = '{today}')
+                    OR (sh.ship_date = '{today}')
+                  )
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
             """
             
@@ -166,22 +182,12 @@ class ERPService:
                     'qty': float(row.qty_ordered) if row.qty_ordered is not None else 0,
                     'customer_name': row.cust_name or 'Unknown',
                     'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
-                    'reference': row.reference
+                    'reference': row.reference,
+                    'so_status': row.so_status,
+                    'shipment_status': row.status_flag_delivery
                 })
                 
             conn.close()
-            
-            if not picks:
-                # Debugging: Return a mock item to indicate 0 rows were found (vs connection error)
-                return [{
-                    'so_number': '00000',
-                    'sequence': 1,
-                    'item_number': 'DEBUG',
-                    'description': 'Query returned 0 rows. Check Status=K and BO=0 in SSMS.',
-                    'handling_code': 'DEBUG',
-                    'qty': 0
-                }]
-                
             return picks
             
         except Exception as e:
@@ -637,17 +643,31 @@ class ERPService:
             grouped = {}
             for p in picks:
                 if p.so_number not in grouped:
+                    # Determine status label in cloud mode based on synced flags
+                    so_s = (p.so_status or '').upper()
+                    ship_s = (p.shipment_status or '').upper()
+                    
+                    label = so_s
+                    if so_s == 'K': label = 'PICKING'
+                    elif so_s == 'P': label = 'PICKED'
+                    elif so_s == 'S':
+                        if ship_s == 'E': label = 'STAGED - EN ROUTE'
+                        elif ship_s == 'L': label = 'STAGED - LOADED'
+                        elif ship_s == 'D': label = 'STAGED - DELIVERED'
+                        else: label = 'STAGED'
+                    elif so_s == 'I': label = 'INVOICED'
+
                     grouped[p.so_number] = {
                         'so_number': p.so_number,
                         'customer_name': p.customer_name or 'Unknown',
                         'address': p.address or 'No Address',
                         'reference': p.reference,
-                        'so_status': 'K', # Cloud fallback default
-                        'shipment_status': None,
-                        'status_label': 'PICKING', # Default for mirror picks
-                        'invoice_date': None
+                        'so_status': so_s,
+                        'shipment_status': ship_s,
+                        'status_label': label,
+                        'invoice_date': None # Date details not mirrored yet
                     }
-            # Return as a list, sorted by SO number descending (best effort)
+            # Return as a list, sorted by SO number descending
             return sorted(grouped.values(), key=lambda x: str(x['so_number']), reverse=True)
 
         try:

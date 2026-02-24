@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 from app import create_app
 from app.extensions import db
 from app.Models.models import CreditImage
-from app.Services.email_service import process_credit_emails
+from app.Services.email_service import process_credit_emails, process_credit_emails_graph
 
 app = create_app()
 
@@ -56,7 +56,13 @@ with app.app_context():
     logger.info("Upload directory: %s", upload_base_dir)
 
     try:
-        new_records = process_credit_emails(upload_base_dir, mark_as_read=True)
+        # Use Graph API if credentials exist, otherwise fallback to IMAP
+        if os.environ.get('GRAPH_CLIENT_ID'):
+            logger.info("Mode: Microsoft Graph API (Cloud)")
+            new_records = process_credit_emails_graph(upload_base_dir)
+        else:
+            logger.info("Mode: Legacy IMAP (Local)")
+            new_records = process_credit_emails(upload_base_dir, mark_as_read=True)
     except Exception as exc:
         logger.error("Email polling failed: %s", exc, exc_info=True)
         sys.exit(1)

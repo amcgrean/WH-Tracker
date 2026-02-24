@@ -19,13 +19,20 @@ import email
 import os
 import re
 import logging
+import requests
 from datetime import datetime
 from email.header import decode_header, make_header
+
+# Microsoft Graph / HEIC support
+import msal
+from PIL import Image
+import pillow_heif
+pillow_heif.register_heif_opener()
 
 logger = logging.getLogger(__name__)
 
 # Allowed image/document extensions to save
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.tiff', '.tif'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.tiff', '.tif', '.heic', '.heif'}
 
 RMA_PATTERN = re.compile(r'RMA\s*#\s*(\d{7,10})', re.IGNORECASE)
 
@@ -210,4 +217,142 @@ def process_credit_emails(upload_base_dir, mark_as_read=True):
             pass
 
     logger.info("Done. %d image(s) saved.", len(results))
+    return results
+
+
+def process_credit_emails_graph(upload_base_dir):
+    """
+    Connect to Microsoft Graph API, find unread emails with an RMA number in the
+    subject, save attachments (performing HEIC->JPG conversion), and return
+    a list of CreditImage field dicts.
+    """
+    client_id     = os.environ.get('GRAPH_CLIENT_ID')
+    client_secret = os.environ.get('GRAPH_CLIENT_SECRET')
+    tenant_id     = os.environ.get('GRAPH_TENANT_ID')
+    user_email    = os.environ.get('EMAIL_ADDRESS')
+
+    if not all([client_id, client_secret, tenant_id, user_email]):
+        raise ValueError("GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, GRAPH_TENANT_ID, and EMAIL_ADDRESS must be set.")
+
+    results = []
+    
+    # 1. Authenticate via MSAL (Client Credentials Flow)
+    authority = f"https://login.microsoftonline.com/{tenant_id}"
+    app = msal.ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
+    
+    # Permissions needed: Mail.Read, Mail.ReadWrite (to mark read)
+    token_response = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
+    
+    if "access_token" not in token_response:
+        logger.error("Could not acquire Microsoft Graph token: %s", token_response.get("error_description"))
+        return results
+
+    headers = {'Authorization': f'Bearer {token_response["access_token"]}'}
+    base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}"
+
+    # 2. Search for unread emails (isRead eq false) containing "RMA"
+    # Note: Filter must use single quotes.
+    query = "isRead eq false and (contains(subject, 'RMA') or contains(subject, 'rma'))"
+    search_url = f"{base_url}/messages?$filter={query}&$select=id,subject,from,receivedDateTime,hasAttachments"
+
+    try:
+        resp = requests.get(search_url, headers=headers)
+        resp.raise_for_status()
+        messages = resp.json().get('value', [])
+        logger.info("Found %d potential RMA emails via Graph API.", len(messages))
+
+        for msg in messages:
+            subject = msg.get('subject', '')
+            rma_match = RMA_PATTERN.search(subject)
+            if not rma_match:
+                continue
+
+            rma_number = rma_match.group(1)
+            msg_id = msg['id']
+            sender = msg['from']['emailAddress']['address']
+            
+            # Graph returns ISO 8601 string
+            received_str = msg['receivedDateTime']
+            try:
+                # 2024-02-23T20:02:47Z -> datetime
+                received_at = datetime.fromisoformat(received_str.replace('Z', '+00:00'))
+                received_at = received_at.replace(tzinfo=None)
+            except Exception:
+                received_at = datetime.utcnow()
+
+            logger.info("Processing Graph RMA #%s from %s", rma_number, sender)
+
+            # 3. Fetch Attachments
+            attach_url = f"{base_url}/messages/{msg_id}/attachments"
+            att_resp = requests.get(attach_url, headers=headers)
+            att_resp.raise_for_status()
+            attachments = att_resp.json().get('value', [])
+
+            for att in attachments:
+                # We only care about file attachments
+                if att.get('@odata.type') != '#microsoft.graph.fileAttachment':
+                    continue
+
+                raw_name = att.get('name', 'attachment')
+                if not _is_allowed_attachment(raw_name):
+                    continue
+
+                content_bytes = att.get('contentBytes')
+                if not content_bytes:
+                    continue
+
+                import base64
+                payload = base64.b64decode(content_bytes)
+
+                # Prepare filename
+                safe_name = _sanitize_filename(raw_name)
+                timestamp_prefix = datetime.utcnow().strftime('%Y%m%d_%H%M%S_')
+                final_name = timestamp_prefix + safe_name
+                
+                rma_dir = os.path.join(upload_base_dir, rma_number)
+                os.makedirs(rma_dir, exist_ok=True)
+                
+                file_path = os.path.join(rma_dir, final_name)
+                ext = os.path.splitext(final_name)[1].lower()
+
+                # 4. HEIC Conversion Logic
+                if ext in {'.heic', '.heif'}:
+                    try:
+                        # Convert to JPG
+                        import io
+                        heif_file = pillow_heif.read_heif(io.BytesIO(payload))
+                        image = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data, "raw", heif_file.mode, heif_file.stride)
+                        
+                        # Change extension to jpg
+                        final_name = os.path.splitext(final_name)[0] + ".jpg"
+                        file_path = os.path.join(rma_dir, final_name)
+                        
+                        image.save(file_path, "JPEG", quality=90)
+                        logger.info("  Converted %s -> %s", raw_name, final_name)
+                    except Exception as e:
+                        logger.error("  HEIC conversion failed for %s: %s", raw_name, e)
+                        # Fallback: save as-is if conversion fails
+                        with open(file_path, 'wb') as f:
+                            f.write(payload)
+                else:
+                    # Save standard file
+                    with open(file_path, 'wb') as f:
+                        f.write(payload)
+
+                results.append({
+                    'rma_number':    rma_number,
+                    'filename':      final_name,
+                    'filepath':      os.path.join(rma_number, final_name),
+                    'email_from':    sender,
+                    'email_subject': subject,
+                    'received_at':   received_at,
+                })
+
+            # 4. Mark as Read (PATCH message)
+            requests.patch(f"{base_url}/messages/{msg_id}", headers=headers, json={'isRead': True})
+
+    except Exception as e:
+        logger.error("Graph API sync error: %s", e)
+        raise
+
     return results
