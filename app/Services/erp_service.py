@@ -730,7 +730,7 @@ class ERPService:
                     MAX(cs.city) as city,
                     MAX(soh.reference) as reference,
                     MAX(soh.so_status) as so_status,
-                MAX(sh.status_flag_delivery) as shipment_status,
+                MAX(sh.status_flag) as shipment_status,
                 MAX(sh.invoice_date) as invoice_date,
                 MAX(soh.system_id) as system_id,
                 MAX(soh.expect_date) as expect_date,
@@ -739,9 +739,9 @@ class ERPService:
                         WHEN MAX(soh.so_status) = 'P' THEN 'PARTIAL'
                         WHEN MAX(soh.so_status) = 'S' THEN 
                             CASE 
-                                WHEN MAX(sh.status_flag_delivery) = 'E' THEN 'STAGED - EN ROUTE'
-                                WHEN MAX(sh.status_flag_delivery) = 'L' THEN 'STAGED - LOADED'
-                                WHEN MAX(sh.status_flag_delivery) = 'D' THEN 'STAGED - DELIVERED'
+                                WHEN MAX(sh.status_flag) = 'E' THEN 'STAGED - EN ROUTE'
+                                WHEN MAX(sh.status_flag) = 'L' THEN 'STAGED - LOADED'
+                                WHEN MAX(sh.status_flag) = 'D' THEN 'STAGED - DELIVERED'
                                 ELSE 'STAGED'
                             END
                         WHEN MAX(soh.so_status) = 'I' THEN 'INVOICED'
