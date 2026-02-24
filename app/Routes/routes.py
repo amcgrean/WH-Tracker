@@ -595,7 +595,8 @@ def sync_erp_data():
                     so_status=p.get('so_status'),
                     shipment_status=p.get('shipment_status'),
                     system_id=p.get('system_id'),
-                    expect_date=p.get('expect_date')
+                    expect_date=p.get('expect_date'),
+                    sale_type=p.get('sale_type')
                 )
                 db.session.add(new_pick)
 

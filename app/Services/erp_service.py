@@ -153,7 +153,8 @@ class ERPService:
                 soh.so_status,
                 sh.status_flag_delivery,
                 soh.system_id,
-                soh.expect_date
+                soh.expect_date,
+                soh.sale_type
             FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item i ON i.item_ptr = sod.item_ptr
@@ -168,6 +169,7 @@ class ERPService:
                     OR (soh.expect_date = '{today}')
                     OR (sh.ship_date = '{today}')
                   )
+                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
             """
             
@@ -189,7 +191,8 @@ class ERPService:
                     'so_status': row.so_status,
                 'shipment_status': row.status_flag_delivery,
                 'system_id': row.system_id,
-                'expect_date': str(row.expect_date) if row.expect_date else ''
+                'expect_date': str(row.expect_date) if row.expect_date else '',
+                'sale_type': row.sale_type
             })
                 
             conn.close()
@@ -756,6 +759,7 @@ class ERPService:
                     OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
                     OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = '{today}' OR soh.expect_date < '{today}')) -- Show backlog too but avoid future ones
                   )
+                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
                 GROUP BY soh.so_id
                 ORDER BY soh.so_id DESC
             """
@@ -773,7 +777,10 @@ class ERPService:
                     'so_status': row.so_status,
                     'shipment_status': row.shipment_status,
                     'status_label': row.status_label,
-                    'invoice_date': row.invoice_date
+                    'invoice_date': row.invoice_date,
+                    'system_id': row.system_id,
+                    'expect_date': str(row.expect_date) if row.expect_date else '',
+                    'sale_type': row.sale_type
                 })
             
             conn.close()
