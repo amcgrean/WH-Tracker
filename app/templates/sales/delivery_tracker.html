@@ -4,6 +4,10 @@
 <!-- Empty to hide standard links -->
 {% endblock %}
 
+{% block search_nav %}
+<!-- Hide global search to avoid confusion with local board search -->
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
     <div class="row align-items-center mb-4">
@@ -105,7 +109,7 @@
     ] %}
 
     {% for group in status_groups %}
-    <div class="card border-0 shadow-sm mb-4">
+    <div class="card border-0 shadow-sm mb-4" id="card-{{ group.id }}">
         <div class="card-header bg-white py-3 d-flex align-items-center">
             <div class="rounded-circle bg-{{ group.class }} text-white mr-3 d-flex align-items-center justify-content-center"
                 style="width: 40px; height: 40px;">
@@ -249,7 +253,7 @@
             // Update section counts and visibility
             ['transit', 'staged', 'picking', 'open'].forEach(groupId => {
                 const count = counts[groupId];
-                const section = document.querySelector(`.card:has(#table-${groupId})`);
+                const section = document.getElementById(`card-${groupId}`);
                 const badge = document.querySelector(`.group-count-${groupId}`);
 
                 if (badge) badge.innerText = count;
