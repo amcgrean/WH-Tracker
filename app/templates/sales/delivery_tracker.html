@@ -49,6 +49,22 @@
         </div>
     </div>
 
+    <!-- Search Bar -->
+    <div class="card border-0 shadow-sm mb-4 bg-white">
+        <div class="card-body py-3 px-4">
+            <div class="position-relative">
+                <i class="fas fa-search text-muted position-absolute"
+                    style="left: 1.25rem; top: 50%; transform: translateY(-50%); font-size: 1.1rem;"></i>
+                <input type="text" id="deliverySearch" class="form-control form-control-lg border-0 bg-light"
+                    placeholder="Search by SO#, Customer Name, or Reference..."
+                    style="padding-left: 3rem; border-radius: 50rem; height: 50px; font-size: 1rem;">
+            </div>
+            <div id="searchStats" class="mt-2 text-muted xsmall px-3" style="display: none;">
+                <span id="matchCount">Showing all orders</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Summary Stats -->
     <div class="row mb-4">
         <div class="col-md-3">
@@ -201,29 +217,87 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Update counts
-        const allRows = document.querySelectorAll('tr[data-group]');
-        document.querySelector('.count-all').innerText = allRows.length;
+        const searchInput = document.getElementById('deliverySearch');
+        const rows = document.querySelectorAll('tr[data-group]');
+        const statCards = {
+            all: document.querySelector('.count-all'),
+            picking: document.querySelector('.count-picking'),
+            staged: document.querySelector('.count-staged'),
+            transit: document.querySelector('.count-transit')
+        };
 
-        ['transit', 'staged', 'picking', 'open'].forEach(groupId => {
-            const count = document.querySelectorAll(`tr[data-group="${groupId}"]`).length;
-            document.querySelector(`.group-count-${groupId}`).innerText = count;
+        function updateUI() {
+            const term = searchInput.value.toLowerCase().trim();
+            const searchStats = document.getElementById('searchStats');
+            const matchCountEl = document.getElementById('matchCount');
 
-            // Sync with top cards
-            if (groupId === 'transit') document.querySelector('.count-transit').innerText = count;
-            if (groupId === 'staged') document.querySelector('.count-staged').innerText = count;
-            if (groupId === 'picking' || groupId === 'open') {
-                const pickCount = parseInt(document.querySelector('.count-picking').innerText) || 0;
-                document.querySelector('.count-picking').innerText = pickCount + count;
-            }
+            let counts = { all: 0, picking: 0, staged: 0, transit: 0, open: 0 };
 
-            // Hide table if empty
-            if (count === 0) {
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                const group = row.dataset.group;
+
+                if (text.includes(term)) {
+                    row.style.display = '';
+                    counts.all++;
+                    counts[group]++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update section counts and visibility
+            ['transit', 'staged', 'picking', 'open'].forEach(groupId => {
+                const count = counts[groupId];
+                const section = document.querySelector(`.card:has(#table-${groupId})`);
+                const badge = document.querySelector(`.group-count-${groupId}`);
+
+                if (badge) badge.innerText = count;
+
+                if (count === 0 && term !== "") {
+                    if (section) section.style.display = 'none';
+                } else {
+                    if (section) section.style.display = '';
+                }
+
+                // Handle Empty State Row
                 const table = document.getElementById(`table-${groupId}`);
-                const tbody = table.querySelector('tbody');
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No orders in this status.</td></tr>';
+                if (table) {
+                    const tbody = table.querySelector('tbody');
+                    let emptyRow = tbody.querySelector('.empty-row');
+
+                    if (count === 0) {
+                        if (!emptyRow) {
+                            emptyRow = document.createElement('tr');
+                            emptyRow.className = 'empty-row';
+                            emptyRow.innerHTML = `<td colspan="7" class="text-center py-4 text-muted">No matches found for "${term}"</td>`;
+                            tbody.appendChild(emptyRow);
+                        }
+                    } else if (emptyRow) {
+                        emptyRow.remove();
+                    }
+                }
+            });
+
+            // Update Top Counters
+            statCards.all.innerText = counts.all;
+            statCards.transit.innerText = counts.transit;
+            statCards.staged.innerText = counts.staged;
+            statCards.picking.innerText = counts.picking + counts.open;
+
+            // Search Stats Display
+            if (term.length > 0) {
+                searchStats.style.display = 'block';
+                matchCountEl.innerText = `Found ${counts.all} matching orders`;
+            } else {
+                searchStats.style.display = 'none';
             }
-        });
+        }
+
+        searchInput.addEventListener('input', updateUI);
+
+        // Initial update
+        updateUI();
 
         // Set last updated time
         document.getElementById('lastUpdated').innerText = new Date().toLocaleTimeString();
