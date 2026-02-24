@@ -632,20 +632,23 @@ class ERPService:
         if self.cloud_mode:
             # Fallback to picks mirror for now (could be enhanced with more fields if synced)
             picks = ERPMirrorPick.query.all()
-            results = []
+            
+            # Group by SO Number to avoid duplicates in cloud mode
+            grouped = {}
             for p in picks:
-                results.append({
-                    'so_number': p.so_number,
-                    'customer_name': p.customer_name,
-                    'address': p.address,
-                    'reference': p.reference,
-                    'so_status': 'K', # Default to Open for mirror
-                    'shipment_status': None,
-                    'pick_status': None,
-                    'ship_date': None,
-                    'expect_date': None
-                })
-            return results
+                if p.so_number not in grouped:
+                    grouped[p.so_number] = {
+                        'so_number': p.so_number,
+                        'customer_name': p.customer_name or 'Unknown',
+                        'address': p.address or 'No Address',
+                        'reference': p.reference,
+                        'so_status': 'K', # Cloud fallback default
+                        'shipment_status': None,
+                        'status_label': 'PICKING', # Default for mirror picks
+                        'invoice_date': None
+                    }
+            # Return as a list, sorted by SO number descending (best effort)
+            return sorted(grouped.values(), key=lambda x: str(x['so_number']), reverse=True)
 
         try:
             conn = self.get_connection()
