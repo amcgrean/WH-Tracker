@@ -654,8 +654,11 @@ class ERPService:
             # Use today's date for Agility query
             today = datetime.now().strftime('%Y-%m-%d')
             
-            # Using GROUP BY to ensure one row per SO ID, 
-            # and MAX/MIN on statuses to pick up the most relevant flags if multiple shipment headers exist.
+            # Refined Logic:
+            # 1. No 'C' (Cancelled)
+            # 2. 'I' (Invoiced) only if invoice_date is today
+            # 3. K, P, S always included (Picking, Picked, Staged)
+            # 4. CASE statement for consolidated status label
             query = f"""
                 SELECT 
                     soh.so_id,
@@ -665,15 +668,31 @@ class ERPService:
                     MAX(soh.reference) as reference,
                     MAX(soh.so_status) as so_status,
                     MAX(sh.status_flag_delivery) as shipment_status,
-                    MAX(sh.pick_status) as pick_status,
-                    MAX(sh.ship_date) as ship_date,
-                    MAX(soh.expect_date) as expect_date
+                    MAX(sh.invoice_date) as invoice_date,
+                    CASE 
+                        WHEN MAX(soh.so_status) = 'K' THEN 'PICKING'
+                        WHEN MAX(soh.so_status) = 'P' THEN 'PICKED'
+                        WHEN MAX(soh.so_status) = 'S' THEN 
+                            CASE 
+                                WHEN MAX(sh.status_flag_delivery) = 'E' THEN 'STAGED - EN ROUTE'
+                                WHEN MAX(sh.status_flag_delivery) = 'L' THEN 'STAGED - LOADED'
+                                WHEN MAX(sh.status_flag_delivery) = 'D' THEN 'STAGED - DELIVERED'
+                                ELSE 'STAGED'
+                            END
+                        WHEN MAX(soh.so_status) = 'I' THEN 'INVOICED'
+                        ELSE MAX(soh.so_status)
+                    END as status_label
                 FROM so_header soh
                 LEFT JOIN cust c ON soh.cust_key = c.cust_key
                 JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id
-                WHERE (soh.expect_date = '{today}' OR sh.ship_date = '{today}')
-                   OR (soh.so_status IN ('k', 'p', 's'))
+                WHERE soh.so_status != 'C'
+                  AND (
+                    (soh.so_status IN ('K', 'P', 'S'))
+                    OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
+                    OR (soh.expect_date = '{today}' AND soh.so_status != 'I')
+                    OR (sh.ship_date = '{today}' AND soh.so_status != 'I')
+                  )
                 GROUP BY soh.so_id
                 ORDER BY soh.so_id DESC
             """
@@ -690,9 +709,8 @@ class ERPService:
                     'reference': row.reference,
                     'so_status': row.so_status,
                     'shipment_status': row.shipment_status,
-                    'pick_status': row.pick_status,
-                    'ship_date': row.ship_date,
-                    'expect_date': row.expect_date
+                    'status_label': row.status_label,
+                    'invoice_date': row.invoice_date
                 })
             
             conn.close()

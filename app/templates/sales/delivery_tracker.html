@@ -90,14 +90,16 @@
                         {% set ship_s = d.shipment_status|upper if d.shipment_status else '' %}
 
                         {# Logic for grouping #}
+                        {% set label = d.status_label|upper %}
                         {% set target_group = 'open' %}
-                        {% if ship_s in ['E', 'D', 'I'] or so_s == 'I' %}
+
+                        {% if label == 'INVOICED' or 'EN ROUTE' in label or 'DELIVERED' in label %}
                         {% set target_group = 'transit' %}
-                        {% elif ship_s in ['S', 'L'] or so_s == 'S' %}
+                        {% elif 'STAGED' in label or 'LOADED' in label %}
                         {% set target_group = 'staged' %}
-                        {% elif so_s == 'P' %}
+                        {% elif label == 'PICKED' %}
                         {% set target_group = 'picking' %}
-                        {% elif so_s == 'K' %}
+                        {% elif label == 'PICKING' %}
                         {% set target_group = 'open' %}
                         {% endif %}
 
@@ -109,24 +111,21 @@
                             <td><small class="text-muted">{{ d.address }}</small></td>
                             <td>{{ d.reference }}</td>
                             <td>
-                                {% if ship_s == 'E' or (not ship_s and so_s == 'E') %}<span
-                                    class="badge badge-success px-2 py-1"><i class="fas fa-truck mr-1"></i> EN
-                                    ROUTE</span>
-                                {% elif ship_s == 'L' or (not ship_s and so_s == 'L') %}<span
-                                    class="badge badge-info px-2 py-1"><i class="fas fa-truck-loading mr-1"></i>
-                                    LOADED</span>
-                                {% elif ship_s == 'S' or (not ship_s and so_s == 'S') %}<span
-                                    class="badge badge-info px-2 py-1"><i class="fas fa-pallet mr-1"></i> STAGED</span>
-                                {% elif ship_s == 'D' or (not ship_s and so_s == 'D') %}<span
-                                    class="badge badge-success px-2 py-1"><i class="fas fa-check-circle mr-1"></i>
-                                    DELIVERED</span>
-                                {% elif ship_s == 'I' or (not ship_s and so_s == 'I') %}<span
-                                    class="badge badge-success px-2 py-1"><i class="fas fa-file-invoice mr-1"></i>
-                                    INVOICED</span>
-                                {% elif so_s == 'P' %}<span class="badge badge-warning px-2 py-1"><i
+                                {% if 'EN ROUTE' in label %}<span class="badge badge-success px-2 py-1"><i
+                                        class="fas fa-truck mr-1"></i> {{ label }}</span>
+                                {% elif 'DELIVERED' in label %}<span class="badge badge-success px-2 py-1"><i
+                                        class="fas fa-check-circle mr-1"></i> {{ label }}</span>
+                                {% elif 'INVOICED' in label %}<span class="badge badge-success px-2 py-1"><i
+                                        class="fas fa-file-invoice mr-1"></i> INVOICED</span>
+                                {% elif 'LOADED' in label %}<span class="badge badge-info px-2 py-1"><i
+                                        class="fas fa-truck-loading mr-1"></i> {{ label }}</span>
+                                {% elif 'STAGED' in label %}<span class="badge badge-info px-2 py-1"><i
+                                        class="fas fa-pallet mr-1"></i> {{ label }}</span>
+                                {% elif label == 'PICKED' %}<span class="badge badge-warning px-2 py-1"><i
                                         class="fas fa-dolly-flatbed mr-1"></i> PICKED</span>
-                                {% elif so_s == 'K' %}<span class="badge badge-secondary px-2 py-1">WAITING</span>
-                                {% else %}<span class="badge badge-secondary px-2 py-1">{{ so_s or 'OPEN' }}</span>
+                                {% elif label == 'PICKING' %}<span
+                                    class="badge badge-secondary px-2 py-1">WAITING</span>
+                                {% else %}<span class="badge badge-secondary px-2 py-1">{{ label }}</span>
                                 {% endif %}
                             </td>
                             <td class="text-right pr-4">
