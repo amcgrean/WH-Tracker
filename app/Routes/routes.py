@@ -591,7 +591,9 @@ def sync_erp_data():
                     item_number=p.get('item_number'),
                     description=p.get('description'),
                     qty=p.get('qty'),
-                    line_count=int(p.get('line_count', 0))
+                    line_count=int(p.get('line_count', 0)),
+                    so_status=p.get('so_status'),
+                    shipment_status=p.get('shipment_status')
                 )
                 db.session.add(new_pick)
 
