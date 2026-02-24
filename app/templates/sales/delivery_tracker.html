@@ -123,7 +123,7 @@
                         {% set target_group = 'transit' %}
                         {% elif 'STAGED' in label or 'LOADED' in label %}
                         {% set target_group = 'staged' %}
-                        {% elif label == 'PICKED' or label == 'PICKING' %}
+                        {% elif label == 'PICKING' %}
                         {% set target_group = 'picking' %}
                         {% endif %}
 
@@ -145,8 +145,8 @@
                                         class="fas fa-truck-loading mr-1"></i> {{ label }}</span>
                                 {% elif 'STAGED' in label %}<span class="badge badge-info px-2 py-1"><i
                                         class="fas fa-pallet mr-1"></i> {{ label }}</span>
-                                {% elif label == 'PICKED' %}<span class="badge badge-warning px-2 py-1"><i
-                                        class="fas fa-dolly-flatbed mr-1"></i> PICKED</span>
+                                {% elif label == 'PARTIAL' %}<span class="badge badge-warning px-2 py-1"><i
+                                        class="fas fa-dolly-flatbed mr-1"></i> PARTIAL</span>
                                 {% elif label == 'PICKING' %}<span
                                     class="badge badge-secondary px-2 py-1">PICKING</span>
                                 {% else %}<span class="badge badge-secondary px-2 py-1">{{ label }}</span>

@@ -501,7 +501,7 @@ class ERPService:
                     # Compute status label for Cloud Mode
                     label = so_s
                     if so_s == 'K': label = 'PICKING'
-                    elif so_s == 'P': label = 'PICKED'
+                    elif so_s == 'P': label = 'PARTIAL'
                     elif so_s == 'S':
                         if ship_s == 'E': label = 'STAGED - EN ROUTE'
                         elif ship_s == 'L': label = 'STAGED - LOADED'
@@ -674,7 +674,7 @@ class ERPService:
                     
                     label = so_s
                     if so_s == 'K': label = 'PICKING'
-                    elif so_s == 'P': label = 'PICKED'
+                    elif so_s == 'P': label = 'PARTIAL'
                     elif so_s == 'S':
                         if ship_s == 'E': label = 'STAGED - EN ROUTE'
                         elif ship_s == 'L': label = 'STAGED - LOADED'
@@ -733,7 +733,7 @@ class ERPService:
                 MAX(soh.expect_date) as expect_date,
                 CASE 
                     WHEN MAX(soh.so_status) = 'K' THEN 'PICKING'
-                        WHEN MAX(soh.so_status) = 'P' THEN 'PICKED'
+                        WHEN MAX(soh.so_status) = 'P' THEN 'PARTIAL'
                         WHEN MAX(soh.so_status) = 'S' THEN 
                             CASE 
                                 WHEN MAX(sh.status_flag_delivery) = 'E' THEN 'STAGED - EN ROUTE'
