@@ -654,24 +654,27 @@ class ERPService:
             # Use today's date for Agility query
             today = datetime.now().strftime('%Y-%m-%d')
             
+            # Using GROUP BY to ensure one row per SO ID, 
+            # and MAX/MIN on statuses to pick up the most relevant flags if multiple shipment headers exist.
             query = f"""
                 SELECT 
                     soh.so_id,
-                    c.cust_name,
-                    cs.address_1,
-                    cs.city,
-                    soh.reference,
-                    soh.so_status,
-                    sh.status_flag_delivery,
-                    sh.pick_status,
-                    sh.ship_date,
-                    soh.expect_date
+                    MAX(c.cust_name) as cust_name,
+                    MAX(cs.address_1) as address_1,
+                    MAX(cs.city) as city,
+                    MAX(soh.reference) as reference,
+                    MAX(soh.so_status) as so_status,
+                    MAX(sh.status_flag_delivery) as shipment_status,
+                    MAX(sh.pick_status) as pick_status,
+                    MAX(sh.ship_date) as ship_date,
+                    MAX(soh.expect_date) as expect_date
                 FROM so_header soh
                 LEFT JOIN cust c ON soh.cust_key = c.cust_key
-                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.shipto_seq_num = soh.shipto_seq_num
+                JOIN cust_shipto cs ON cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id
                 WHERE (soh.expect_date = '{today}' OR sh.ship_date = '{today}')
                    OR (soh.so_status IN ('k', 'p', 's'))
+                GROUP BY soh.so_id
                 ORDER BY soh.so_id DESC
             """
             
@@ -686,7 +689,7 @@ class ERPService:
                     'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
                     'reference': row.reference,
                     'so_status': row.so_status,
-                    'shipment_status': row.status_flag_delivery,
+                    'shipment_status': row.shipment_status,
                     'pick_status': row.pick_status,
                     'ship_date': row.ship_date,
                     'expect_date': row.expect_date

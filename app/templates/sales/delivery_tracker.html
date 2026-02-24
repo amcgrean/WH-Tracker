@@ -91,9 +91,9 @@
 
                         {# Logic for grouping #}
                         {% set target_group = 'open' %}
-                        {% if ship_s in ['E', 'D', 'I'] %}
+                        {% if ship_s in ['E', 'D', 'I'] or so_s == 'I' %}
                         {% set target_group = 'transit' %}
-                        {% elif ship_s in ['S', 'L'] %}
+                        {% elif ship_s in ['S', 'L'] or so_s == 'S' %}
                         {% set target_group = 'staged' %}
                         {% elif so_s == 'P' %}
                         {% set target_group = 'picking' %}
@@ -109,19 +109,24 @@
                             <td><small class="text-muted">{{ d.address }}</small></td>
                             <td>{{ d.reference }}</td>
                             <td>
-                                {% if ship_s == 'E' %}<span class="badge badge-success px-2 py-1"><i
-                                        class="fas fa-truck mr-1"></i> EN ROUTE</span>
-                                {% elif ship_s == 'L' %}<span class="badge badge-info px-2 py-1"><i
-                                        class="fas fa-truck-loading mr-1"></i> LOADED</span>
-                                {% elif ship_s == 'S' %}<span class="badge badge-info px-2 py-1"><i
-                                        class="fas fa-pallet mr-1"></i> STAGED</span>
-                                {% elif ship_s == 'D' %}<span class="badge badge-success px-2 py-1"><i
-                                        class="fas fa-check-circle mr-1"></i> DELIVERED</span>
-                                {% elif ship_s == 'I' %}<span class="badge badge-success px-2 py-1"><i
-                                        class="fas fa-file-invoice mr-1"></i> INVOICED</span>
+                                {% if ship_s == 'E' or (not ship_s and so_s == 'E') %}<span
+                                    class="badge badge-success px-2 py-1"><i class="fas fa-truck mr-1"></i> EN
+                                    ROUTE</span>
+                                {% elif ship_s == 'L' or (not ship_s and so_s == 'L') %}<span
+                                    class="badge badge-info px-2 py-1"><i class="fas fa-truck-loading mr-1"></i>
+                                    LOADED</span>
+                                {% elif ship_s == 'S' or (not ship_s and so_s == 'S') %}<span
+                                    class="badge badge-info px-2 py-1"><i class="fas fa-pallet mr-1"></i> STAGED</span>
+                                {% elif ship_s == 'D' or (not ship_s and so_s == 'D') %}<span
+                                    class="badge badge-success px-2 py-1"><i class="fas fa-check-circle mr-1"></i>
+                                    DELIVERED</span>
+                                {% elif ship_s == 'I' or (not ship_s and so_s == 'I') %}<span
+                                    class="badge badge-success px-2 py-1"><i class="fas fa-file-invoice mr-1"></i>
+                                    INVOICED</span>
                                 {% elif so_s == 'P' %}<span class="badge badge-warning px-2 py-1"><i
                                         class="fas fa-dolly-flatbed mr-1"></i> PICKED</span>
-                                {% else %}<span class="badge badge-secondary px-2 py-1">WAITING</span>
+                                {% elif so_s == 'K' %}<span class="badge badge-secondary px-2 py-1">WAITING</span>
+                                {% else %}<span class="badge badge-secondary px-2 py-1">{{ so_s or 'OPEN' }}</span>
                                 {% endif %}
                             </td>
                             <td class="text-right pr-4">
