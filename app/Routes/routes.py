@@ -1206,9 +1206,11 @@ def sales_delivery_tracker(branch=None):
     """
     erp = ERPService()
     deliveries = erp.get_sales_delivery_tracker(branch_id=branch)
+    kpis = erp.get_delivery_kpis(branch_id=branch)
     
     return render_template('sales/delivery_tracker.html', 
                            deliveries=deliveries, 
+                           kpis=kpis,
                            current_branch=branch,
                            today=datetime.now().strftime('%Y-%m-%d'))
 

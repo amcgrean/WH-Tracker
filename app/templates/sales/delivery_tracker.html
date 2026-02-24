@@ -53,6 +53,48 @@
         </div>
     </div>
 
+    <!-- KPI Row -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm text-white py-2 overflow-hidden position-relative"
+                style="background: linear-gradient(45deg, #4e73df 10%, #224abe 90%); border-radius: 1rem;">
+                <div class="card-body py-3 d-flex align-items-center">
+                    <div class="mr-4 rounded-circle bg-white d-flex align-items-center justify-content-center"
+                        style="width: 60px; height: 60px; opacity: 0.2;">
+                        <i class="fas fa-chart-line fa-2x text-white"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-uppercase font-weight-bold opacity-75 mb-1">7-Day Rolling Average</div>
+                        <div class="h2 font-weight-bold mb-0">{{ kpis.avg_7d }}</div>
+                        <div class="text-xs mt-1 font-italic">Daily Delivery Performance</div>
+                    </div>
+                </div>
+                <div class="position-absolute" style="right: -20px; bottom: -20px; opacity: 0.05;">
+                    <i class="fas fa-truck-loading fa-8x"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm text-white py-2 overflow-hidden position-relative"
+                style="background: linear-gradient(45deg, #1cc88a 10%, #13855c 90%); border-radius: 1rem;">
+                <div class="card-body py-3 d-flex align-items-center">
+                    <div class="mr-4 rounded-circle bg-white d-flex align-items-center justify-content-center"
+                        style="width: 60px; height: 60px; opacity: 0.2;">
+                        <i class="fas fa-calendar-check fa-2x text-white"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-uppercase font-weight-bold opacity-75 mb-1">Yesterday's Volume</div>
+                        <div class="h2 font-weight-bold mb-0">{{ kpis.yesterday }}</div>
+                        <div class="text-xs mt-1 font-italic">Completed Deliveries</div>
+                    </div>
+                </div>
+                <div class="position-absolute" style="right: -20px; bottom: -20px; opacity: 0.05;">
+                    <i class="fas fa-shipping-fast fa-8x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Search Bar -->
     <div class="card border-0 shadow-sm mb-4 bg-white">
         <div class="card-body py-3 px-4">

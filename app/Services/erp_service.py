@@ -789,3 +789,103 @@ class ERPService:
         except Exception as e:
             print(f"ERP Connection Error (Sales Tracker): {e}")
             return []
+
+    def get_historical_delivery_stats(self, days=7, branch_id=None):
+        """
+        Fetches historical delivery counts by date for the last X days from local ERP.
+        Used by the sync service to populate KPI tables.
+        """
+        if self.cloud_mode:
+            return [] # Local only
+
+        try:
+            branch_filter = ""
+            query_params = []
+            if branch_id:
+                branch_filter = " AND soh.system_id = ?"
+                query_params.append(branch_id)
+
+            query = f"""
+                SELECT 
+                    sh.invoice_date,
+                    COUNT(DISTINCT soh.so_id) as count
+                FROM so_header soh
+                JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
+                WHERE soh.so_status = 'I'
+                  AND sh.invoice_date >= CAST(DATEADD(day, -{days}, GETDATE()) AS DATE)
+                  AND sh.invoice_date < CAST(GETDATE() AS DATE)
+                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  {branch_filter}
+                GROUP BY sh.invoice_date
+                ORDER BY sh.invoice_date DESC
+            """
+            
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(query, query_params)
+            rows = cursor.fetchall()
+            
+            stats = []
+            for row in rows:
+                date_val = row.invoice_date
+                if hasattr(date_val, 'strftime'):
+                    date_str = date_val.strftime('%Y-%m-%d')
+                else:
+                    date_str = str(date_val).split(' ')[0]
+                    
+                stats.append({
+                    'date': date_str,
+                    'count': row.count,
+                    'branch': branch_id or 'all'
+                })
+            
+            conn.close()
+            return stats
+
+        except Exception as e:
+            print(f"ERP Connection Error (Historical Stats): {e}")
+            return []
+
+    def get_delivery_kpis(self, branch_id=None):
+        """
+        Fetches aggregated KPI data (7-day average, yesterday's total).
+        Local Mode: Queries ERP directly.
+        Cloud Mode: Queries ERPDeliveryKPI mirror table.
+        """
+        if self.cloud_mode:
+            from app.Models.models import ERPDeliveryKPI
+            from sqlalchemy import func
+            
+            query = ERPDeliveryKPI.query
+            if branch_id:
+                query = query.filter_by(branch=branch_id)
+            else:
+                query = query.filter_by(branch='all')
+            
+            kpis = query.order_by(ERPDeliveryKPI.date.desc()).limit(14).all()
+            if not kpis:
+                return {'avg_7d': 0, 'yesterday': 0}
+            
+            yesterday_total = kpis[0].count if kpis else 0
+            # Avg of last 7 points
+            last_7 = kpis[:7]
+            avg_7d = sum(k.count for k in last_7) / len(last_7) if last_7 else 0
+            
+            return {
+                'avg_7d': round(avg_7d, 1),
+                'yesterday': yesterday_total
+            }
+        else:
+            # Local: Fetch raw and summarize
+            stats = self.get_historical_delivery_stats(days=14, branch_id=branch_id)
+            if not stats:
+                return {'avg_7d': 0, 'yesterday': 0}
+            
+            yesterday_total = stats[0]['count'] if stats else 0
+            last_7 = stats[:7]
+            avg_7d = sum(s['count'] for s in last_7) / len(last_7) if last_7 else 0
+            
+            return {
+                'avg_7d': round(avg_7d, 1),
+                'yesterday': yesterday_total
+            }

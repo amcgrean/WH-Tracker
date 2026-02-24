@@ -108,3 +108,11 @@ class CreditImage(db.Model):
     email_subject = db.Column(db.String(512))
     received_at   = db.Column(db.DateTime)   # when the email arrived
     uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+class ERPDeliveryKPI(db.Model):
+    __tablename__ = 'erp_delivery_kpis'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, index=True, nullable=False)
+    count = db.Column(db.Integer, nullable=False)
+    branch = db.Column(db.String(50), nullable=True) # 'all', '20gr', etc.
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)

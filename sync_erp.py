@@ -50,9 +50,13 @@ class LocalSync:
             # Fetch Work Orders
             work_orders = self.erp.get_open_work_orders()
             
+            # Fetch KPIs (7-day history)
+            kpis = self.erp.get_historical_delivery_stats(days=14) # Get 2 weeks for better avg context
+            
             return {
                 'picks': picks,
-                'work_orders': work_orders
+                'work_orders': work_orders,
+                'kpis': kpis
             }
         except Exception as e:
             print(f"Error fetching local data: {e}")
@@ -126,6 +130,23 @@ class LocalSync:
                     ]
                     self.db_session.bulk_insert_mappings(ERPMirrorWorkOrder, mappings)
                     print(f"[{datetime.now()}]   Pushed {min(i + chunk_size, len(wos_data))} / {len(wos_data)} WOs...")
+
+            # 3. Sync KPIs
+            kpis_data = data.get('kpis', [])
+            if kpis_data:
+                from app.Models.models import ERPDeliveryKPI
+                print(f"[{datetime.now()}] Clearing and updating {len(kpis_data)} KPI entries...")
+                self.db_session.query(ERPDeliveryKPI).delete()
+                
+                mappings = [
+                    {
+                        'date': p['date'],
+                        'count': p['count'],
+                        'branch': p['branch'],
+                        'updated_at': datetime.utcnow()
+                    } for p in kpis_data
+                ]
+                self.db_session.bulk_insert_mappings(ERPDeliveryKPI, mappings)
 
             self.db_session.commit()
             print(f"[{datetime.now()}] Direct SQL Push Completed Successfully.")
