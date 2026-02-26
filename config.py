@@ -13,6 +13,9 @@ class Config(object):
     SQLALCHEMY_DATABASE_URI = database_url or \
         'sqlite:///' + os.path.join('/tmp', 'picker.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Required for Flask sessions and flash messages
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev_default_secret_key_12345')
 
     # Credit / RMA image uploads — stored on local disk; path relative to project root
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads/credits')
