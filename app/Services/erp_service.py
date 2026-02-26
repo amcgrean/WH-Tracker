@@ -816,17 +816,16 @@ class ERPService:
 
             query = f"""
                 SELECT 
-                    sh.invoice_date,
+                    sh.ship_date,
                     COUNT(DISTINCT soh.so_id) as count
                 FROM so_header soh
                 JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE soh.so_status = 'I'
-                  AND sh.invoice_date >= CAST(DATEADD(day, -{days}, GETDATE()) AS DATE)
-                  AND sh.invoice_date < CAST(GETDATE() AS DATE)
+                WHERE sh.ship_date >= CAST(DATEADD(day, -{days}, GETDATE()) AS DATE)
+                  AND sh.ship_date < CAST(GETDATE() AS DATE)
                   AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
                   {branch_filter}
-                GROUP BY sh.invoice_date
-                ORDER BY sh.invoice_date DESC
+                GROUP BY sh.ship_date
+                ORDER BY sh.ship_date DESC
             """
             
             conn = self.get_connection()
@@ -836,7 +835,7 @@ class ERPService:
             
             stats = []
             for row in rows:
-                date_val = row.invoice_date
+                date_val = row.ship_date
                 if hasattr(date_val, 'strftime'):
                     date_str = date_val.strftime('%Y-%m-%d')
                 else:
