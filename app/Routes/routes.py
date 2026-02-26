@@ -7,6 +7,7 @@ from app.extensions import db
 from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage
 from datetime import datetime, timedelta
 from sqlalchemy import func, text
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 import pytz
@@ -129,12 +130,16 @@ def add_picker():
     picker_name = request.form['picker_name']
     user_type = request.form.get('user_type', 'picker')
     if picker_name:
-        picker = Pickster(name=picker_name, user_type=user_type)  # Use the correct class name
-        db.session.add(picker)
-        db.session.commit()
-        flash('Picker added successfully.')
+        try:
+            picker = Pickster(name=picker_name, user_type=user_type)  # Use the correct class name
+            db.session.add(picker)
+            db.session.commit()
+            flash('Picker added successfully.', 'success')
+        except IntegrityError:
+            db.session.rollback()
+            flash(f'A picker named "{picker_name}" already exists.', 'error')
     else:
-        flash('Please enter a picker name.')
+        flash('Please enter a picker name.', 'error')
     return redirect(url_for('main.admin'))
 
 @main.route('/edit_picker/<int:picker_id>', methods=['GET', 'POST'])
@@ -144,12 +149,16 @@ def edit_picker(picker_id):
         new_name = request.form['picker_name']
         new_type = request.form.get('user_type')
         if new_name:
-            picker.name = new_name
-            if new_type:
-                picker.user_type = new_type
-            db.session.commit()
-            flash('Picker name updated successfully.', 'success')
-            return redirect(url_for('main.admin'))
+            try:
+                picker.name = new_name
+                if new_type:
+                    picker.user_type = new_type
+                db.session.commit()
+                flash('Picker name updated successfully.', 'success')
+                return redirect(url_for('main.admin'))
+            except IntegrityError:
+                db.session.rollback()
+                flash(f'A picker named "{new_name}" already exists.', 'error')
     return render_template('edit_picker.html', picker=picker)
 
 @main.route('/delete_picker/<int:picker_id>', methods=['POST'])
