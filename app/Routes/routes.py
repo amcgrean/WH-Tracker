@@ -15,6 +15,31 @@ import pytz
 # Create a Blueprint
 main = Blueprint('main', __name__)
 
+DEFAULT_PICK_TYPES = {
+    1: 'Yard',
+    2: 'Door 1',
+    3: 'Decking',
+    4: 'EWP',
+    5: 'Millwork',
+    6: 'Will Call',
+}
+
+
+def ensure_pick_type_exists(pick_type_id):
+    """Return a PickTypes row for the requested ID, creating defaults when missing."""
+    pick_type = db.session.get(PickTypes, pick_type_id)
+    if pick_type:
+        return pick_type
+
+    type_name = DEFAULT_PICK_TYPES.get(pick_type_id)
+    if not type_name:
+        return None
+
+    pick_type = PickTypes(pick_type_id=pick_type_id, type_name=type_name)
+    db.session.add(pick_type)
+    db.session.flush()
+    return pick_type
+
 def localize_to_cst(naive_utc_datetime):
     utc_zone = pytz.timezone('UTC')
     cst_zone = pytz.timezone('America/Chicago')
@@ -93,16 +118,7 @@ def format_elapsed_time(start_time, end_time=None):
     return f"{hours}h {minutes}m"
 
 def get_pick_type_name(pick_type_id):
-    # Mock-up of a function to convert pick_type_id to its name
-    pick_types = {
-        1: 'Yard',
-        2: 'Door 1',
-        3: 'Decking',
-        4: 'EWP',
-        5: 'Millwork',
-        6: 'Will Call'
-    }
-    return pick_types.get(pick_type_id, 'Unknown')
+    return DEFAULT_PICK_TYPES.get(pick_type_id, 'Unknown')
 
 ###MAIN PAGE####
 ###MAIN PAGE####
@@ -190,6 +206,11 @@ def confirm_picker(picker_id):
 @main.route('/input_pick/<int:picker_id>/<int:pick_type_id>', methods=['GET', 'POST'])##
 def input_pick(picker_id, pick_type_id):
     picker = Pickster.query.get_or_404(picker_id)
+
+    if not ensure_pick_type_exists(pick_type_id):
+        flash('Invalid pick type selected.', 'error')
+        return redirect(url_for('main.index'))
+
     if request.method == 'POST':
         barcode = request.form.get('barcode')
         if barcode:
@@ -227,6 +248,11 @@ def complete_pick(pick_id):
 @main.route('/start_pick/<int:picker_id>/<int:pick_type_id>', methods=['POST'])
 def start_pick(picker_id, pick_type_id):
     picker = Pickster.query.get_or_404(picker_id)
+
+    if not ensure_pick_type_exists(pick_type_id):
+        flash('Invalid pick type selected.', 'error')
+        return redirect(url_for('main.index'))
+
     barcode = request.form.get('barcode')
     if not barcode:
         flash('Barcode is required.', 'error')
