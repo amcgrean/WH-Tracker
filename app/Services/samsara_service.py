@@ -82,7 +82,7 @@ class SamsaraService:
                     'name': v.get('name', 'Unknown'),
                     'latitude': loc.get('latitude'),
                     'longitude': loc.get('longitude'),
-                    'speed_mph': loc.get('speedMilesPerHour', 0),
+                    'speed_mph': loc.get('speed', 0),
                     'heading': loc.get('heading', 0),
                     'time': loc.get('time', ''),
                     'address': loc.get('reverseGeo', {}).get('formattedLocation', '')
@@ -107,7 +107,7 @@ class SamsaraService:
                 'name': v.get('name', 'Unknown'),
                 'latitude': loc.get('latitude'),
                 'longitude': loc.get('longitude'),
-                'speed_mph': loc.get('speedMilesPerHour', 0),
+                'speed_mph': loc.get('speed', 0),
                 'heading': loc.get('heading', 0),
                 'time': loc.get('time', ''),
                 'address': loc.get('reverseGeo', {}).get('formattedLocation', '')

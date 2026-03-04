@@ -77,6 +77,7 @@ class ERPMirrorPick(db.Model):
     system_id = db.Column(db.String(50))
     expect_date = db.Column(db.String(50))
     sale_type = db.Column(db.String(50))
+    local_pick_state = db.Column(db.String(50)) # NEW: Tracks local app pick status (Pick Printed, Picking, Picking Complete)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ERPMirrorWorkOrder(db.Model):

@@ -1131,30 +1131,9 @@ def start_work_orders():
 @main.route('/delivery')
 def delivery_board():
     """
-    Main Delivery Board: KPIs, fleet status, and open deliveries list.
+    Deprecated: Redirects to the unified Delivery Tracker.
     """
-    erp = ERPService()
-    samsara = SamsaraService()
-
-    # Get open deliveries from ERP (status 'k' orders that have delivery-related handling codes)
-    deliveries = erp.get_delivery_orders()
-
-    # Get vehicle locations from Samsara
-    vehicle_locations = samsara.get_vehicle_locations()
-
-    # Calculate KPIs
-    open_delivery_count = len(deliveries)
-    in_transit_count = sum(1 for loc in vehicle_locations if loc.get('speed_mph', 0) > 0)
-    completed_count = 0  # TODO: Wire to ERP delivered status query
-    active_trucks = len(vehicle_locations)
-
-    return render_template('delivery/board.html',
-                           deliveries=deliveries,
-                           vehicle_locations=vehicle_locations,
-                           open_delivery_count=open_delivery_count,
-                           in_transit_count=in_transit_count,
-                           completed_count=completed_count,
-                           active_trucks=active_trucks)
+    return redirect(url_for('main.sales_delivery_tracker'))
 
 
 @main.route('/delivery/map')
@@ -1236,16 +1215,34 @@ def api_delivery_locations(branch=None):
 @main.route('/sales/deliveries/<branch>')
 def sales_delivery_tracker(branch=None):
     """
-    Sales Delivery Tracker: Real-time status for today's deliveries.
-    Grouped by status (Picked, Staged, Loaded, etc).
+    Unified Sales Delivery Tracker & Fleet Board: 
+    Real-time status for today's deliveries + Samsara Fleet GPS tracking.
     """
     erp = ERPService()
+    samsara = SamsaraService()
+    
     deliveries = erp.get_sales_delivery_tracker(branch_id=branch)
     kpis = erp.get_delivery_kpis(branch_id=branch)
+    
+    # Get vehicle locations from Samsara for Fleet Status table
+    tag_ids = None
+    if branch:
+        all_tags = samsara.get_tags()
+        if branch.lower() in ['20gr', 'grimes']:
+            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['GRIMES', 'GR'])]
+        elif branch.lower() in ['25bw', 'birchwood']:
+            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['BIRCHWOOD', 'BW'])]
+
+    vehicle_locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
+    active_trucks = len(vehicle_locations)
+    in_transit_count = sum(1 for loc in vehicle_locations if loc.get('speed_mph', 0) > 0)
     
     return render_template('sales/delivery_tracker.html', 
                            deliveries=deliveries, 
                            kpis=kpis,
+                           vehicle_locations=vehicle_locations,
+                           active_trucks=active_trucks,
+                           in_transit_count=in_transit_count,
                            current_branch=branch,
                            today=datetime.now().strftime('%Y-%m-%d'))
 

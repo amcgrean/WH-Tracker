@@ -102,6 +102,8 @@ class LocalSync:
                         'system_id': p.get('system_id'),
                         'expect_date': p.get('expect_date'),
                         'sale_type': p.get('sale_type'),
+                        'local_pick_state': p.get('local_pick_state'),
+                        'route': p.get('route'),
                         'synced_at': datetime.utcnow()
                     } for p in picks_data
                 ]

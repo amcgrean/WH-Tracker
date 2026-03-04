@@ -24,6 +24,45 @@ class ERPService:
             raise RuntimeError("pyodbc is not installed. Set CLOUD_MODE=True for serverless deployments.")
         connection_string = f'DRIVER={self.driver};SERVER={self.server};DATABASE={self.database};UID={self.username};PWD={self.password}'
         return pyodbc.connect(connection_string)
+        
+    def _get_local_pick_states(self, so_numbers=None):
+        """
+        Helper method to get the local pick state (Pick Printed, Picking, Picking Complete)
+        for a list of SO numbers by querying the local Pick database.
+        Returns a dict mapping so_number -> state.
+        """
+        # Import inside method to avoid circular imports if models import ERPService
+        from app.Models.models import Pick
+        from app.extensions import db
+        
+        query = db.session.query(Pick)
+        if so_numbers:
+            query = query.filter(Pick.barcode_number.in_(so_numbers))
+            
+        picks = query.all()
+        
+        states = {}
+        for p in picks:
+            so = p.barcode_number
+            # If multiple picks exist for an SO, we want the "most active" state.
+            # Picking Complete < Pick Printed < Picking
+            current_state = states.get(so, 'Pick Printed')
+            
+            new_state = 'Pick Printed'
+            if p.start_time and not p.completed_time:
+                new_state = 'Picking'
+            elif p.completed_time:
+                new_state = 'Picking Complete'
+                
+            # Upgrade state if necessary
+            if new_state == 'Picking':
+                states[so] = 'Picking'
+            elif new_state == 'Picking Complete' and current_state != 'Picking':
+                 states[so] = 'Picking Complete'
+            elif current_state not in states:
+                 states[so] = new_state
+                 
+        return states
 
     def get_work_orders_by_barcode(self, barcode):
         """
@@ -126,7 +165,8 @@ class ERPService:
             'so_status': p.so_status,
             'shipment_status': p.shipment_status,
             'system_id': p.system_id,
-            'expect_date': p.expect_date
+            'expect_date': p.expect_date,
+            'local_pick_state': p.local_pick_state
         } for p in picks]
 
         try:
@@ -151,7 +191,7 @@ class ERPService:
                 cs.city,
                 soh.reference,
                 soh.so_status,
-                sh.status_flag_delivery,
+                sh.status_flag,
                 soh.system_id,
                 soh.expect_date,
                 soh.sale_type
@@ -189,13 +229,21 @@ class ERPService:
                     'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
                     'reference': row.reference,
                     'so_status': row.so_status,
-                'shipment_status': row.status_flag_delivery,
+                'shipment_status': row.status_flag,
                 'system_id': row.system_id,
                 'expect_date': str(row.expect_date) if row.expect_date else '',
                 'sale_type': row.sale_type
             })
                 
             conn.close()
+            
+            # Merge local pick states
+            so_numbers = [p['so_number'] for p in picks]
+            local_states = self._get_local_pick_states(so_numbers)
+            
+            for p in picks:
+                p['local_pick_state'] = local_states.get(p['so_number'], 'Pick Printed')
+                
             return picks
             
         except Exception as e:
@@ -217,6 +265,7 @@ class ERPService:
                 ERPMirrorPick.address,
                 ERPMirrorPick.reference,
                 ERPMirrorPick.handling_code,
+                func.max(ERPMirrorPick.local_pick_state).label('local_pick_state'),
                 func.count(ERPMirrorPick.id).label('line_count')
             ).group_by(
                 ERPMirrorPick.so_number,
@@ -232,7 +281,8 @@ class ERPService:
                 'address': s.address,
                 'reference': s.reference,
                 'handling_code': s.handling_code,
-                'line_count': s.line_count
+                'line_count': s.line_count,
+                'local_pick_state': s.local_pick_state  # Now aggregated correctly
             } for s in summary_query]
 
         try:
@@ -276,6 +326,13 @@ class ERPService:
                     })
             
             conn.close()
+            
+            so_numbers = [s['so_number'] for s in summary]
+            local_states = self._get_local_pick_states(so_numbers)
+            
+            for s in summary:
+                s['local_pick_state'] = local_states.get(s['so_number'], 'Pick Printed')            
+            
             return summary
 
         except Exception as e:
@@ -695,7 +752,9 @@ class ERPService:
                     'status_label': label or 'OPEN',
                     'system_id': p.system_id,
                     'expect_date': p.expect_date,
-                    'invoice_date': None # Date details not mirrored yet
+                    'invoice_date': None, # Date details not mirrored yet
+                    'local_pick_state': getattr(p, 'local_pick_state', 'Pick Printed'),  # Add default if missing
+                    'route': getattr(p, 'route', '')
                 }
             # Return as a list, sorted by SO number descending
             return sorted(grouped.values(), key=lambda x: str(x['so_number']), reverse=True)
@@ -734,6 +793,8 @@ class ERPService:
                 MAX(sh.invoice_date) as invoice_date,
                 MAX(soh.system_id) as system_id,
                 MAX(soh.expect_date) as expect_date,
+                MAX(soh.sale_type) as sale_type,
+                MAX(sh.route_id_char) as route,
                 CASE 
                     WHEN MAX(soh.so_status) = 'K' THEN 'PICKING'
                         WHEN MAX(soh.so_status) = 'P' THEN 'PARTIAL'
@@ -780,10 +841,20 @@ class ERPService:
                     'invoice_date': row.invoice_date,
                     'system_id': row.system_id,
                     'expect_date': str(row.expect_date) if row.expect_date else '',
-                    'sale_type': row.sale_type
+                    'sale_type': row.sale_type,
+                    'route': row.route or ''
                 })
-            
             conn.close()
+            
+            # Merge local pick states to override 'PICKING' label
+            so_numbers = [d['so_number'] for d in deliveries]
+            local_states = self._get_local_pick_states(so_numbers)
+            
+            for d in deliveries:
+                if d['status_label'] == 'PICKING':
+                    # Instead of generic 'PICKING', use the specific granular state
+                    d['status_label'] = local_states.get(d['so_number'], 'PICK PRINTED').upper()
+                    
             return deliveries
 
         except Exception as e:
