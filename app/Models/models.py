@@ -79,7 +79,14 @@ class ERPMirrorPick(db.Model):
     sale_type = db.Column(db.String(50))
     local_pick_state = db.Column(db.String(50)) # NEW: Tracks local app pick status (Pick Printed, Picking, Picking Complete)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    # NEW fields for features 
+    ship_via = db.Column(db.String(128))
+    driver = db.Column(db.String(128))
+    route = db.Column(db.String(128))
+    printed_at = db.Column(db.DateTime, nullable=True) # Pick printed timestamp
+    staged_at = db.Column(db.DateTime, nullable=True)  # Loaded/Staged timestamp
+    delivered_at = db.Column(db.DateTime, nullable=True) # Delivered timestamp
+    
 class ERPMirrorWorkOrder(db.Model):
     __tablename__ = 'erp_mirror_work_orders'
     id = db.Column(db.Integer, primary_key=True)

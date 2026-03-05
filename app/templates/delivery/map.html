@@ -463,8 +463,21 @@
 
         // Fit map bounds to show all trucks
         if (markers.length > 0) {
-            const group = new L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.15));
+            const focusName = "{{ focus_truck or '' }}";
+            let focusFound = false;
+
+            if (focusName) {
+                const target = locations.find(l => l.name.toLowerCase().includes(focusName.toLowerCase()));
+                if (target && target.latitude) {
+                    panToTruck(target.latitude, target.longitude);
+                    focusFound = true;
+                }
+            }
+
+            if (!focusFound) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.15));
+            }
         }
 
         // Pan to truck on card click

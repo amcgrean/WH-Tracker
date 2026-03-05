@@ -22,7 +22,7 @@
     <!-- KPI Row -->
     <div class="row mb-4">
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card card-ops h-100">
+            <div class="card card-ops h-100 kpi-card" onclick="filterDeliveries('pending')" style="cursor: pointer;">
                 <div class="card-body text-center">
                     <div class="text-muted small text-uppercase font-weight-bold mb-1">Open Deliveries</div>
                     <div class="display-4 font-weight-bold" style="color: var(--beisser-green);" id="kpiOpenDeliveries">
@@ -33,7 +33,7 @@
             </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card card-ops h-100">
+            <div class="card card-ops h-100 kpi-card" onclick="filterDeliveries('in_transit')" style="cursor: pointer;">
                 <div class="card-body text-center">
                     <div class="text-muted small text-uppercase font-weight-bold mb-1">In Transit</div>
                     <div class="display-4 font-weight-bold text-info" id="kpiInTransit">
@@ -44,7 +44,7 @@
             </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card card-ops h-100">
+            <div class="card card-ops h-100 kpi-card" onclick="filterDeliveries('delivered')" style="cursor: pointer;">
                 <div class="card-body text-center">
                     <div class="text-muted small text-uppercase font-weight-bold mb-1">Completed Today</div>
                     <div class="display-4 font-weight-bold text-success" id="kpiCompleted">
@@ -91,20 +91,24 @@
                         <tbody>
                             {% for loc in vehicle_locations %}
                             <tr>
-                                <td class="font-weight-bold">{{ loc.name }}</td>
+                                <td class="font-weight-bold">
+                                    <a href="{{ url_for('main.delivery_map', truck=loc.name) }}" class="text-white">
+                                        {{ loc.name }} <i class="fas fa-external-link-alt ml-1 small opacity-50"></i>
+                                    </a>
+                                </td>
                                 <td>{{ loc.address or 'GPS: %.4f, %.4f'|format(loc.latitude, loc.longitude) }}</td>
                                 <td>
                                     {% if loc.speed_mph > 0 %}
-                                        <span class="text-info font-weight-bold">{{ loc.speed_mph }} mph</span>
+                                    <span class="text-info font-weight-bold">{{ loc.speed_mph }} mph</span>
                                     {% else %}
-                                        <span class="text-muted">Stopped</span>
+                                    <span class="text-muted">Stopped</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if loc.speed_mph > 0 %}
-                                        <span class="badge badge-pill badge-info">In Transit</span>
+                                    <span class="badge badge-pill badge-info">In Transit</span>
                                     {% else %}
-                                        <span class="badge badge-pill badge-secondary">Idle</span>
+                                    <span class="badge badge-pill badge-secondary">Idle</span>
                                     {% endif %}
                                 </td>
                                 <td class="small text-muted">{{ loc.time[:19] if loc.time else 'N/A' }}</td>
@@ -112,7 +116,8 @@
                             {% else %}
                             <tr>
                                 <td colspan="5" class="text-center text-muted py-4">
-                                    <i class="fas fa-plug mr-2"></i> No vehicle data available. Check Samsara connection.
+                                    <i class="fas fa-plug mr-2"></i> No vehicle data available. Check Samsara
+                                    connection.
                                 </td>
                             </tr>
                             {% endfor %}
@@ -141,16 +146,22 @@
                                 <th>Reference</th>
                                 <th>Items</th>
                                 <th>Status</th>
-                                <th>Truck</th>
+                                <th>Truck / Info</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for d in deliveries %}
-                            <tr>
+                            <tr class="delivery-row" data-status="{{ d.get('status', 'pending') }}">
                                 <td>
-                                    <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}" class="font-weight-bold" style="color: var(--beisser-green);">
+                                    <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}"
+                                        class="font-weight-bold" style="color: var(--beisser-green);">
                                         #{{ d.so_number }}
                                     </a>
+                                    {% if d.system_id %}
+                                    <br><span class="badge badge-primary px-1 py-0"
+                                        style="font-size: 0.65rem; background-color: var(--beisser-secondary);">{{
+                                        d.system_id }}</span>
+                                    {% endif %}
                                 </td>
                                 <td class="font-weight-bold">{{ d.customer_name }}</td>
                                 <td>{{ d.address }}</td>
@@ -158,16 +169,27 @@
                                 <td><span class="badge badge-pill badge-light">{{ d.line_count }} lines</span></td>
                                 <td>
                                     {% if d.get('status') == 'in_transit' %}
-                                        <span class="badge badge-pill badge-info">In Transit</span>
+                                    <a href="{{ url_for('main.delivery_map', truck=d.get('assigned_truck', '')) }}"
+                                        class="badge badge-pill badge-info text-decoration-none hover-shadow">
+                                        In Transit <i class="fas fa-map-marker-alt ml-1"></i>
+                                    </a>
                                     {% elif d.get('status') == 'delivered' %}
-                                        <span class="badge badge-pill badge-success">Delivered</span>
+                                    <span class="badge badge-pill badge-success">Delivered</span>
                                     {% elif d.get('status') == 'loading' %}
-                                        <span class="badge badge-pill badge-warning">Loading</span>
+                                    <span class="badge badge-pill badge-warning">Loading</span>
                                     {% else %}
-                                        <span class="badge badge-pill badge-secondary">Pending</span>
+                                    <span class="badge badge-pill badge-secondary">Pending</span>
                                     {% endif %}
                                 </td>
-                                <td class="small">{{ d.get('assigned_truck', 'Unassigned') }}</td>
+                                <td class="small">
+                                    <div class="font-weight-bold">{{ d.get('assigned_truck', 'Unassigned') }}</div>
+                                    {% if d.ship_via or d.route %}
+                                    <div class="text-white-50 mt-1">
+                                        {% if d.ship_via %}{{ d.ship_via }}{% endif %}
+                                        {% if d.route %}{% if d.ship_via %} • {% endif %}{{ d.route }}{% endif %}
+                                    </div>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
@@ -188,8 +210,42 @@
 {% block scripts %}
 <script>
     // Auto-refresh page every 60 seconds
-    setTimeout(function() {
+    const refreshTimer = setTimeout(function () {
         window.location.reload();
     }, 60000);
+
+    function filterDeliveries(status) {
+        const rows = document.querySelectorAll('.delivery-row');
+        let count = 0;
+        rows.forEach(row => {
+            if (status === 'all' || row.dataset.status === status) {
+                row.style.display = '';
+                count++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Visual feedback on KPI cards
+        document.querySelectorAll('.kpi-card').forEach(card => card.classList.remove('border-primary'));
+        if (status !== 'all') {
+            const selectedCard = event.currentTarget;
+            selectedCard.classList.add('border-primary');
+        }
+    }
 </script>
+<style>
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        transition: transform 0.2s;
+    }
+
+    .hover-shadow:hover {
+        box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+    }
+
+    .opacity-50 {
+        opacity: 0.5;
+    }
+</style>
 {% endblock %}

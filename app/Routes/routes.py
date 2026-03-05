@@ -1144,6 +1144,7 @@ def delivery_map(branch=None):
     Shows truck locations via Samsara GPS on an interactive map.
     Can be filtered by branch (e.g., Grimes, Birchwood).
     """
+    truck_name = request.args.get('truck')
     samsara = SamsaraService()
     tag_ids = None
     display_name = "All Branches"
@@ -1172,7 +1173,8 @@ def delivery_map(branch=None):
                            moving_count=moving_count,
                            stopped_count=stopped_count,
                            current_branch=display_name,
-                           branch_code=(branch or 'all').lower())
+                           branch_code=(branch or 'all').lower(),
+                           focus_truck=truck_name)
 
 
 @main.route('/delivery/detail/<so_number>')
@@ -1184,6 +1186,13 @@ def delivery_detail(so_number):
     erp = ERPService()
     header = erp.get_so_header(so_number)
     items = erp.get_so_details(so_number)
+    
+    # Fetch local pick timestamps if available
+    local_pick = Pick.query.filter_by(barcode_number=so_number).first()
+    if local_pick and header:
+        header['picking_started_at'] = local_pick.start_time
+        header['picking_completed_at'] = local_pick.completed_time
+
     return render_template('delivery/detail.html',
                            so_number=so_number,
                            header=header,

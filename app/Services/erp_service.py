@@ -166,7 +166,13 @@ class ERPService:
             'shipment_status': p.shipment_status,
             'system_id': p.system_id,
             'expect_date': p.expect_date,
-            'local_pick_state': p.local_pick_state
+            'local_pick_state': p.local_pick_state,
+            'ship_via': p.ship_via,
+            'driver': p.driver,
+            'route': p.route,
+            'printed_at': p.printed_at,
+            'staged_at': p.staged_at,
+            'delivered_at': p.delivered_at
         } for p in picks]
 
         try:
@@ -194,14 +200,42 @@ class ERPService:
                 sh.status_flag,
                 soh.system_id,
                 soh.expect_date,
-                soh.sale_type
+                soh.sale_type,
+                sh.ship_via,
+                sh.driver,
+                sh.route_id_char as route,
+                ph.created_time as pick_printed_time,
+                ph.created_date as pick_printed_date,
+                sh.loaded_time,
+                sh.loaded_date,
+                sh.ship_date
             FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 LEFT JOIN cust c ON TRY_CAST(soh.cust_key AS INT) = TRY_CAST(c.cust_key AS INT)
                 LEFT JOIN cust_shipto cs ON TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
-                LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
+                LEFT JOIN (
+                    SELECT so_id, system_id, 
+                           MAX(status_flag) as status_flag, 
+                           MAX(invoice_date) as invoice_date, 
+                           MAX(ship_date) as ship_date,
+                           MAX(ship_via) as ship_via,
+                           MAX(driver) as driver,
+                           MAX(route_id_char) as route_id_char,
+                           MAX(loaded_time) as loaded_time,
+                           MAX(loaded_date) as loaded_date
+                    FROM shipments_header 
+                    GROUP BY so_id, system_id
+                ) sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
+                LEFT JOIN (
+                    SELECT so_id, system_id,
+                           MAX(created_date) as created_date,
+                           MAX(created_time) as created_time
+                    FROM pick_header
+                    WHERE print_status = 'Pick Ticket'
+                    GROUP BY so_id, system_id
+                ) ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id
                 WHERE soh.so_status != 'C'
                   AND (
                     (soh.so_status IN ('K', 'P', 'S'))
@@ -232,7 +266,13 @@ class ERPService:
                 'shipment_status': row.status_flag,
                 'system_id': row.system_id,
                 'expect_date': str(row.expect_date) if row.expect_date else '',
-                'sale_type': row.sale_type
+                'sale_type': row.sale_type,
+                'ship_via': row.ship_via,
+                'driver': row.driver,
+                'route': row.route,
+                'printed_at': f"{row.pick_printed_date} {row.pick_printed_time}" if row.pick_printed_date else None,
+                'staged_at': f"{row.loaded_date} {row.loaded_time}" if row.loaded_date else None,
+                'delivered_at': f"{row.ship_date}" if row.ship_date else None
             })
                 
             conn.close()
@@ -434,7 +474,14 @@ class ERPService:
                     'so_number': p.so_number,
                     'customer_name': p.customer_name,
                     'address': p.address,
-                    'reference': p.reference
+                    'reference': p.reference,
+                    'system_id': p.system_id,
+                    'ship_via': p.ship_via,
+                    'driver': p.driver,
+                    'route': p.route,
+                    'printed_at': p.printed_at,
+                    'staged_at': p.staged_at,
+                    'delivered_at': p.delivered_at
                 }
             return None
 
@@ -448,10 +495,21 @@ class ERPService:
                     c.cust_name,
                     cs.address_1,
                     cs.city,
-                    soh.reference
+                    soh.reference,
+                    soh.system_id,
+                    sh.ship_via,
+                    sh.driver,
+                    sh.route_id_char as route,
+                    sh.loaded_date,
+                    sh.loaded_time,
+                    sh.ship_date,
+                    sh.status_flag,
+                    ph.created_time as printed_at
                 FROM so_header soh
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
+                LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
+                LEFT JOIN pick_header ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id AND ph.print_status = 'Pick Ticket'
                 WHERE soh.so_id = ?
             """
             cursor.execute(query, (so_number,))
@@ -463,7 +521,15 @@ class ERPService:
                     'so_number': str(row.so_id),
                     'customer_name': row.cust_name or 'Unknown',
                     'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
-                    'reference': row.reference
+                    'reference': row.reference,
+                    'system_id': row.system_id,
+                    'ship_via': row.ship_via,
+                    'driver': row.driver,
+                    'route': row.route,
+                    'status_flag': row.status_flag,
+                    'printed_at': row.printed_at,
+                    'staged_at': f"{row.loaded_date} {row.loaded_time}" if row.loaded_date else None,
+                    'delivered_at': row.ship_date if row.status_flag == 'D' else None
                 }
             
             conn.close()
@@ -601,14 +667,19 @@ class ERPService:
                     cs.address_1,
                     cs.city,
                     soh.reference,
-                    COUNT(sod.sequence) as line_count
+                    soh.system_id,
+                    COUNT(sod.sequence) as line_count,
+                    MAX(sh.ship_via) as ship_via,
+                    MAX(sh.driver) as driver,
+                    MAX(sh.route_id_char) as route
                 FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
+                LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
                 WHERE soh.so_status = 'k'
                     AND sod.bo = 0
-                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference
+                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, soh.system_id
                 ORDER BY soh.so_id
             """
 
@@ -622,7 +693,11 @@ class ERPService:
                     'customer_name': row.cust_name or 'Unknown',
                     'address': f"{row.address_1}, {row.city}" if row.address_1 else 'No Address',
                     'reference': row.reference,
-                    'line_count': row.line_count
+                    'system_id': row.system_id,
+                    'line_count': row.line_count,
+                    'ship_via': row.ship_via,
+                    'driver': row.driver,
+                    'route': row.route
                 })
 
             conn.close()
@@ -795,6 +870,8 @@ class ERPService:
                 MAX(soh.expect_date) as expect_date,
                 MAX(soh.sale_type) as sale_type,
                 MAX(sh.route_id_char) as route,
+                MAX(sh.ship_via) as ship_via,
+                MAX(sh.driver) as driver,
                 CASE 
                     WHEN MAX(soh.so_status) = 'K' THEN 'PICKING'
                         WHEN MAX(soh.so_status) = 'P' THEN 'PARTIAL'
@@ -842,7 +919,9 @@ class ERPService:
                     'system_id': row.system_id,
                     'expect_date': str(row.expect_date) if row.expect_date else '',
                     'sale_type': row.sale_type,
-                    'route': row.route or ''
+                    'route': row.route or '',
+                    'ship_via': row.ship_via or '',
+                    'driver': row.driver or ''
                 })
             conn.close()
             

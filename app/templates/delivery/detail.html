@@ -38,7 +38,17 @@
                             </div>
                             <div class="mb-3">
                                 <div class="small text-muted text-uppercase font-weight-bold">Delivery Status</div>
-                                <span class="badge badge-pill badge-secondary p-2">Pending</span>
+                                {% set status_label = 'Pending' %}
+                                {% if header.status_flag == 'D' %}{% set status_label = 'Delivered' %}
+                                {% elif header.status_flag == 'E' %}{% set status_label = 'En Route' %}
+                                {% elif header.status_flag == 'L' %}{% set status_label = 'Loaded' %}
+                                {% elif header.status_flag == 'S' %}{% set status_label = 'Staged' %}
+                                {% endif %}
+                                <span class="badge badge-pill badge-info p-2 px-3">{{ status_label }}</span>
+                                {% if header.system_id %}
+                                <span class="badge badge-pill badge-secondary p-2 px-3 ml-1">{{ header.system_id
+                                    }}</span>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -49,11 +59,91 @@
             <div class="card card-ops h-100">
                 <div class="card-body text-center d-flex flex-column justify-content-center">
                     <div class="text-muted small text-uppercase font-weight-bold mb-2">Assigned Truck</div>
+                    {% if header.driver %}
+                    <div class="h3 font-weight-bold mb-3" style="color: var(--beisser-green);">
+                        <i class="fas fa-truck mr-2"></i> {{ header.driver }}
+                    </div>
+                    {% if header.status_flag == 'E' %}
+                    <a href="{{ url_for('main.delivery_map', truck=header.driver) }}"
+                        class="btn btn-ops-primary btn-sm mb-2">
+                        <i class="fas fa-map-marker-alt mr-1"></i> Track Live Location
+                    </a>
+                    {% endif %}
+                    <div class="text-muted small">
+                        {% if header.ship_via %}{{ header.ship_via }}{% endif %}
+                        {% if header.route %}<br>Route: {{ header.route }}{% endif %}
+                    </div>
+                    {% else %}
                     <div class="h3 text-muted mb-3">
-                        <i class="fas fa-truck mr-2"></i> Not Yet Assigned
+                        <i class="fas fa-truck-loading mr-2"></i> Not Yet Assigned
                     </div>
                     <div class="text-muted small">
                         Truck assignment and GPS tracking will appear here once the delivery is dispatched.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit History Timeline -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card card-ops">
+                <div class="card-header">
+                    <i class="fas fa-history mr-2"></i> Ticket Audit History
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <!-- Printed -->
+                        <div class="timeline-item {% if header.printed_at %}active{% endif %}">
+                            <div class="timeline-icon"><i class="fas fa-print"></i></div>
+                            <div class="timeline-content">
+                                <div class="font-weight-bold">Pick Ticket Printed</div>
+                                <div class="small text-muted">{{ header.printed_at or 'Pending' }}</div>
+                            </div>
+                        </div>
+                        <!-- Started Picking -->
+                        <div class="timeline-item {% if header.picking_started_at %}active{% endif %}">
+                            <div class="timeline-icon"><i class="fas fa-running"></i></div>
+                            <div class="timeline-content">
+                                <div class="font-weight-bold">Picking Started</div>
+                                <div class="small text-muted">{{ header.picking_started_at or 'Pending' }}</div>
+                            </div>
+                        </div>
+                        <!-- Completed Picking -->
+                        <div class="timeline-item {% if header.picking_completed_at %}active{% endif %}">
+                            <div class="timeline-icon"><i class="fas fa-clipboard-check"></i></div>
+                            <div class="timeline-content">
+                                <div class="font-weight-bold">Picking Completed</div>
+                                <div class="small text-muted">{{ header.picking_completed_at or 'Pending' }}</div>
+                            </div>
+                        </div>
+                        <!-- Staged / Loaded -->
+                        <div class="timeline-item {% if header.staged_at %}active{% endif %}">
+                            <div class="timeline-icon"><i class="fas fa-pallet"></i></div>
+                            <div class="timeline-content">
+                                <div class="font-weight-bold">Staged / Loaded</div>
+                                <div class="small text-muted">{{ header.staged_at or 'Pending' }}</div>
+                            </div>
+                        </div>
+                        <!-- Out for Delivery -->
+                        <div class="timeline-item {% if header.status_flag in ['E', 'D'] %}active{% endif %}">
+                            <div class="timeline-icon"><i class="fas fa-truck"></i></div>
+                            <div class="timeline-content">
+                                <div class="font-weight-bold">Out for Delivery</div>
+                                <div class="small text-muted">{% if header.status_flag in ['E', 'D'] %}In Transit{% else
+                                    %}Pending{% endif %}</div>
+                            </div>
+                        </div>
+                        <!-- Delivered -->
+                        <div class="timeline-item {% if header.status_flag == 'D' %}active{% endif %}">
+                            <div class="timeline-icon"><i class="fas fa-check-double"></i></div>
+                            <div class="timeline-content">
+                                <div class="font-weight-bold">Delivered</div>
+                                <div class="small text-muted">{{ header.delivered_at or 'Pending' }}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -104,4 +194,60 @@
     </div>
 
 </div>
+<style>
+    .timeline {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1rem;
+        padding-bottom: 2rem;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        top: 20px;
+        left: 5%;
+        right: 5%;
+        height: 2px;
+        background: #333;
+        z-index: 1;
+    }
+
+    .timeline-item {
+        position: relative;
+        z-index: 2;
+        width: 14%;
+        text-align: center;
+    }
+
+    .timeline-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #222;
+        border: 2px solid #444;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 10px;
+        color: #666;
+        transition: 0.3s;
+    }
+
+    .timeline-item.active .timeline-icon {
+        background: var(--beisser-green);
+        border-color: #fff;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+    }
+
+    .timeline-item.active .timeline-content {
+        color: #fff;
+    }
+
+    .timeline-content {
+        font-size: 0.75rem;
+    }
+</style>
 {% endblock %}
