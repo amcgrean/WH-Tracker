@@ -829,7 +829,12 @@ class ERPService:
                     'expect_date': p.expect_date,
                     'invoice_date': None, # Date details not mirrored yet
                     'local_pick_state': getattr(p, 'local_pick_state', 'Pick Printed'),  # Add default if missing
-                    'route': getattr(p, 'route', '')
+                    'route': getattr(p, 'route', ''),
+                    'ship_via': getattr(p, 'ship_via', ''),
+                    'driver': getattr(p, 'driver', ''),
+                    'printed_at': getattr(p, 'printed_at', None),
+                    'staged_at': getattr(p, 'staged_at', None),
+                    'delivered_at': getattr(p, 'delivered_at', None)
                 }
             # Return as a list, sorted by SO number descending
             return sorted(grouped.values(), key=lambda x: str(x['so_number']), reverse=True)

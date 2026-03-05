@@ -631,7 +631,13 @@ def sync_erp_data():
                     shipment_status=p.get('shipment_status'),
                     system_id=p.get('system_id'),
                     expect_date=p.get('expect_date'),
-                    sale_type=p.get('sale_type')
+                    sale_type=p.get('sale_type'),
+                    ship_via=p.get('ship_via'),
+                    driver=p.get('driver'),
+                    route=p.get('route'),
+                    printed_at=p.get('printed_at'),
+                    staged_at=p.get('staged_at'),
+                    delivered_at=p.get('delivered_at')
                 )
                 db.session.add(new_pick)
 
