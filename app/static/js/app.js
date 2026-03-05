@@ -33,5 +33,7 @@ document.querySelectorAll('.picker-button').forEach(button => {
     });
 });
 document.addEventListener("DOMContentLoaded", function() {
-    const tbody = document.getElementById('picksTableBody')});
-
+    const tbody = document.getElementById('picksTableBody');
+    if (!tbody) return;
+    // picksTableBody is populated by page-specific scripts where needed
+});

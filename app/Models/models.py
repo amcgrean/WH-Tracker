@@ -18,8 +18,8 @@ class Pick(db.Model):
     completed_time = db.Column(db.DateTime, index=True)
     barcode_number = db.Column(db.String(120), nullable=False)
     picker_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=False)
-    # 'picker_id' is a foreign key that links to the 'id' of the Pickster model
-    pick_type_id = db.Column(db.Integer, db.ForeignKey('PickTypes.pick_type_id'))  # New foreign key
+    pick_type_id = db.Column(db.Integer, db.ForeignKey('PickTypes.pick_type_id'))
+    notes = db.Column(db.Text)
 
 class PickTypes(db.Model):
     __tablename__ = 'PickTypes'
@@ -36,10 +36,13 @@ class WorkOrder(db.Model):
     description = db.Column(db.String(256))
     status = db.Column(db.String(50), default='Open')
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('pickster.id'))
+    completed_by_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
-    
-    assigned_to = db.relationship('Pickster', backref=db.backref('work_orders', lazy=True))
+    notes = db.Column(db.Text)
+
+    assigned_to = db.relationship('Pickster', foreign_keys=[assigned_to_id], backref=db.backref('work_orders', lazy=True))
+    completed_by = db.relationship('Pickster', foreign_keys=[completed_by_id], backref=db.backref('completed_work_orders', lazy=True))
 
 
 class PickAssignment(db.Model):
@@ -124,3 +127,24 @@ class ERPDeliveryKPI(db.Model):
     count = db.Column(db.Integer, nullable=False)
     branch = db.Column(db.String(50), nullable=True) # 'all', '20gr', etc.
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# -------------------------------------------------------------------
+# Audit Trail
+# Records key state transitions: pick started/completed, WO completed,
+# staged confirmed, SO assigned, etc.
+# -------------------------------------------------------------------
+
+class AuditEvent(db.Model):
+    __tablename__ = 'audit_events'
+    id = db.Column(db.Integer, primary_key=True)
+    # e.g. 'pick_started', 'pick_completed', 'wo_completed', 'staged_confirmed', 'pick_assigned'
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    entity_type = db.Column(db.String(50), nullable=False)  # 'pick', 'work_order', 'erp_mirror_pick'
+    entity_id = db.Column(db.Integer)
+    so_number = db.Column(db.String(128), index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=True)
+    notes = db.Column(db.Text)
+    occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    actor = db.relationship('Pickster', backref=db.backref('audit_events', lazy=True))
