@@ -117,6 +117,21 @@ class CreditImage(db.Model):
     received_at   = db.Column(db.DateTime)   # when the email arrived
     uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
+# -------------------------------------------------------------------
+# Sales Team — Customer Notes / Call Log
+# Sales reps log calls, visits, emails, and follow-ups here.
+# -------------------------------------------------------------------
+
+class CustomerNote(db.Model):
+    __tablename__ = 'customer_notes'
+    id              = db.Column(db.Integer, primary_key=True)
+    customer_number = db.Column(db.String(50), index=True, nullable=False)
+    note_type       = db.Column(db.String(50), default='Call')   # Call, Visit, Email, Issue, etc.
+    body            = db.Column(db.Text, nullable=False)
+    rep_name        = db.Column(db.String(128))
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class ERPDeliveryKPI(db.Model):
     __tablename__ = 'erp_delivery_kpis'
     id = db.Column(db.Integer, primary_key=True)

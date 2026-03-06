@@ -118,6 +118,45 @@
                         </div>
                     </li>
 
+                    <!-- Sales Group -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
+                            <i class="fas fa-handshake mr-1 small"></i> Sales
+                        </a>
+                        <div class="dropdown-menu border-0 shadow-lg p-2" style="min-width:240px;">
+                            <div class="nav-category-header">Sales Tools</div>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.hub') }}">
+                                <i class="fas fa-th-large mr-1 small text-primary"></i> Sales Hub
+                            </a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.order_status') }}">
+                                <i class="fas fa-bolt mr-1 small text-warning"></i> Quick Order Status
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <div class="nav-category-header">Customer</div>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.order_history') }}">
+                                <i class="fas fa-history mr-1 small text-success"></i> Order History
+                            </a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.invoice_lookup') }}">
+                                <i class="fas fa-file-invoice-dollar mr-1 small text-info"></i> Invoice Lookup
+                            </a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.awards') }}">
+                                <i class="fas fa-trophy mr-1 small text-warning"></i> Awards &amp; Loyalty
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <div class="nav-category-header">Analytics</div>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.rep_dashboard') }}">
+                                <i class="fas fa-tachometer-alt mr-1 small text-danger"></i> Rep Dashboard
+                            </a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.reports') }}">
+                                <i class="fas fa-chart-area mr-1 small text-info"></i> Reports &amp; Analytics
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.products') }}">
+                                <i class="fas fa-tags mr-1 small" style="color:#6f42c1;"></i> Product Pricing
+                            </a>
+                        </div>
+                    </li>
+
                     <!-- Admin Group -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
