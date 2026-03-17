@@ -5,8 +5,8 @@ from flask import render_template, request, redirect, url_for, flash, Blueprint,
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.extensions import db
-from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, AuditEvent
-from datetime import datetime, timedelta
+from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, AuditEvent, ERPDeliveryKPI, ERPSyncState
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
@@ -28,6 +28,61 @@ DEFAULT_PICK_TYPES = {
     5: 'Millwork',
     WILL_CALL_TYPE_ID: 'Will Call',
 }
+
+
+def upsert_sync_state(payload):
+    worker_name = str(payload.get('worker_name') or 'erp-sync').strip() or 'erp-sync'
+    state = ERPSyncState.query.filter_by(worker_name=worker_name).first()
+    if not state:
+        state = ERPSyncState(worker_name=worker_name)
+        db.session.add(state)
+
+    state.worker_mode = payload.get('worker_mode') or state.worker_mode or 'pi'
+    state.source_mode = payload.get('source_mode') or state.source_mode or 'local_sql'
+    state.target_mode = payload.get('target_mode') or state.target_mode or 'mirror'
+    state.interval_seconds = int(payload.get('interval_seconds') or state.interval_seconds or 5)
+    state.change_monitoring = bool(payload.get('change_monitoring', state.change_monitoring))
+    state.last_status = payload.get('status') or state.last_status or 'running'
+    state.last_error = payload.get('last_error')
+    state.last_change_token = payload.get('last_change_token')
+    state.last_payload_hash = payload.get('last_payload_hash')
+    state.last_push_reason = payload.get('last_push_reason')
+
+    counts = payload.get('counts')
+    if counts is not None:
+        state.last_counts_json = json.dumps(counts)
+
+    now = datetime.utcnow()
+    state.last_heartbeat_at = now
+    if state.last_status in ('success', 'noop'):
+        state.last_success_at = now
+    if state.last_status == 'error':
+        state.last_error_at = now
+
+    return state
+
+
+def parse_sync_timestamp(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if parsed.tzinfo is not None:
+            return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def parse_sync_date(value):
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).split('T')[0]).date()
+    except Exception:
+        return None
 
 
 def ensure_pick_type_exists(pick_type_id):
@@ -611,58 +666,118 @@ def sync_erp_data():
     try:
         # Determine if we should clear existing data (default to True for backward compatibility)
         should_reset = request.args.get('reset', 'true').lower() == 'true'
+        sync_started_at = parse_sync_timestamp(data.get('sync_started_at'))
+        sync_complete = bool(data.get('complete'))
 
         # 1. Sync Picks
         if 'picks' in data:
-            if should_reset:
-                # Clear existing Mirror table
-                db.session.query(ERPMirrorPick).delete()
-            
-            # Bulk insert new records
             for p in data['picks']:
-                new_pick = ERPMirrorPick(
-                    so_number=str(p.get('so_number')),
-                    customer_name=p.get('customer_name'),
-                    address=p.get('address'),
-                    reference=p.get('reference'),
-                    handling_code=p.get('handling_code'),
-                    sequence=p.get('sequence'),
-                    item_number=p.get('item_number'),
-                    description=p.get('description'),
-                    qty=p.get('qty'),
-                    line_count=int(p.get('line_count', 0)),
-                    so_status=p.get('so_status'),
-                    shipment_status=p.get('shipment_status'),
-                    system_id=p.get('system_id'),
-                    expect_date=p.get('expect_date'),
-                    sale_type=p.get('sale_type'),
-                    ship_via=p.get('ship_via'),
-                    driver=p.get('driver'),
-                    route=p.get('route'),
-                    printed_at=p.get('printed_at'),
-                    staged_at=p.get('staged_at'),
-                    delivered_at=p.get('delivered_at')
-                )
-                db.session.add(new_pick)
+                so_num = str(p.get('so_number'))
+                seq = p.get('sequence')
+                
+                # Check for existing record to preserve cloud-only fields
+                existing = ERPMirrorPick.query.filter_by(so_number=so_num, sequence=seq).first()
+                if existing:
+                    # Update ERP fields
+                    existing.customer_name = p.get('customer_name')
+                    existing.address = p.get('address')
+                    existing.reference = p.get('reference')
+                    existing.handling_code = p.get('handling_code')
+                    existing.item_number = p.get('item_number')
+                    existing.description = p.get('description')
+                    existing.qty = p.get('qty')
+                    existing.line_count = int(p.get('line_count', 0))
+                    existing.so_status = p.get('so_status')
+                    existing.shipment_status = p.get('shipment_status')
+                    existing.status_flag_delivery = p.get('status_flag_delivery')
+                    existing.system_id = p.get('system_id')
+                    existing.expect_date = p.get('expect_date')
+                    existing.sale_type = p.get('sale_type')
+                    existing.ship_via = p.get('ship_via')
+                    existing.driver = p.get('driver')
+                    existing.route = p.get('route')
+                    # Preserve cloud timestamps if ERP is empty
+                    if p.get('printed_at') and not existing.printed_at: existing.printed_at = p.get('printed_at')
+                    if p.get('staged_at') and not existing.staged_at: existing.staged_at = p.get('staged_at')
+                    if p.get('delivered_at') and not existing.delivered_at: existing.delivered_at = p.get('delivered_at')
+                    existing.synced_at = datetime.utcnow()
+                else:
+                    new_pick = ERPMirrorPick(
+                        so_number=so_num,
+                        sequence=seq,
+                        customer_name=p.get('customer_name'),
+                        address=p.get('address'),
+                        reference=p.get('reference'),
+                        handling_code=p.get('handling_code'),
+                        item_number=p.get('item_number'),
+                        description=p.get('description'),
+                        qty=p.get('qty'),
+                        line_count=int(p.get('line_count', 0)),
+                        so_status=p.get('so_status'),
+                        shipment_status=p.get('shipment_status'),
+                        status_flag_delivery=p.get('status_flag_delivery'),
+                        system_id=p.get('system_id'),
+                        expect_date=p.get('expect_date'),
+                        sale_type=p.get('sale_type'),
+                        ship_via=p.get('ship_via'),
+                        driver=p.get('driver'),
+                        route=p.get('route'),
+                        printed_at=p.get('printed_at'),
+                        staged_at=p.get('staged_at'),
+                        delivered_at=p.get('delivered_at'),
+                        synced_at=datetime.utcnow()
+                    )
+                    db.session.add(new_pick)
+
+            if should_reset and sync_complete and sync_started_at:
+                ERPMirrorPick.query.filter(ERPMirrorPick.synced_at < sync_started_at).delete(synchronize_session=False)
 
         # 2. Sync Work Orders
         if 'work_orders' in data:
-            if should_reset:
-                # Clear existing Mirror table
-                db.session.query(ERPMirrorWorkOrder).delete()
-            
-            # Bulk insert new records
             for wo in data['work_orders']:
-                new_wo = ERPMirrorWorkOrder(
-                    wo_id=str(wo.get('wo_id')),
-                    so_number=str(wo.get('so_number')),
-                    description=wo.get('description'),
-                    item_number=wo.get('item_number'),
-                    status=wo.get('status'),
-                    qty=float(wo.get('qty', 0)),  # Ensure float
-                    department=wo.get('department')
+                wo_id = str(wo.get('wo_id'))
+                existing_wo = ERPMirrorWorkOrder.query.filter_by(wo_id=wo_id).first()
+                if existing_wo:
+                    existing_wo.description = wo.get('description')
+                    existing_wo.item_number = wo.get('item_number')
+                    existing_wo.status = wo.get('status')
+                    existing_wo.qty = float(wo.get('qty', 0))
+                    existing_wo.department = wo.get('department')
+                    existing_wo.synced_at = datetime.utcnow()
+                else:
+                    new_wo = ERPMirrorWorkOrder(
+                        wo_id=wo_id,
+                        so_number=str(wo.get('so_number')),
+                        description=wo.get('description'),
+                        item_number=wo.get('item_number'),
+                        status=wo.get('status'),
+                        qty=float(wo.get('qty', 0)),
+                        department=wo.get('department'),
+                        synced_at=datetime.utcnow()
+                    )
+                    db.session.add(new_wo)
+
+            if should_reset and sync_complete and sync_started_at:
+                ERPMirrorWorkOrder.query.filter(ERPMirrorWorkOrder.synced_at < sync_started_at).delete(synchronize_session=False)
+
+        # 3. Sync KPIs
+        if 'kpis' in data:
+            if should_reset:
+                ERPDeliveryKPI.query.delete()
+            for kpi in data['kpis']:
+                kpi_date = parse_sync_date(kpi.get('date'))
+                if not kpi_date:
+                    continue
+                row = ERPDeliveryKPI(
+                    date=kpi_date,
+                    count=int(kpi.get('count', 0)),
+                    branch=kpi.get('branch'),
                 )
-                db.session.add(new_wo)
+                db.session.add(row)
+
+        # 4. Sync worker heartbeat / status
+        if 'sync_status' in data and isinstance(data['sync_status'], dict):
+            upsert_sync_state(data['sync_status'])
 
         db.session.commit()
         return jsonify({'status': 'success', 'message': 'Data synced successfully'}), 200
@@ -702,6 +817,50 @@ def confirm_staged(so_number):
     db.session.commit()
 
     return jsonify({'status': 'ok', 'so_number': so_number, 'staged_at': now.isoformat()})
+
+
+@main.route('/api/sync/status')
+def api_sync_status():
+    state = ERPSyncState.query.order_by(ERPSyncState.last_heartbeat_at.desc()).first()
+    if not state:
+        return jsonify({
+            'ok': False,
+            'status': 'missing',
+            'message': 'No ERP sync worker heartbeat has been recorded yet.',
+        }), 404
+
+    counts = {}
+    if state.last_counts_json:
+        try:
+            counts = json.loads(state.last_counts_json)
+        except Exception:
+            counts = {}
+
+    age_seconds = None
+    if state.last_heartbeat_at:
+        age_seconds = int((datetime.utcnow() - state.last_heartbeat_at).total_seconds())
+
+    stale_threshold = max(15, int(state.interval_seconds or 5) * 3)
+    healthy = state.last_status in ('success', 'noop') and (age_seconds is None or age_seconds <= stale_threshold)
+
+    return jsonify({
+        'ok': healthy,
+        'worker_name': state.worker_name,
+        'worker_mode': state.worker_mode,
+        'source_mode': state.source_mode,
+        'target_mode': state.target_mode,
+        'status': state.last_status,
+        'interval_seconds': state.interval_seconds,
+        'change_monitoring': state.change_monitoring,
+        'last_heartbeat_at': state.last_heartbeat_at.isoformat() + 'Z' if state.last_heartbeat_at else None,
+        'last_success_at': state.last_success_at.isoformat() + 'Z' if state.last_success_at else None,
+        'last_error_at': state.last_error_at.isoformat() + 'Z' if state.last_error_at else None,
+        'last_error': state.last_error,
+        'last_change_token': state.last_change_token,
+        'last_push_reason': state.last_push_reason,
+        'age_seconds': age_seconds,
+        'counts': counts,
+    })
 
 
 @main.route('/debug/counts')

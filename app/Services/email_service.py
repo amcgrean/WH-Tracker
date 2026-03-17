@@ -12,6 +12,11 @@ Environment variables expected (loaded from .env via python-dotenv):
     EMAIL_PASSWORD  - your password or M365 app password
     IMAP_SERVER     - defaults to outlook.office365.com
     IMAP_PORT       - defaults to 993
+    IMAP_FOLDER     - mailbox folder to poll; defaults to INBOX.
+                      For an Outlook subfolder named "Credits" use:
+                      IMAP_FOLDER=Credits
+                      For a nested folder (e.g. Inbox > Credits) use:
+                      IMAP_FOLDER=INBOX/Credits
 """
 
 import imaplib
@@ -79,6 +84,7 @@ def process_credit_emails(upload_base_dir, mark_as_read=True):
     email_password = os.environ.get('EMAIL_PASSWORD', '')
     imap_server   = os.environ.get('IMAP_SERVER', 'outlook.office365.com')
     imap_port     = int(os.environ.get('IMAP_PORT', 993))
+    imap_folder   = os.environ.get('IMAP_FOLDER', 'INBOX')
 
     if not email_address or not email_password:
         raise ValueError(
@@ -90,8 +96,10 @@ def process_credit_emails(upload_base_dir, mark_as_read=True):
     try:
         conn = imaplib.IMAP4_SSL(imap_server, imap_port)
         conn.login(email_address, email_password)
-        conn.select('INBOX')
-        logger.info("Connected to %s as %s", imap_server, email_address)
+        status, _ = conn.select(imap_folder)
+        if status != 'OK':
+            raise imaplib.IMAP4.error(f"Could not select folder '{imap_folder}' — check IMAP_FOLDER in .env")
+        logger.info("Connected to %s as %s, folder: %s", imap_server, email_address, imap_folder)
     except imaplib.IMAP4.error as exc:
         logger.error("IMAP login failed: %s", exc)
         raise
