@@ -9,15 +9,13 @@ except (ImportError, OSError):
 
 class ERPService:
     def __init__(self):
-        # Configuration - in production move these to config.py/env vars
-        self.server = '10.1.1.17'
-        self.database = 'AgilitySQL'
-        self.username = 'amcgrean'
-        self.password = 'Forgefrog69!'
-        self.driver = '{ODBC Driver 17 for SQL Server}'
+        self.server = os.environ.get('ERP_SERVER', '')
+        self.database = os.environ.get('ERP_DATABASE', 'AgilitySQL')
+        self.username = os.environ.get('ERP_USERNAME', '')
+        self.password = os.environ.get('ERP_PASSWORD', '')
+        self.driver = os.environ.get('ERP_DRIVER', '{ODBC Driver 17 for SQL Server}')
         raw_mode = os.environ.get('CLOUD_MODE', '')
         self.cloud_mode = str(raw_mode).lower() == 'true'
-        print(f"ERPService Init: CLOUD_MODE raw='{raw_mode}', parsed={self.cloud_mode}")
         
     def get_connection(self):
         if pyodbc is None:

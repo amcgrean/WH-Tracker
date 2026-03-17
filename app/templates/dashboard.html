@@ -58,6 +58,8 @@
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   fetchData('today');
+  // Auto-refresh every 30 seconds without a full page reload
+  setInterval(() => fetchData('today'), 30000);
 
   function fetchData(period = 'today') {
     fetch(`/api/dashboard?period=${period}`)
