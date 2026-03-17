@@ -96,12 +96,37 @@
                             <div class="nav-category-header">Delivery Operations</div>
                             <a class="dropdown-item rounded" href="{{ url_for('main.delivery_board') }}">Delivery
                                 Board</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('dispatch.index') }}">Dispatch
+                                Console</a>
                             <a class="dropdown-item rounded" href="{{ url_for('main.delivery_map') }}">Fleet Map
                                 (TV)</a>
                             <div class="dropdown-divider"></div>
                             <div class="nav-category-header">Credits</div>
                             <a class="dropdown-item rounded" href="{{ url_for('main.credits_search') }}">
                                 <i class="fas fa-file-image mr-1 small"></i> RMA Credit Images</a>
+                        </div>
+                    </li>
+
+                    <!-- Sales Group -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
+                            <i class="fas fa-handshake mr-1 small"></i> Sales
+                        </a>
+                        <div class="dropdown-menu border-0 shadow-lg p-2">
+                            <div class="nav-category-header">Sales Intelligence</div>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.hub') }}">Sales Hub Dashboard</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.order_status') }}">Order Status
+                                Lookup</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.invoice_lookup') }}">Invoice
+                                Search</a>
+                            <div class="dropdown-divider"></div>
+                            <div class="nav-category-header">Performance & Products</div>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.rep_dashboard') }}">My
+                                Dashboard</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.reports') }}">Analytics &
+                                Reports</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.awards') }}">Leaderboard</a>
+                            <a class="dropdown-item rounded" href="{{ url_for('sales.products') }}">Product Lookup</a>
                         </div>
                     </li>
 

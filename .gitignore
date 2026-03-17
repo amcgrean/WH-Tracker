@@ -15,3 +15,4 @@ env/
 # Credit/RMA image uploads (actual image files — keep the .gitkeep placeholder)
 uploads/credits/*/
 logs/email_sync.log
+logs/erp_sync_status.json

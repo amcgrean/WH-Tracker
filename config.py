@@ -1,18 +1,21 @@
 import os
-from dotenv import load_dotenv
+from app.runtime_settings import get_central_db_url, get_database_url, load_tracker_env
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-load_dotenv(os.path.join(basedir, '.env'))
+load_tracker_env()
 
 class Config(object):
-    # Handle postgres:// to postgresql:// conversion for SQLAlchemy 1.4+
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-
-    SQLALCHEMY_DATABASE_URI = database_url or \
+    SQLALCHEMY_DATABASE_URI = get_database_url() or \
         'sqlite:///' + os.path.join('/tmp', 'picker.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Optional central database connection (beisser-api sync DB)
+    # If not provided, it will gracefully fallback in the services.
+    central_db_url = get_central_db_url()
+        
+    SQLALCHEMY_BINDS = {}
+    if central_db_url:
+        SQLALCHEMY_BINDS['central_db'] = central_db_url
     
     # Required for Flask sessions and flash messages
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev_default_secret_key_12345')
