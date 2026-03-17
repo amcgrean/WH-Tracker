@@ -13,6 +13,7 @@ Requires .env with:
     EMAIL_ADDRESS=amcgrean@beisserlumber.com
     EMAIL_PASSWORD=<your M365 password or app password>
     IMAP_SERVER=outlook.office365.com   (optional, this is the default)
+    IMAP_FOLDER=Credits                 (optional, defaults to INBOX)
     UPLOAD_FOLDER=uploads/credits       (optional, defaults shown)
 """
 
