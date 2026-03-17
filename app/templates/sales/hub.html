@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Sales Hub{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+
+    <!-- Header -->
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 text-primary font-weight-bold mb-0">
+                <i class="fas fa-handshake mr-2"></i> Sales Hub
+            </h1>
+            <p class="text-muted mb-0">Customer intelligence, order history &amp; account tools</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('sales.order_status') }}" class="btn btn-primary shadow-sm">
+                <i class="fas fa-search mr-1"></i> Quick Order Lookup
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats Bar -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h2 font-weight-bold text-primary mb-0">{{ open_orders_count }}</div>
+                <div class="small text-muted">Open Orders</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h2 font-weight-bold text-success mb-0">{{ total_orders_today }}</div>
+                <div class="small text-muted">Scheduled Today</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h2 font-weight-bold text-info mb-0">{{ recent_notes|length }}</div>
+                <div class="small text-muted">Recent Activity Notes</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h2 font-weight-bold text-warning mb-0">
+                    <i class="fas fa-database small"></i>
+                </div>
+                <div class="small text-muted">Central DB Connected</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feature Tiles -->
+    <div class="row">
+
+        <!-- 1. Customer 360 -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon bg-primary text-white rounded mr-3">
+                            <i class="fas fa-user-circle"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Customer 360 Profile</h5>
+                            <span class="badge badge-primary badge-pill">Feature 1</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">Full customer card: contact info, credit terms, YTD order activity, award level, and recent order history — all in one view.</p>
+                    <form class="mt-auto" action="{{ url_for('sales.customer_profile', customer_number='SEARCH') }}" method="get" onsubmit="this.action='/sales/customer/' + this.querySelector('input').value; return true;">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" placeholder="Customer # or name...">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" type="submit"><i class="fas fa-arrow-right"></i></button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Order History -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon bg-success text-white rounded mr-3">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Order History Browser</h5>
+                            <span class="badge badge-success badge-pill">Feature 2</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">Search <strong>all orders</strong> — open, invoiced, and historical — filtered by customer, date range, status, or branch. No longer limited to open only.</p>
+                    <a href="{{ url_for('sales.order_history') }}" class="btn btn-sm btn-success mt-auto">
+                        <i class="fas fa-list mr-1"></i> Browse Orders
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Invoice Lookup -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon bg-info text-white rounded mr-3">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Invoice Lookup</h5>
+                            <span class="badge badge-info badge-pill">Feature 3</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">Quickly pull up invoiced orders by invoice number, SO number, or customer name. Great for handling billing questions on a call.</p>
+                    <a href="{{ url_for('sales.invoice_lookup') }}" class="btn btn-sm btn-info mt-auto">
+                        <i class="fas fa-search-dollar mr-1"></i> Look Up Invoice
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Customer Awards -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon bg-warning text-white rounded mr-3">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Customer Awards &amp; Loyalty</h5>
+                            <span class="badge badge-warning badge-pill">Feature 4</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">View customer award tiers, loyalty points, and milestones synced from Agility. Know their standing before you make the call.</p>
+                    <a href="{{ url_for('sales.awards') }}" class="btn btn-sm btn-warning mt-auto">
+                        <i class="fas fa-award mr-1"></i> View Awards
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Rep Dashboard -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon bg-danger text-white rounded mr-3">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Sales Rep Dashboard</h5>
+                            <span class="badge badge-danger badge-pill">Feature 5</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">Personal KPIs for a rep: order volume, top accounts, status breakdown, and period-over-period trends to track your book.</p>
+                    <a href="{{ url_for('sales.rep_dashboard') }}" class="btn btn-sm btn-danger mt-auto">
+                        <i class="fas fa-chart-bar mr-1"></i> My Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Quick Order Status -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon bg-dark text-white rounded mr-3">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Quick Order Status</h5>
+                            <span class="badge badge-dark badge-pill">Feature 6</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">Instant lookup while a customer is on the phone. Type an SO number or customer name and get live status, driver, and expected delivery date.</p>
+                    <a href="{{ url_for('sales.order_status') }}" class="btn btn-sm btn-dark mt-auto">
+                        <i class="fas fa-search mr-1"></i> Status Lookup
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. Customer Notes -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon bg-secondary text-white rounded mr-3">
+                            <i class="fas fa-sticky-note"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Customer Notes &amp; Call Log</h5>
+                            <span class="badge badge-secondary badge-pill">Feature 7</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">Log calls, site visits, emails, and quote follow-ups per customer. Build a shared communication history the whole team can see.</p>
+                    {% if recent_notes %}
+                    <ul class="list-unstyled small mt-2 mb-2">
+                        {% for note in recent_notes %}
+                        <li class="border-bottom pb-1 mb-1 text-truncate">
+                            <span class="badge badge-secondary badge-pill mr-1">{{ note.note_type }}</span>
+                            <span class="text-muted">{{ note.customer_number }}</span> — {{ note.body[:50] }}{% if note.body|length > 50 %}…{% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <a href="{{ url_for('sales.order_status') }}" class="btn btn-sm btn-secondary mt-auto">
+                        <i class="fas fa-search mr-1"></i> Find Customer
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. Product Pricing -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon text-white rounded mr-3" style="background:#6f42c1;">
+                            <i class="fas fa-tags"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Product Pricing Reference</h5>
+                            <span class="badge badge-pill text-white" style="background:#6f42c1;">Feature 8</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">Search the item catalog for descriptions and pricing synced from the central DB. A quick reference for quoting without opening Agility.</p>
+                    <a href="{{ url_for('sales.products') }}" class="btn btn-sm text-white mt-auto" style="background:#6f42c1;">
+                        <i class="fas fa-search mr-1"></i> Product Search
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 9. Reports -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 feature-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="feature-icon text-white rounded mr-3" style="background:#17a2b8;">
+                            <i class="fas fa-chart-area"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">Sales Analytics &amp; Reports</h5>
+                            <span class="badge badge-pill text-white" style="background:#17a2b8;">Feature 9</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small flex-grow-1">YOY comparisons, top customers, product category trends, and branch performance — all in one reporting dashboard.</p>
+                    <a href="{{ url_for('sales.reports') }}" class="btn btn-sm text-white mt-auto" style="background:#17a2b8;">
+                        <i class="fas fa-chart-pie mr-1"></i> View Reports
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /row -->
+</div>
+
+<style>
+.feature-icon {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+.feature-card {
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.feature-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.10) !important;
+}
+</style>
+{% endblock %}

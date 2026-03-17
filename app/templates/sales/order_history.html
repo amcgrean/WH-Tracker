@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Order History Browser{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">Order History</li>
+        </ol>
+    </nav>
+
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold text-success mb-0">
+                <i class="fas fa-history mr-2"></i> Order History Browser
+            </h1>
+            <p class="text-muted mb-0">All orders — open, invoiced, and historical — from the central database</p>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" action="{{ url_for('sales.order_history') }}">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="small font-weight-bold text-muted text-uppercase">Search</label>
+                        <input type="text" name="q" class="form-control form-control-sm"
+                               placeholder="SO #, customer, or reference..." value="{{ q }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Status</label>
+                        <select name="status" class="form-control form-control-sm">
+                            <option value="">All Statuses</option>
+                            <option value="O" {% if status_filter == 'O' %}selected{% endif %}>Open</option>
+                            <option value="I" {% if status_filter == 'I' %}selected{% endif %}>Invoiced</option>
+                            <option value="C" {% if status_filter == 'C' %}selected{% endif %}>Closed</option>
+                            <option value="H" {% if status_filter == 'H' %}selected{% endif %}>On Hold</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Date From</label>
+                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Date To</label>
+                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Branch</label>
+                        <select name="branch" class="form-control form-control-sm">
+                            <option value="">All Branches</option>
+                            {% for code, label in branch_labels.items() %}
+                            <option value="{{ code }}" {% if branch_filter == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="font-weight-bold"><i class="fas fa-list mr-1 text-success"></i> Orders</span>
+            <span class="badge badge-success badge-pill">{{ pagination.total }} total</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>SO #</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Handling</th>
+                        <th>Expect Date</th>
+                        <th>Ship Via</th>
+                        <th>Driver</th>
+                        <th>Lines</th>
+                        <th>Sale Type</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td class="font-weight-bold">{{ order.so_number }}</td>
+                        <td>{{ order.customer_name or '—' }}</td>
+                        <td>
+                            {% if order.so_status == 'O' %}
+                                <span class="badge badge-success">Open</span>
+                            {% elif order.so_status == 'I' %}
+                                <span class="badge badge-info">Invoiced</span>
+                            {% elif order.so_status == 'C' %}
+                                <span class="badge badge-secondary">Closed</span>
+                            {% elif order.so_status == 'H' %}
+                                <span class="badge badge-warning">On Hold</span>
+                            {% else %}
+                                <span class="badge badge-light text-muted">{{ order.so_status or '—' }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ order.handling_code or '—' }}</td>
+                        <td>{{ order.expect_date or '—' }}</td>
+                        <td>{{ order.ship_via or '—' }}</td>
+                        <td>{{ order.driver or '—' }}</td>
+                        <td>{{ order.line_count or '—' }}</td>
+                        <td>{{ order.sale_type or '—' }}</td>
+                        <td>
+                            <a href="{{ url_for('main.warehouse_detail', so_number=order.so_number) }}"
+                               class="btn btn-xs btn-outline-primary">View</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="text-center text-muted py-5">
+                        <i class="fas fa-inbox fa-2x d-block mb-2"></i>
+                        No orders match your filters.
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <div class="card-footer bg-white">
+            <nav>
+                <ul class="pagination pagination-sm mb-0 justify-content-center">
+                    {% for page in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                        {% if page %}
+                            <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('sales.order_history', q=q, status=status_filter, branch=branch_filter, date_from=date_from, date_to=date_to, page=page) }}">{{ page }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <p class="text-muted small mt-3">
+        <i class="fas fa-info-circle mr-1"></i>
+        Historical &amp; invoiced orders will appear here as the central database receives them from Agility.
+        Currently showing all synced records.
+    </p>
+</div>
+{% endblock %}

@@ -1,7 +1,8 @@
 from flask import Flask
 from .extensions import db, migrate
-from .Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage  # noqa: F401
+from .Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, CustomerNote  # noqa: F401
 from .Routes.routes import main as main_blueprint
+from .Routes.sales_routes import sales as sales_blueprint
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.Config")
@@ -10,6 +11,7 @@ def create_app():
     migrate.init_app(app, db)
     # Register Blueprints
     app.register_blueprint(main_blueprint)
+    app.register_blueprint(sales_blueprint)
 
     # Ensure tables exist (needed for serverless/fresh deployments)
     with app.app_context():
