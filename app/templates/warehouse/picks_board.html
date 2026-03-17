@@ -170,7 +170,19 @@
                         </div>
 
                         <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-                            <span class="line-badge">{{ item.line_count }} Lines</span>
+                            <div class="d-flex align-items-center">
+                                <span class="line-badge">{{ item.line_count }} Lines</span>
+                                {% if item.local_pick_state == 'Picking' %}
+                                <span class="badge badge-success text-xs ml-2 py-1"><i class="fas fa-running mr-1"></i>
+                                    PICKING</span>
+                                {% elif item.local_pick_state == 'Picking Complete' %}
+                                <span class="badge badge-primary text-xs ml-2 py-1"><i
+                                        class="fas fa-clipboard-check mr-1"></i> COMPLETE</span>
+                                {% else %}
+                                <span class="badge badge-secondary text-xs ml-2 py-1"><i class="fas fa-print mr-1"></i>
+                                    PRINTED</span>
+                                {% endif %}
+                            </div>
                             {% if item.assigned_picker %}
                             <div class="small text-success font-weight-bold ml-2 text-truncate"
                                 title="Assigned to {{ item.assigned_picker.name }}">

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Product Pricing Reference{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">Product Reference</li>
+        </ol>
+    </nav>
+
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold mb-0" style="color:#6f42c1;">
+                <i class="fas fa-tags mr-2"></i> Product Pricing Quick Reference
+            </h1>
+            <p class="text-muted mb-0">Search the item catalog for descriptions and pricing synced from the central DB
+            </p>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('sales.products') }}">
+                <div class="input-group input-group-lg shadow-sm">
+                    <input type="text" name="q" class="form-control" value="{{ q }}"
+                        placeholder="Search item # or description (e.g. 2x4-92 5/8 or 10240)...">
+                    <div class="input-group-append">
+                        <button class="btn text-white" style="background:#6f42c1;" type="submit">Search Item</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if q %}
+    <div class="row">
+        {% for item in products %}
+        <div class="col-md-4 col-lg-3 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="badge badge-light border">{{ item.item_number }}</span>
+                        <span class="text-info font-weight-bold">$1.00</span> <!-- Price proxy -->
+                    </div>
+                    <h6 class="font-weight-bold mb-3">{{ item.description }}</h6>
+                    <div class="d-flex justify-content-between small border-top pt-2">
+                        <span class="text-muted">Mirror Qty:</span>
+                        <span class="font-weight-bold">{{ item.quantity_on_hand|int }}</span>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top-0 d-flex p-2">
+                    <a href="{{ url_for('sales.order_history', q=item.item_number) }}"
+                        class="btn btn-xs btn-block btn-outline-secondary">Recent Usage</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-search-minus fa-2x mb-3 text-muted"></i>
+            <p class="text-muted">No items found matching "{{ q }}". Try a broader search term or item number prefix.
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="row justify-content-center py-5">
+        <div class="col-md-6 text-center">
+            <i class="fas fa-box-open fa-3x mb-4" style="color:#6f42c1; opacity:0.1;"></i>
+            <h5 class="font-weight-bold">Search the product catalog above</h5>
+            <p class="text-muted small">Item data is sourced from order line records in the central database. Full
+                catalog and pricing will be added as Agility sync expands.</p>
+            <div class="mt-4">
+                <span class="text-muted small mr-2">Quick searches:</span>
+                {% for term in ['2x4', 'Trim', 'Door', 'Siding', 'Hardware'] %}
+                <a href="{{ url_for('sales.products', q=term) }}" class="badge badge-light border mx-1 px-3 py-2">{{
+                    term }}</a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

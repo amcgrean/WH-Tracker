@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Sales Hub{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold" style="color: #17a2b8;">
+                <i class="fas fa-handshake mr-2"></i> Sales Command Center
+            </h1>
+            <p class="text-muted">Tools, metrics, and customer insights for the sales team.</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('sales.rep_dashboard') }}" class="btn btn-info">
+                My Dashboard <i class="fas fa-arrow-right ml-1"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats Bar -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3 h-100">
+                <div class="h2 font-weight-bold text-primary mb-0">{{ open_orders_count }}</div>
+                <div class="small text-muted">Open Orders</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3 h-100">
+                <div class="h2 font-weight-bold text-success mb-0">{{ total_orders_today }}</div>
+                <div class="small text-muted">Scheduled Today</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3 h-100">
+                <div class="h2 font-weight-bold text-info mb-0">{{ recent_notes|length }}</div>
+                <div class="small text-muted">Recent Activity Notes</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3 h-100">
+                <div class="h2 font-weight-bold text-warning mb-0">
+                    <i class="fas fa-database small"></i>
+                </div>
+                <div class="small text-muted">Central DB Connected</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Tool Grid -->
+    <div class="row">
+
+        <!-- Search/Lookup Card -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title font-weight-bold">
+                        <i class="fas fa-search mr-1 text-info"></i> Customer & Order Lookup
+                    </h5>
+                    <p class="small text-muted">Find specific customer profiles or track down and order by ID.</p>
+                    <form action="{{ url_for('sales.order_status') }}" method="GET" class="mt-3">
+                        <div class="input-group input-group-sm">
+                            <input type="text" name="q" class="form-control" placeholder="Search customer or order...">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-info" type="submit">Go</button>
+                            </div>
+                        </div>
+                    </form>
+                    <div class="mt-3">
+                        <a href="{{ url_for('sales.invoice_lookup') }}" class="btn btn-sm btn-link text-info px-0">
+                            Looking for an Invoice?
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory/Pricing Card -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title font-weight-bold">
+                        <i class="fas fa-box-open mr-1 text-info"></i> Product & Inventory
+                    </h5>
+                    <p class="small text-muted">Check current stock levels, pricing tiers, and product specs.</p>
+                    <a href="{{ url_for('sales.products') }}" class="btn btn-sm btn-outline-info mt-2">
+                        Browse Catalog
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics/Reports Card -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title font-weight-bold">
+                        <i class="fas fa-chart-line mr-1 text-info"></i> Sales Reports
+                    </h5>
+                    <p class="small text-muted">Territory volume, top performers, and YOY trends.</p>
+                    <a href="{{ url_for('sales.reports') }}" class="btn btn-sm btn-outline-info mt-2">
+                        View Analytics
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row">
+        <div class="col-md-8 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white font-weight-bold">
+                    <i class="fas fa-bullhorn mr-1 text-warning"></i> Recent Sales Activity
+                </div>
+                <div class="list-group list-group-flush small">
+                    {% for note in recent_notes %}
+                    <div class="list-group-item">
+                        <span class="badge badge-info mr-2">{{ note.note_type }}</span>
+                        <span class="font-weight-bold">{{ note.customer_number }}</span> — {{ note.body[:100] }}{% if
+                        note.body|length > 100 %}...{% endif %}
+                        <div class="text-muted muted-xs mt-1">{{ note.created_at.strftime('%m/%d %H:%M') }}</div>
+                    </div>
+                    {% else %}
+                    <div class="list-group-item text-center py-4 text-muted">No recent activity found.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm bg-info text-white">
+                <div class="card-body">
+                    <h5 class="font-weight-bold mb-3">Quick Actions</h5>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('sales.order_status') }}"
+                            class="btn btn-light btn-sm btn-block text-left mb-2">
+                            <i class="fas fa-truck mr-2"></i> Track Open Orders
+                        </a>
+                        <a href="#" class="btn btn-light btn-sm btn-block text-left mb-2 disabled">
+                            <i class="fas fa-plus mr-2"></i> Create Quote (Coming Soon)
+                        </a>
+                        <a href="{{ url_for('sales.awards') }}" class="btn btn-light btn-sm btn-block text-left">
+                            <i class="fas fa-trophy mr-2"></i> Sales Leaderboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

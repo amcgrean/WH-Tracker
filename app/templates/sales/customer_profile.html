@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Customer Profile - {{ customer_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+
+    <!-- Header / Breadcrumbs -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">{{ customer_name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Left Column: Details -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                            style="width: 80px; height: 80px; font-size: 2rem;">
+                            {{ customer_name[0] if customer_name else '?' }}
+                        </div>
+                        <h3 class="font-weight-bold mb-0">{{ customer_name }}</h3>
+                        <span class="badge badge-success">Active Account</span>
+                        <div class="text-muted small mt-1">Customer # {{ customer_number }}</div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-4">
+                        <h6 class="font-weight-bold text-muted text-uppercase small">Contact Details</h6>
+                        <p class="mb-1 small"><i class="fas fa-map-marker-alt mr-2 text-muted"></i> Primary Ship-to
+                            found in mirror</p>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
+                            class="btn btn-block btn-outline-info btn-sm">
+                            <i class="fas fa-sticky-note mr-2"></i> View Account Notes ({{ notes|length }})
+                        </a>
+                        <a href="{{ url_for('sales.customer_statement', customer_number=customer_number) }}"
+                            class="btn btn-block btn-outline-info btn-sm">
+                            <i class="fas fa-file-invoice mr-2"></i> Account Statement / AR
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Snapshot -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white font-weight-bold">Account Snapshot</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="px-3 py-2 text-muted small">Award Tier</td>
+                                <td class="px-3 py-2 text-right font-weight-bold small text-warning">Gold</td>
+                            </tr>
+                            <tr>
+                                <td class="px-3 py-2 text-muted small">Credit Limit</td>
+                                <td class="px-3 py-2 text-right font-weight-bold small">$50,000</td>
+                            </tr>
+                            <tr>
+                                <td class="px-3 py-2 text-muted small">Open Orders</td>
+                                <td class="px-3 py-2 text-right font-weight-bold small text-info">{{
+                                    order_numbers|length }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Activity -->
+        <div class="col-lg-8">
+            <!-- Tabs Navigation -->
+            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="pills-orders-tab" data-toggle="pill" href="#pills-orders"
+                        role="tab">Recent Activity</a>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="pills-tabContent">
+                <div class="tab-pane fade show active" id="pills-orders" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <span class="font-weight-bold">Last 10 Sync Records</span>
+                            <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
+                                class="btn btn-xs btn-link text-info">View All History</a>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>SO #</th>
+                                        <th>Expected</th>
+                                        <th>Status</th>
+                                        <th class="text-right">Synced At</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in recent_orders %}
+                                    <tr>
+                                        <td class="font-weight-bold text-info">{{ row.so_number }}</td>
+                                        <td>{{ row.expect_date or '—' }}</td>
+                                        <td>
+                                            <span
+                                                class="badge badge-pill badge-{% if row.so_status == 'O' %}info{% elif row.so_status == 'I' %}success{% else %}secondary{% endif %}">
+                                                {{ row.so_status }}
+                                            </span>
+                                        </td>
+                                        <td class="text-right small text-muted">{{ row.synced_at.strftime('%m/%d %H:%M')
+                                            }}</td>
+                                        <td class="text-right">
+                                            <a href="{{ url_for('main.warehouse_detail', so_number=row.so_number) }}"
+                                                class="btn btn-xs btn-outline-secondary">Details</a>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-muted">No records found for this
+                                            customer number.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm mt-4">
+                        <div class="card-header bg-white font-weight-bold d-flex justify-content-between">
+                            <span>Recent Notes</span>
+                            <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
+                                class="btn btn-xs btn-outline-info">Add Note</a>
+                        </div>
+                        <div class="list-group list-group-flush small">
+                            {% for note in notes[:3] %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="font-weight-bold text-info">{{ note.note_type }}</span>
+                                    <span class="text-muted">{{ note.created_at.strftime('%m/%d') }}</span>
+                                </div>
+                                <p class="mb-0 text-muted">{{ note.body[:150] }}{% if note.body|length > 150 %}...{%
+                                    endif %}</p>
+                            </div>
+                            {% else %}
+                            <div class="list-group-item text-center py-4 text-muted">No notes found.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

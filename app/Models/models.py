@@ -74,6 +74,7 @@ class ERPMirrorPick(db.Model):
     line_count = db.Column(db.Integer)
     so_status = db.Column(db.String(10))
     shipment_status = db.Column(db.String(10))
+    status_flag_delivery = db.Column(db.String(10)) # NEW: Granular delivery status from shipments_header
     system_id = db.Column(db.String(50))
     expect_date = db.Column(db.String(50))
     sale_type = db.Column(db.String(50))
@@ -86,6 +87,10 @@ class ERPMirrorPick(db.Model):
     printed_at = db.Column(db.DateTime, nullable=True) # Pick printed timestamp
     staged_at = db.Column(db.DateTime, nullable=True)  # Loaded/Staged timestamp
     delivered_at = db.Column(db.DateTime, nullable=True) # Delivered timestamp
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+    geocode_status = db.Column(db.String(50), nullable=True) # 'exact', 'fuzzy', 'failed'
+
     
 class ERPMirrorWorkOrder(db.Model):
     __tablename__ = 'erp_mirror_work_orders'
@@ -123,4 +128,36 @@ class ERPDeliveryKPI(db.Model):
     date = db.Column(db.Date, index=True, nullable=False)
     count = db.Column(db.Integer, nullable=False)
     branch = db.Column(db.String(50), nullable=True) # 'all', '20gr', etc.
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ERPSyncState(db.Model):
+    __tablename__ = 'erp_sync_state'
+    id = db.Column(db.Integer, primary_key=True)
+    worker_name = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    worker_mode = db.Column(db.String(50), nullable=False, default='pi')
+    source_mode = db.Column(db.String(50), nullable=False, default='local_sql')
+    target_mode = db.Column(db.String(50), nullable=False, default='mirror')
+    interval_seconds = db.Column(db.Integer, nullable=False, default=5)
+    change_monitoring = db.Column(db.Boolean, nullable=False, default=True)
+    last_heartbeat_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_success_at = db.Column(db.DateTime, nullable=True)
+    last_error_at = db.Column(db.DateTime, nullable=True)
+    last_status = db.Column(db.String(50), nullable=False, default='starting')
+    last_error = db.Column(db.Text, nullable=True)
+    last_change_token = db.Column(db.String(128), nullable=True)
+    last_payload_hash = db.Column(db.String(128), nullable=True)
+    last_push_reason = db.Column(db.String(128), nullable=True)
+    last_counts_json = db.Column(db.Text, nullable=True)
+
+# -------------------------------------------------------------------
+# Sales Team — Customer Notes / Call Log
+# -------------------------------------------------------------------
+
+class CustomerNote(db.Model):
+    __tablename__ = 'customer_notes'
+    id              = db.Column(db.Integer, primary_key=True)
+    customer_number = db.Column(db.String(50), index=True, nullable=False)
+    note_type       = db.Column(db.String(50), default='Call')
+    body            = db.Column(db.Text, nullable=False)
+    rep_name        = db.Column(db.String(128))
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)

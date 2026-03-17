@@ -109,7 +109,19 @@
                             <small class="text-muted font-italic">Ref: {{ order.reference }}</small>
                             {% endif %}
                         </div>
-                        <span class="line-count-badge">{{ order.line_count }} Lines</span>
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="line-count-badge mb-1">{{ order.line_count }} Lines</span>
+                            {% if order.local_pick_state == 'Picking' %}
+                            <span class="badge badge-success text-xs shadow-sm"><i class="fas fa-running mr-1"></i>
+                                PICKING</span>
+                            {% elif order.local_pick_state == 'Picking Complete' %}
+                            <span class="badge badge-primary text-xs shadow-sm"><i
+                                    class="fas fa-clipboard-check mr-1"></i> COMPLETE</span>
+                            {% else %}
+                            <span class="badge badge-secondary text-xs shadow-sm"><i class="fas fa-print mr-1"></i>
+                                PRINTED</span>
+                            {% endif %}
+                        </div>
                     </div>
 
                     <div class="cust-info mb-4">

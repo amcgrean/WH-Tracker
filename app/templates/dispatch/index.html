@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Dispatch Console - Beisser Ops</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    :root { --sidebar-width: 420px; --divider-width: 6px; }
+    html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body.dense { font-size: 13px; }
+    #app { display:grid; grid-template-columns: var(--sidebar-width) var(--divider-width) 1fr; grid-template-rows: 100%; height:100%; }
+    .sidebar { overflow:hidden; display:flex; flex-direction:column; border-right:1px solid #ddd; background:#fff; }
+    .toolbar { display:flex; align-items:center; gap:12px; padding:8px 10px; border-bottom:1px solid #eee; flex-wrap:wrap; background:#fafafa; }
+    .toolbar input[type="date"], .toolbar select, .toolbar input[type="text"] { padding:4px 6px; }
+    .swatch { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:middle; border:1px solid rgba(0,0,0,0.15); }
+    .filter-chip { display:inline-flex; align-items:center; gap:6px; margin-right:12px; }
+    .gridwrap { overflow:auto; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:6px 8px; border-bottom:1px solid #eee; text-align:left; }
+    th { position:sticky; top:0; background:#f7f7f7; cursor:pointer; }
+    td:first-child, th:first-child { width:140px; }
+    tr.selected { background:#fff6d5; }
+    .statusbar { padding:6px 10px; border-top:1px solid #eee; background:#fafafa; font-size:13px; display:flex; justify-content:space-between; gap:10px; }
+    #divider { background:#e7e7e7; cursor:col-resize; }
+    #divider:hover { background:#d7d7d7; }
+    .mapwrap { position:relative; }
+    #map { height:100%; width:100%; }
+    .gear { position:absolute; right:10px; top:10px; z-index:400; background:#fff; border:1px solid #ddd; border-radius:6px; padding:4px 8px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.1); }
+    #modalBackdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:1000; }
+    #settingsModal { width:min(560px, 92vw); background:#fff; border-radius:10px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+    #settingsModal h3 { margin:0 0 10px 0; }
+    #settingsModal .row { display:flex; gap:10px; align-items:center; margin:8px 0; }
+    #settingsModal label { min-width:160px; }
+    #settingsModal input[type="number"] { width:90px; }
+    #settingsModal .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
+    .btn { padding:6px 12px; border-radius:8px; border:1px solid #ccc; background:#f6f6f6; cursor:pointer; }
+    .btn.primary { background:#1f77b4; color:#fff; border-color:#1f77b4; }
+    #detailPanel { position:absolute; right:0; top:0; bottom:0; width:420px; background:#fff; box-shadow:-2px 0 14px rgba(0,0,0,.15); transform:translateX(100%); transition:transform 160ms ease; display:flex; flex-direction:column; z-index:500; }
+    #detailPanel.open { transform:translateX(0%); }
+    #detailHead { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #eee; }
+    #detailBody { overflow:auto; padding:10px 14px; }
+    #detailBody table { width:100%; border-collapse:collapse; }
+    #detailBody th, #detailBody td { padding:6px 8px; border-bottom:1px solid #eee; font-size:13px; }
+    #detailBody th { text-align:left; position:sticky; top:0; background:#fafafa; }
+    .pill-meta { display:inline-block; padding:2px 6px; border-radius:6px; background:#f3f3f3; margin-left:6px; font-size:12px; }
+    .muted { color:#666; }
+    .btn-icon { border:0; background:transparent; cursor:pointer; padding:4px 6px; }
+    .btn-primary { background:#1f77b4; color:#fff; padding:6px 10px; border:0; border-radius:6px; cursor:pointer; }
+  </style>
+</head>
+<body>
+<script>window.DISPATCH_API_BASE = "{{ url_for('dispatch.index')[:-1] }}";</script>
+<div id="app">
+  <div class="sidebar">
+    <div class="toolbar">
+      <label>Start <input id="startDate" type="date"></label>
+      <label>End <input id="endDate" type="date"></label>
+      <label>Branch
+        <select id="branch">
+          <option value="">All</option>
+          <option value="GRIMES_AREA">Grimes Area (20GR+25BW)</option>
+          <option value="20GR">20GR</option>
+          <option value="25BW">25BW</option>
+          <option value="10FD">10FD</option>
+          <option value="40CV">40CV</option>
+        </select>
+      </label>
+      <label>Basemap
+        <select id="basemap">
+          <option value="street">Street</option>
+          <option value="sat">Satellite</option>
+        </select>
+      </label>
+      <label>Refresh (sec)
+        <input id="refresh" type="number" min="0" step="1" value="20" style="width:72px;">
+      </label>
+      <button id="loadBtn" class="btn">Load</button>
+      <input id="search" type="text" placeholder="Search..."/>
+    </div>
+    <div class="toolbar" style="border-top:1px solid #eee;">
+      <label class="filter-chip"><span id="swK" class="swatch"></span><input id="showK" type="checkbox" checked><span>Picked (K)</span></label>
+      <label class="filter-chip"><span id="swS" class="swatch"></span><input id="showS" type="checkbox" checked><span>Staged/Ship (S)</span></label>
+      <label class="filter-chip"><span id="swB" class="swatch"></span><input id="showB" type="checkbox" checked><span>Backorder (B)</span></label>
+      <label class="filter-chip"><span id="swCM" class="swatch"></span><input id="showCM" type="checkbox" checked><span>Credit (CM)</span></label>
+    </div>
+    <div class="gridwrap">
+      <table id="grid">
+        <thead>
+          <tr>
+            <th data-key="_sel">Actions</th>
+            <th data-key="id">Order</th>
+            <th data-key="doc_kind">Type</th>
+            <th data-key="shipto_name">Ship To</th>
+            <th data-key="address">Address</th>
+            <th data-key="expected_date">Expected</th>
+            <th data-key="so_status">Status</th>
+            <th data-key="branch">Branch</th>
+            <th data-key="route_id">Route</th>
+            <th data-key="shipment_num">Shipment #</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="statusbar">
+      <div id="status">ready</div>
+      <div><button id="manifestBtn" class="btn">Create Manifest PDF (0/10)</button></div>
+    </div>
+  </div>
+  <div id="divider" title="Drag to resize"></div>
+  <div class="mapwrap">
+    <div id="map"></div>
+    <button id="gear" class="gear" title="Settings">Settings</button>
+    <div id="vehicleStatus" style="position:absolute; left:10px; bottom:10px; background:#fff; border:1px solid #ddd; padding:4px 8px; border-radius:6px; z-index:350; font-size:12px;"></div>
+    <div id="mapLegend" style="position:absolute; left:10px; top:10px; background:rgba(255,255,255,.94); border:1px solid #ddd; padding:8px 10px; border-radius:8px; z-index:360; font-size:12px; box-shadow:0 1px 4px rgba(0,0,0,.08);">
+      <div style="font-weight:600; margin-bottom:6px;">Map Key</div>
+      <div style="display:flex; align-items:center; gap:8px; margin:3px 0;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#1f77b4; border:2px solid #fff;"></span><span>Verified stop</span></div>
+      <div style="display:flex; align-items:center; gap:8px; margin:3px 0;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#1f77b4; border:2px dashed #334155; opacity:.7;"></span><span>Unverified stop GPS</span></div>
+      <div style="display:flex; align-items:center; gap:8px; margin:3px 0;"><span style="display:inline-block; width:18px; height:12px; border-radius:3px; background:#1f77b4; border:2px solid #fff;"></span><span>Samsara truck</span></div>
+    </div>
+    <div id="detailPanel" aria-hidden="true">
+      <div id="detailHead">
+        <div>
+          <div id="detailTitle" style="font-weight:700;">Order</div>
+          <div class="muted" id="detailSubtitle"></div>
+        </div>
+        <button id="detailClose" class="btn-icon" aria-label="Close details">X</button>
+      </div>
+      <div id="detailBody">
+        <div id="detailMeta" style="margin-bottom:10px;"></div>
+        <table>
+          <thead><tr><th>Line</th><th>Item</th><th>Description</th><th>Qty Ord</th><th>Qty Ship</th><th>UOM</th><th>Weight</th></tr></thead>
+          <tbody id="detailLines"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modalBackdrop" role="dialog" aria-modal="true" style="display:none;">
+  <div id="settingsModal">
+    <h3>Settings</h3>
+    <div class="row"><label for="refreshSec">Refresh (seconds)</label><input id="refreshSec" type="number" min="0" step="1" value="20"/></div>
+    <div class="row"><label for="denseRows">Dense table rows</label><input id="denseRows" type="checkbox"/></div>
+    <div class="row"><label for="rememberBranch">Remember branch</label><input id="rememberBranch" type="checkbox" checked/></div>
+    <div class="row"><label for="colorK">Picked (K)</label><input id="colorK" type="color" value="#2ca02c"/></div>
+    <div class="row"><label for="colorS">Staged/Ship (S)</label><input id="colorS" type="color" value="#1f77b4"/></div>
+    <div class="row"><label for="colorB">Backorder (B)</label><input id="colorB" type="color" value="#ff7f0e"/></div>
+    <div class="row"><label for="colorCM">Credit (CM)</label><input id="colorCM" type="color" value="#d62728"/></div>
+    <div class="row"><label for="prefBranch">Default branch</label><select id="prefBranch"><option value="">All</option><option value="GRIMES_AREA">Grimes Area</option><option value="20GR">20GR</option><option value="25BW">25BW</option><option value="10FD">10FD</option><option value="40CV">40CV</option></select></div>
+    <div class="row"><label for="prefBasemap">Default basemap</label><select id="prefBasemap"><option value="street">Street</option><option value="sat">Satellite</option></select></div>
+    <div class="row"><label for="prefRefresh">Toolbar refresh</label><input id="prefRefresh" type="number" min="0" step="1" value="20"/></div>
+    <div class="actions"><button id="cancelSettings" class="btn">Cancel</button><button id="saveSettings" class="btn primary">Save</button></div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='dispatch/vehicles.js') }}"></script>
+<script src="{{ url_for('static', filename='dispatch/demo.js') }}"></script>
+</body>
+</html>

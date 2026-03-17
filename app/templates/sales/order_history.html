@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Order History Browser{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">Order History</li>
+        </ol>
+    </nav>
+
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold text-success mb-0">
+                <i class="fas fa-history mr-2"></i> Order History Browser
+            </h1>
+            <p class="text-muted mb-0">All orders — open, invoiced, and historical — from the central database</p>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('sales.order_history', customer_number=customer_number) }}">
+                <div class="row">
+                    <div class="col-md-4 form-group">
+                        <label class="small font-weight-bold">Keyword / SO #</label>
+                        <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Search orders...">
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-success px-4 shadow-sm">Filter</button>
+                        <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
+                            class="btn btn-link text-muted pr-0">Reset</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>SO Number</th>
+                        <th>Customer</th>
+                        <th>Expected Date</th>
+                        <th>Status</th>
+                        <th class="text-right">Reference</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in history %}
+                    <tr>
+                        <td class="font-weight-bold text-info">{{ order.so_number }}</td>
+                        <td>{{ order.customer_name }}</td>
+                        <td>{{ order.expect_date }}</td>
+                        <td>
+                            <span
+                                class="badge badge-pill badge-{% if order.so_status == 'O' %}info{% elif order.so_status == 'I' %}success{% else %}secondary{% endif %}">
+                                {{ order.so_status }}
+                            </span>
+                        </td>
+                        <td class="text-right small text-muted">{{ order.reference }}</td>
+                        <td class="text-right">
+                            <a href="{{ url_for('main.warehouse_detail', so_number=order.so_number) }}"
+                                class="btn btn-xs btn-outline-secondary">View</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">No history found for this customer.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

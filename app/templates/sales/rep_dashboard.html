@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Sales Rep Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold text-danger mb-0">
+                <i class="fas fa-tachometer-alt mr-2"></i> Sales Rep Dashboard
+            </h1>
+            <p class="text-muted mb-0">Performance snapshot — last 30 days</p>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 shadow-sm bg-danger text-white p-3">
+                <div class="h3 font-weight-bold mb-0">${{ "{:,.0f}".format(stats.open_orders_value) }}</div>
+                <div class="small">Open Orders Value</div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 shadow-sm bg-info text-white p-3">
+                <div class="h3 font-weight-bold mb-0">{{ stats.active_customers }}</div>
+                <div class="small">Active Customers</div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 shadow-sm bg-success text-white p-3">
+                <div class="h3 font-weight-bold mb-0">{{ stats.monthly_goal_progress }}%</div>
+                <div class="small">Monthly Goal Progress</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white font-weight-bold">
+                    <i class="fas fa-chart-line mr-1 text-danger"></i> Customer Activity Trend
+                </div>
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-chart-area fa-3x text-light mb-3"></i>
+                    <p class="text-muted small">Daily activity charts will be populated here once trend-sync is
+                        finalized.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white font-weight-bold">Recent Leads / Touches</div>
+                <div class="list-group list-group-flush small">
+                    <div class="list-group-item">
+                        <span class="font-weight-bold">Apex Homes</span> — Phone call regarding trim order.
+                        <div class="text-muted muted-xs mt-1">2 hours ago</div>
+                    </div>
+                    <div class="list-group-item">
+                        <span class="font-weight-bold">City Builders</span> — Site visit / quote follow-up.
+                        <div class="text-muted muted-xs mt-1">Yesterday</div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white text-center">
+                    <a href="{{ url_for('sales.hub') }}" class="small font-weight-bold text-danger">View Profile Hub</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Sales Awards & Leaderboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="text-center mb-5">
+        <h1 class="display-4 font-weight-bold" style="color:#d4af37;">
+            <i class="fas fa-trophy"></i> Sales Excellence
+        </h1>
+        <p class="lead text-muted">Celebrating our top performers and milestone achievements.</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <!-- Monthly MVP -->
+        <div class="col-md-4 mb-4 text-center">
+            <div class="card border-0 shadow-sm p-4 h-100">
+                <div class="mb-3">
+                    <i class="fas fa-star fa-3x text-warning"></i>
+                </div>
+                <h5>Monthly MVP</h5>
+                <h3 class="font-weight-bold">Sarah Jenkins</h3>
+                <p class="text-muted small">Top volume for October</p>
+            </div>
+        </div>
+
+        <!-- Growth Award -->
+        <div class="col-md-4 mb-4 text-center">
+            <div class="card border-0 shadow-sm p-4 h-100">
+                <div class="mb-3">
+                    <i class="fas fa-chart-line fa-3x text-info"></i>
+                </div>
+                <h5>Growth Leader</h5>
+                <h3 class="font-weight-bold">Michael Chen</h3>
+                <p class="text-muted small">+25% YOY territory growth</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="row mt-4">
+        <div class="col-lg-8 mx-auto">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white font-weight-bold border-bottom text-center">
+                    Current Performance Leaderboard
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Sales Representative</th>
+                                <th>Status</th>
+                                <th class="text-right">Points</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge badge-pill badge-warning">1</span></td>
+                                <td class="font-weight-bold">Sarah Jenkins</td>
+                                <td><span class="badge badge-success">On Track</span></td>
+                                <td class="text-right font-weight-bold">12,450</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-pill badge-secondary">2</span></td>
+                                <td class="font-weight-bold">Michael Chen</td>
+                                <td><span class="badge badge-success">On Track</span></td>
+                                <td class="text-right font-weight-bold">11,200</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-pill badge-bronze"
+                                        style="background:#cd7f32;color:white;">3</span></td>
+                                <td class="font-weight-bold">Robert Miller</td>
+                                <td><span class="badge badge-info">Rising</span></td>
+                                <td class="text-right font-weight-bold">9,800</td>
+                            </tr>
+                            <tr>
+                                <td>4</td>
+                                <td>Amanda Lee</td>
+                                <td>—</td>
+                                <td class="text-right">8,450</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white text-center small text-muted">
+                    Awards are updated on the 1st of every month based on invoiced sales volume.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

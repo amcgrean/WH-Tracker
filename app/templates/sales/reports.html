@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Sales Analytics & Reports{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5">
+
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">Reports & Analytics</li>
+        </ol>
+    </nav>
+
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold mb-0" style="color:#17a2b8;">
+                <i class="fas fa-chart-area mr-2"></i> Sales Analytics & Reports
+            </h1>
+            <p class="text-muted mb-0">YOY trends, top customers, branch performance — last {{ period_days }} days</p>
+        </div>
+        <div class="col-auto">
+            <div class="btn-group btn-group-sm">
+                <a href="{{ url_for('sales.reports', period=7) }}"
+                    class="btn btn-{% if period_days==7 %}info{% else %}outline-info{% endif %}">7d</a>
+                <a href="{{ url_for('sales.reports', period=30) }}"
+                    class="btn btn-{% if period_days==30 %}info{% else %}outline-info{% endif %}">30d</a>
+                <a href="{{ url_for('sales.reports', period=90) }}"
+                    class="btn btn-{% if period_days==90 %}info{% else %}outline-info{% endif %}">90d</a>
+                <a href="{{ url_for('sales.reports', period=365) }}"
+                    class="btn btn-{% if period_days==365 %}info{% else %}outline-info{% endif %}">YTD</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Daily Order Volume Chart -->
+        <div class="col-md-8 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white font-weight-bold border-bottom">
+                    <i class="fas fa-chart-line mr-1" style="color:#17a2b8;"></i> Daily Order Volume (by Expected Date)
+                </div>
+                <div class="card-body">
+                    <canvas id="dailyOrderChart" height="250"></canvas>
+                    {% if not daily_orders %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-chart-bar fa-2x d-block mb-2" style="opacity:0.2;"></i>
+                        No order data for this period.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Breakdown -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white font-weight-bold border-bottom">
+                    <i class="fas fa-chart-pie mr-1" style="color:#17a2b8;"></i> Status Mix
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for s in status_breakdown %}
+                        <div class="list-group-item d-flex justify-content-between">
+                            <span>Status: <strong>{{ s.so_status or 'Unknown' }}</strong></span>
+                            <span class="font-weight-bold text-info">{{ s.count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Top Customers -->
+        <div class="col-md-12 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white font-weight-bold border-bottom">
+                    <i class="fas fa-users mr-1" style="color:#17a2b8;"></i> Top Customers by Orders (Synced Records)
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Customer</th>
+                                <th>Orders</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cust in top_customers %}
+                            <tr>
+                                <td class="text-muted">{{ loop.index }}</td>
+                                <td class="font-weight-bold">{{ cust.customer_name or '—' }}</td>
+                                <td><span class="badge badge-pill badge-info">{{ cust.order_count }}</span></td>
+                                <td class="text-right">
+                                    <a href="{{ url_for('sales.customer_profile', customer_number=cust.customer_name) }}"
+                                        class="btn btn-xs btn-outline-info">Profile</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-muted text-center py-3">No data.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    const dailyLabels = {{ daily_labels | tojson }};
+    const dailyValues = {{ daily_values | tojson }};
+
+    if (dailyLabels.length > 0) {
+        const ctx = document.getElementById('dailyOrderChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dailyLabels,
+                datasets: [{
+                    label: 'Orders',
+                    data: dailyValues,
+                    borderColor: '#17a2b8',
+                    backgroundColor: 'rgba(23,162,184,0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 3,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}
+{% endblock %}
