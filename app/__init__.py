@@ -1,5 +1,5 @@
 from flask import Flask
-from flask_migrate import upgrade
+from flask_migrate import upgrade, stamp
 from .extensions import db, migrate
 from .Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, CustomerNote  # noqa: F401
 from .Routes.routes import main as main_blueprint
@@ -19,6 +19,14 @@ def create_app():
         try:
             upgrade()
         except Exception as e:
-            app.logger.error(f"Error during db upgrade: {e}")
+            if 'overlaps' in str(e):
+                # DB has stale ancestor revision alongside a newer head in
+                # alembic_version (caused by mid-chain migration insertions).
+                # Stamp to the latest applied revision so upgrade() can proceed.
+                app.logger.warning(f"Overlapping Alembic heads detected, stamping to resolve: {e}")
+                stamp('d1e2f3a4b5c6')
+                upgrade()
+            else:
+                app.logger.error(f"Error during db upgrade: {e}")
 
     return app
