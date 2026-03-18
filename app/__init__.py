@@ -7,6 +7,91 @@ from .Routes.routes import main as main_blueprint
 from .Routes.dispatch_routes import dispatch as dispatch_blueprint
 from .Routes.sales_routes import sales as sales_blueprint
 
+
+def _resolve_branched_alembic_state(app):
+    """
+    Resolve a branched alembic_version state where multiple overlapping
+    revision IDs exist in the table.  Keeps only the true head(s) and
+    removes ancestor revisions so that the next upgrade() call succeeds.
+    """
+    from sqlalchemy import text
+    from alembic.script import ScriptDirectory
+    from alembic.config import Config as AlembicConfig
+
+    try:
+        with db.engine.connect() as conn:
+            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+        versions = [r[0] for r in rows]
+    except Exception as e:
+        app.logger.error(f"Could not read alembic_version: {e}")
+        return
+
+    if len(versions) <= 1:
+        return  # Nothing to resolve
+
+    app.logger.warning(
+        f"Branched alembic_version detected with {len(versions)} rows: {versions}. "
+        "Removing ancestor revisions."
+    )
+
+    try:
+        migrations_dir = app.extensions["migrate"].directory
+        alembic_cfg = AlembicConfig()
+        alembic_cfg.set_main_option("script_location", migrations_dir)
+        script_dir = ScriptDirectory.from_config(alembic_cfg)
+
+        version_set = set(versions)
+        ancestors: set = set()
+        for v in versions:
+            try:
+                # Walk the ancestry chain of v; any sibling version we encounter
+                # is an ancestor (and therefore not a true head).
+                for anc_rev in script_dir.iterate_revisions(v, None):
+                    if anc_rev.revision != v and anc_rev.revision in version_set:
+                        ancestors.add(anc_rev.revision)
+            except Exception:
+                continue
+
+        if not ancestors:
+            app.logger.error("Could not identify ancestor revisions; manual DB intervention required.")
+            return
+
+        with db.engine.connect() as conn:
+            for v in ancestors:
+                conn.execute(
+                    text("DELETE FROM alembic_version WHERE version_num = :v"),
+                    {"v": v},
+                )
+            conn.commit()
+        app.logger.info(f"Removed ancestor revision(s) {ancestors} from alembic_version.")
+    except Exception as e:
+        app.logger.error(f"Failed to resolve branched alembic state: {e}")
+
+
+def _run_migrations(app):
+    """Run pending Alembic migrations, recovering from branched-state errors."""
+    try:
+        upgrade()
+        return
+    except SystemExit:
+        # flask_migrate calls sys.exit(1) on alembic errors; catch it so the
+        # serverless function does not crash on a recoverable migration failure.
+        pass
+    except Exception as e:
+        app.logger.error(f"Migration error: {e}")
+        return
+
+    # First attempt failed – try to resolve a branched alembic_version table
+    # (e.g. two rows like 83fabbe397a1 + d1e2f3a4b5c6 which overlap on the
+    # same linear chain) then retry.
+    _resolve_branched_alembic_state(app)
+
+    try:
+        upgrade()
+    except (SystemExit, Exception) as e:
+        app.logger.error(f"Migration upgrade failed after recovery attempt: {e}")
+
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.Config")
@@ -20,9 +105,6 @@ def create_app():
 
     # Run all pending migrations on startup (handles new columns, tables, etc.)
     with app.app_context():
-        try:
-            upgrade()
-        except Exception as e:
-            app.logger.error(f"Error during db upgrade: {e}")
+        _run_migrations(app)
 
     return app
