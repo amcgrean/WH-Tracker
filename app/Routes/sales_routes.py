@@ -1,66 +1,45 @@
-from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, flash, redirect, url_for
 from flask_login import login_required, current_user
-from ..Models.models import ERPMirrorPick, CustomerNote, db
-from sqlalchemy import func, desc, distinct
+from ..Models.models import CustomerNote
+from sqlalchemy import desc
 from datetime import datetime, timedelta
+from ..Services.erp_service import ERPService
 
 sales = Blueprint('sales', __name__, url_prefix='/sales')
+erp = ERPService()
 
 @sales.route('/')
 @sales.route('/hub')
 def hub():
     """Main sales team landing page/dashboard."""
-    # Quick KPI counts pulled from the mirror table
-    open_orders_count = ERPMirrorPick.query.filter(
-        ERPMirrorPick.so_status == 'O'
-    ).with_entities(distinct(ERPMirrorPick.so_number)).count()
-
-    total_orders_today = ERPMirrorPick.query.filter(
-        ERPMirrorPick.expect_date == datetime.today().strftime('%Y-%m-%d')
-    ).with_entities(distinct(ERPMirrorPick.so_number)).count()
-
+    metrics = erp.get_sales_hub_metrics()
     recent_notes = CustomerNote.query.order_by(desc(CustomerNote.created_at)).limit(5).all()
 
     return render_template(
         'sales/hub.html',
-        open_orders_count=open_orders_count,
-        total_orders_today=total_orders_today,
+        open_orders_count=metrics['open_orders_count'],
+        total_orders_today=metrics['total_orders_today'],
         recent_notes=recent_notes,
     )
 
 @sales.route('/rep-dashboard')
 def rep_dashboard():
     """Specific personalized dashboard for a sales rep."""
-    # Aggregating some metrics from mirror
-    period_days = 30
-    since = datetime.utcnow() - timedelta(days=period_days)
-    
-    active_customers = db.session.query(func.count(distinct(ERPMirrorPick.customer_name))).filter(
-        ERPMirrorPick.synced_at >= since
-    ).scalar() or 0
-    
-    # Mocking some metrics for now
-    stats = {
-        'active_customers': active_customers,
-        'open_orders_value': 125400,
-        'monthly_goal_progress': 75
-    }
+    stats = erp.get_sales_rep_metrics(period_days=30)
     return render_template('sales/rep_dashboard.html', stats=stats)
 
 @sales.route('/customer-profile/<customer_number>')
 def customer_profile(customer_number):
     """Detailed profile for a specific customer."""
-    # Gather all SO rows for this customer from the mirror
-    customer_rows = ERPMirrorPick.query.filter(
-        ERPMirrorPick.customer_name.ilike(f'%{customer_number}%')
-        | (ERPMirrorPick.so_number.ilike(f'%{customer_number}%'))
-    ).order_by(desc(ERPMirrorPick.synced_at)).all()
+    customer_rows = erp.get_sales_customer_orders(customer_number, limit=200)
+    order_numbers = list({r['so_number'] if isinstance(r, dict) else r.so_number for r in customer_rows})
+    first_row = customer_rows[0] if customer_rows else {}
+    customer_name = (
+        first_row.get('customer_name')
+        if isinstance(first_row, dict)
+        else getattr(first_row, 'customer_name', customer_number)
+    ) or customer_number
 
-    # Distinct SO numbers for order count
-    order_numbers = list({r.so_number for r in customer_rows})
-    customer_name = customer_rows[0].customer_name if customer_rows else customer_number
-
-    # Recent notes
     notes = CustomerNote.query.filter_by(
         customer_number=customer_number
     ).order_by(desc(CustomerNote.created_at)).limit(10).all()
@@ -79,15 +58,7 @@ def customer_profile(customer_number):
 def order_status():
     """Searchable/filterable view of all open orders."""
     q = request.args.get('q', '').strip()
-    query = ERPMirrorPick.query.filter(ERPMirrorPick.so_status == 'O')
-    
-    if q:
-        query = query.filter(
-            ERPMirrorPick.so_number.ilike(f'%{q}%')
-            | ERPMirrorPick.customer_name.ilike(f'%{q}%')
-        )
-        
-    orders = query.order_by(desc(ERPMirrorPick.synced_at)).limit(100).all()
+    orders = erp.get_sales_order_status(q=q, limit=100)
     return render_template('sales/order_status.html', orders=orders, q=q)
 
 @sales.route('/customer-notes/<customer_number>', methods=['GET', 'POST'])
@@ -114,11 +85,13 @@ def customer_notes(customer_number):
         customer_number=customer_number
     ).order_by(desc(CustomerNote.created_at)).all()
 
-    customer_row = ERPMirrorPick.query.filter(
-        ERPMirrorPick.so_number.ilike(f'%{customer_number}%')
-        | ERPMirrorPick.customer_name.ilike(f'%{customer_number}%')
-    ).first()
-    customer_name = customer_row.customer_name if customer_row else customer_number
+    customer_rows = erp.get_sales_customer_orders(customer_number, limit=1)
+    customer_row = customer_rows[0] if customer_rows else {}
+    customer_name = (
+        customer_row.get('customer_name')
+        if isinstance(customer_row, dict)
+        else getattr(customer_row, 'customer_name', customer_number)
+    ) or customer_number
 
     return render_template(
         'sales/customer_notes.html',
@@ -135,74 +108,32 @@ def invoice_lookup():
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     
-    query = ERPMirrorPick.query.filter(ERPMirrorPick.so_status.in_(['I', 'C']))
-
-    if q:
-        query = query.filter(
-            ERPMirrorPick.so_number.ilike(f'%{q}%')
-            | ERPMirrorPick.customer_name.ilike(f'%{q}%')
-        )
-    if date_from:
-        query = query.filter(ERPMirrorPick.expect_date >= date_from)
-    if date_to:
-        query = query.filter(ERPMirrorPick.expect_date <= date_to)
-
-    invoices = query.order_by(desc(ERPMirrorPick.synced_at)).limit(50).all()
+    invoices = erp.get_sales_invoice_lookup(q=q, date_from=date_from, date_to=date_to, limit=50)
     return render_template('sales/invoice_lookup.html', invoices=invoices, q=q, date_from=date_from, date_to=date_to)
 
 @sales.route('/products')
 def products():
     """Product catalog with stock levels and pricing."""
     q = request.args.get('q', '').strip()
-    query = ERPMirrorPick.query
-    
-    if q:
-        query = query.filter(
-            ERPMirrorPick.item_number.ilike(f'%{q}%')
-            | ERPMirrorPick.description.ilike(f'%{q}%')
-        )
-        
-    products_list = query.with_entities(
-        ERPMirrorPick.item_number,
-        ERPMirrorPick.description,
-        ERPMirrorPick.qty.label('quantity_on_hand') # Using qty as proxy for stock for now
-    ).distinct(ERPMirrorPick.item_number).limit(50).all()
-    
+    products_list = erp.get_sales_products(q=q, limit=50)
     return render_template('sales/products.html', products=products_list, q=q)
 
 @sales.route('/reports')
 def reports():
     """Sales analytics and territory reports."""
     period_days = request.args.get('period', 30, type=int)
-    since = datetime.utcnow() - timedelta(days=period_days)
-    
-    # Orders per day over the period
-    daily_orders = db.session.query(
-        ERPMirrorPick.expect_date,
-        func.count(distinct(ERPMirrorPick.so_number)).label('count'),
-    ).filter(
-        ERPMirrorPick.synced_at >= since,
-        ERPMirrorPick.expect_date.isnot(None),
-    ).group_by(ERPMirrorPick.expect_date).order_by(ERPMirrorPick.expect_date.asc()).all()
-
-    # Top 15 customers
-    top_customers = db.session.query(
-        ERPMirrorPick.customer_name,
-        func.count(distinct(ERPMirrorPick.so_number)).label('order_count'),
-    ).filter(
-        ERPMirrorPick.synced_at >= since
-    ).group_by(ERPMirrorPick.customer_name).order_by(desc('order_count')).limit(15).all()
-
-    # Status breakdown
-    status_breakdown = db.session.query(
-        ERPMirrorPick.so_status,
-        func.count(distinct(ERPMirrorPick.so_number)).label('count'),
-    ).filter(
-        ERPMirrorPick.synced_at >= since
-    ).group_by(ERPMirrorPick.so_status).all()
-
-    daily_labels = [r.expect_date or '' for r in daily_orders]
-    daily_values = [r.count for r in daily_orders]
+    report_data = erp.get_sales_reports(period_days=period_days)
+    daily_orders = report_data['daily_orders']
+    top_customers = report_data['top_customers']
+    status_breakdown = report_data['status_breakdown']
+    daily_labels = [
+        (r.get('expect_date') if isinstance(r, dict) else r.expect_date) or ''
+        for r in daily_orders
+    ]
+    daily_values = [
+        r.get('count') if isinstance(r, dict) else r.count
+        for r in daily_orders
+    ]
 
     return render_template(
         'sales/reports.html',
@@ -217,12 +148,13 @@ def reports():
 @sales.route('/customer-statement/<customer_number>')
 def customer_statement(customer_number):
     """Generate a simple summary statement for a customer."""
-    customer_rows = ERPMirrorPick.query.filter(
-        ERPMirrorPick.customer_name.ilike(f'%{customer_number}%')
-        | (ERPMirrorPick.so_number.ilike(f'%{customer_number}%'))
-    ).order_by(desc(ERPMirrorPick.expect_date)).all()
-
-    customer_name = customer_rows[0].customer_name if customer_rows else customer_number
+    customer_rows = erp.get_sales_customer_orders(customer_number, limit=1)
+    customer_row = customer_rows[0] if customer_rows else {}
+    customer_name = (
+        customer_row.get('customer_name')
+        if isinstance(customer_row, dict)
+        else getattr(customer_row, 'customer_name', customer_number)
+    ) or customer_number
     now = datetime.now()
 
     return render_template(
@@ -237,11 +169,10 @@ def awards():
     """Sales gamification / awards page."""
     return render_template('sales/awards.html')
 
+@sales.route('/order-history', defaults={'customer_number': ''})
 @sales.route('/order-history/<customer_number>')
 def order_history(customer_number):
     """Full order history for a customer."""
-    history = ERPMirrorPick.query.filter(
-        ERPMirrorPick.customer_name.ilike(f'%{customer_number}%')
-        | (ERPMirrorPick.so_number.ilike(f'%{customer_number}%'))
-    ).all()
-    return render_template('sales/order_history.html', history=history, customer_number=customer_number)
+    q = request.args.get('q', '').strip()
+    history = erp.get_sales_customer_orders(customer_number, q=q, limit=None if customer_number else 200)
+    return render_template('sales/order_history.html', history=history, customer_number=customer_number, q=q)

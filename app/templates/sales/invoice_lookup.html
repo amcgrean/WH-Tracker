@@ -64,10 +64,12 @@
                         <td>{{ inv.expect_date }}</td>
                         <td class="text-right small">{{ inv.reference }}</td>
                         <td class="text-right">
-                            <a href="{{ url_for('main.warehouse_detail', so_number=inv.so_number) }}"
+                            <a href="{{ url_for('main.pick_detail', so_number=inv.so_number) }}"
                                 class="btn btn-xs btn-outline-secondary">View Order</a>
-                            <a href="{{ url_for('sales.customer_profile', customer_number=inv.customer_name) }}"
+                            {% if inv.customer_code or inv.customer_name %}
+                            <a href="{{ url_for('sales.customer_profile', customer_number=inv.customer_code or inv.customer_name) }}"
                                 class="btn btn-xs btn-outline-info">Customer</a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}

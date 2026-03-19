@@ -95,8 +95,10 @@
                                 <td class="font-weight-bold">{{ cust.customer_name or '—' }}</td>
                                 <td><span class="badge badge-pill badge-info">{{ cust.order_count }}</span></td>
                                 <td class="text-right">
-                                    <a href="{{ url_for('sales.customer_profile', customer_number=cust.customer_name) }}"
+                                    {% if cust.customer_code or cust.customer_name %}
+                                    <a href="{{ url_for('sales.customer_profile', customer_number=cust.customer_code or cust.customer_name) }}"
                                         class="btn btn-xs btn-outline-info">Profile</a>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% else %}

@@ -51,7 +51,7 @@
                     </div>
                 </div>
                 <div class="card-footer bg-white border-top-0 d-flex p-2">
-                    <a href="{{ url_for('sales.order_history', q=item.item_number) }}"
+                    <a href="{{ url_for('sales.order_history', customer_number='', q=item.item_number) }}"
                         class="btn btn-xs btn-block btn-outline-secondary">Recent Usage</a>
                 </div>
             </div>
