@@ -12,22 +12,33 @@
                     <th>WO #</th>
                     <th>Item #</th>
                     <th>Description</th>
+                    <th>Status</th>
+                    <th>Dept</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in items %}
                 <tr>
                     <td><input type="checkbox" name="selected_items"
-                            value="{{ item.wo_number }}|{{ item.item_number }}|{{ item.description }}"></td>
+                            value='{{ {"wo_id": item.wo_number, "so_number": barcode, "item_number": item.item_number, "description": item.description}|tojson|forceescape }}'></td>
                     <td>{{ item.wo_number }}</td>
                     <td>{{ item.item_number }}</td>
                     <td>{{ item.description }}</td>
+                    <td>{{ item.status or 'Open' }}</td>
+                    <td>{{ item.handling_code or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">No work orders were found for this sales order.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         <div class="input-group">
             <button type="submit">Start Work</button>
+        </div>
+        <div class="input-group">
+            <a href="{{ url_for('main.work_order_scan', user_id=user.id) }}" class="secondary-button">Scan Another SO</a>
         </div>
     </form>
 </div>
@@ -82,6 +93,14 @@
         color: white;
         border: none;
         cursor: pointer;
+    }
+
+    .secondary-button {
+        display: inline-block;
+        margin-top: 15px;
+        color: #495057;
+        text-decoration: none;
+        font-weight: 600;
     }
 </style>
 {% endblock %}

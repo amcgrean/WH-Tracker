@@ -85,6 +85,39 @@ def parse_sync_date(value):
         return None
 
 
+def parse_selected_work_order_payload(raw_value):
+    if not raw_value:
+        return None
+
+    try:
+        payload = json.loads(raw_value)
+        if isinstance(payload, dict):
+            return {
+                'wo_id': str(payload.get('wo_id') or '').strip(),
+                'so_number': str(payload.get('so_number') or '').strip(),
+                'item_number': str(payload.get('item_number') or '').strip(),
+                'description': str(payload.get('description') or '').strip(),
+            }
+    except Exception:
+        pass
+
+    parts = str(raw_value).split('|', 3)
+    if len(parts) == 4:
+        wo_id, so_number, item_number, description = parts
+    elif len(parts) == 3:
+        wo_id, item_number, description = parts
+        so_number = ''
+    else:
+        return None
+
+    return {
+        'wo_id': str(wo_id).strip(),
+        'so_number': str(so_number).strip(),
+        'item_number': str(item_number).strip(),
+        'description': str(description).strip(),
+    }
+
+
 def ensure_pick_type_exists(pick_type_id):
     """Return a PickTypes row for the requested ID, creating defaults when missing."""
     pick_type = db.session.get(PickTypes, pick_type_id)
@@ -651,9 +684,16 @@ def search_results():
         return jsonify(results)
     return jsonify([])
 
+# -------------------------------------------------------------------
+# Legacy mirror ingest / compatibility endpoints.
+# These keep the old ERPMirrorPick + ERPMirrorWorkOrder path alive for
+# fallback deployments, but they are no longer the primary read path.
+# -------------------------------------------------------------------
 @main.route('/erp-cloud-sync', methods=['GET', 'POST'])
 @main.route('/erp-cloud-sync/', methods=['GET', 'POST'])
 def sync_erp_data():
+    # Legacy back-compat ingest path for ERPMirrorPick/ERPMirrorWorkOrder.
+    # Central mirror reads now flow through ERPService when CENTRAL_DB_URL is configured.
     api_key = request.headers.get('X-API-KEY')
     # Simple security check
     if not api_key or api_key != os.environ.get('SYNC_API_KEY'):
@@ -958,7 +998,10 @@ def work_orders():
 def work_orders_open(user_id):
     # Page 2: Open Work Orders
     user = Pickster.query.get_or_404(user_id)
-    open_orders = WorkOrder.query.filter_by(assigned_to_id=user.id, status='Open').order_by(WorkOrder.created_at.desc()).all()
+    open_orders = WorkOrder.query.filter(
+        WorkOrder.assigned_to_id == user.id,
+        WorkOrder.status.in_(['Open', 'Assigned']),
+    ).order_by(WorkOrder.created_at.desc()).all()
     return render_template('work_order/open_orders.html', user=user, open_orders=open_orders)
 
 @main.route('/work_orders/complete/<int:wo_id>', methods=['POST'])
@@ -992,7 +1035,11 @@ def work_order_scan(user_id):
 def work_order_select():
     # Page 4: Select Work Orders (Live Lookup)
     user_id = request.args.get('user_id')
-    barcode = request.args.get('barcode')
+    barcode = (request.args.get('barcode') or '').strip()
+    if not user_id or not barcode:
+        flash('A user and sales order barcode are required.', 'warning')
+        return redirect(url_for('main.work_orders'))
+
     user = Pickster.query.get_or_404(user_id)
     
     erp = ERPService()
@@ -1232,11 +1279,11 @@ def supervisor_work_orders():
                 'so_number': so_num,
                 'customer_name': erp_wo.get('customer_name', 'Unknown'),
                 'reference': erp_wo.get('reference', ''),
-                'items': [],
+                'wo_rows': [],
                 'count': 0
             }
         
-        grouped_wos[so_num]['items'].append(erp_wo)
+        grouped_wos[so_num]['wo_rows'].append(erp_wo)
         grouped_wos[so_num]['count'] += 1
 
     # Convert to list and sort (descending SO tends to be newest)
@@ -1311,31 +1358,52 @@ def assign_wo():
 
 @main.route('/work_orders/start', methods=['POST'])
 def start_work_orders():
-    user_id = request.form.get('user_id')
+    user_id = request.form.get('user_id', type=int)
     selected_items = request.form.getlist('selected_items')
+
+    if not user_id:
+        flash('A builder selection is required before starting work orders.', 'danger')
+        return redirect(url_for('main.work_orders'))
+    if not selected_items:
+        flash('Select at least one work order to start.', 'warning')
+        return redirect(url_for('main.work_order_scan', user_id=user_id))
     
+    created = 0
+    skipped = 0
     for item_str in selected_items:
-        # Expected format: wo_number|item_number|description
-        parts = item_str.split('|')
-        if len(parts) == 3:
-            wo_number, item_number, description = parts
-            
-            # Check if exists to avoid duplicates (simplified)
-            existing = WorkOrder.query.filter_by(work_order_number=wo_number).first()
-            if not existing:
-                new_wo = WorkOrder(
-                    sales_order_number='SO-MOCK', # In real app, pass this through
-                    work_order_number=wo_number,
-                    item_number=item_number,
-                    description=description,
-                    status='Open',
-                    assigned_to_id=user_id,
-                    created_at=datetime.utcnow()
-                )
-                db.session.add(new_wo)
+        payload = parse_selected_work_order_payload(item_str)
+        if not payload or not payload['wo_id']:
+            skipped += 1
+            continue
+
+        existing = WorkOrder.query.filter_by(work_order_number=payload['wo_id']).first()
+        if existing:
+            existing.sales_order_number = payload['so_number'] or existing.sales_order_number
+            existing.item_number = payload['item_number'] or existing.item_number
+            existing.description = payload['description'] or existing.description
+            existing.assigned_to_id = user_id
+            if existing.status != 'Complete':
+                existing.status = 'Assigned'
+            created += 1
+            continue
+
+        new_wo = WorkOrder(
+            sales_order_number=payload['so_number'] or 'UNKNOWN',
+            work_order_number=payload['wo_id'],
+            item_number=payload['item_number'],
+            description=payload['description'],
+            status='Assigned',
+            assigned_to_id=user_id,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(new_wo)
+        created += 1
     
     db.session.commit()
-    flash(f'{len(selected_items)} work orders started.')
+    message = f'{created} work order(s) queued for the builder.'
+    if skipped:
+        message += f' Skipped {skipped} invalid selection(s).'
+    flash(message, 'success' if created else 'warning')
     return redirect(url_for('main.work_orders_open', user_id=user_id))
 
 

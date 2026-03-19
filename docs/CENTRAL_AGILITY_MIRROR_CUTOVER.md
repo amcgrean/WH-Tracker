@@ -124,6 +124,8 @@ Supervisor/work-order pages remain app-owned for assignment state, but their ERP
 - `/work_orders/scan/<user_id>`
 - `/work_orders/select`
 
+Work-order queue creation now preserves the real sales order number from the selection step instead of writing placeholder SO values into local assignment records.
+
 The legacy `/erp-cloud-sync` endpoint remains in place only as a back-compat ingest path for the old mirror tables. It is no longer the intended primary read path when `CENTRAL_DB_URL` is configured.
 
 ## Verification
