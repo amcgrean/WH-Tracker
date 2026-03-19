@@ -68,8 +68,23 @@ def _normalize_daily_order(row):
         'count': _value(row, 'count', 0) or 0,
     }
 
+# ---------------------------------------------------------------------------
+# Helper: branch display names
+# ---------------------------------------------------------------------------
+BRANCH_LABELS = {
+    '20gr': 'Grimes (20GR)',
+    '25bw': 'Birchwood (25BW)',
+    '10fd': 'Fort Dodge (10FD)',
+    '40cv': 'Coralville (40CV)',
+}
+
+ORDER_STATUSES = ['Open', 'Invoiced', 'Closed', 'Cancelled', 'On Hold']
+
+
+# ---------------------------------------------------------------------------
+# 0. Sales Hub — landing page
+# ---------------------------------------------------------------------------
 @sales.route('/')
-@sales.route('/hub')
 def hub():
     """Main sales team landing page/dashboard."""
     metrics = erp.get_sales_hub_metrics()
@@ -107,19 +122,86 @@ def customer_profile(customer_number):
         customer_rows=customer_rows,
         order_numbers=order_numbers,
         notes=notes,
-        recent_orders=customer_rows[:10]
     )
 
-@sales.route('/order-status')
-def order_status():
-    """Searchable/filterable view of all open orders."""
+
+# ---------------------------------------------------------------------------
+# 2. Order History Browser (open + invoiced + historical)
+# ---------------------------------------------------------------------------
+@sales.route('/orders')
+def order_history():
+    """Search and browse all orders — open, invoiced, and historical."""
+    q = request.args.get('q', '').strip()
+    status_filter = request.args.get('status', '')
+    branch_filter = request.args.get('branch', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+
+    query = ERPMirrorPick.query
+
+    if q:
+        query = query.filter(
+            ERPMirrorPick.so_number.ilike(f'%{q}%')
+            | ERPMirrorPick.customer_name.ilike(f'%{q}%')
+            | ERPMirrorPick.reference.ilike(f'%{q}%')
+        )
+    if status_filter:
+        query = query.filter(ERPMirrorPick.so_status == status_filter)
+    if date_from:
+        query = query.filter(ERPMirrorPick.expect_date >= date_from)
+    if date_to:
+        query = query.filter(ERPMirrorPick.expect_date <= date_to)
+
+    # Collapse to SO-level rows (one row per SO, latest synced)
+    subq = (
+        db.session.query(
+            ERPMirrorPick.so_number,
+            func.max(ERPMirrorPick.synced_at).label('latest')
+        )
+        .group_by(ERPMirrorPick.so_number)
+        .subquery()
+    )
+    query = query.join(
+        subq,
+        (ERPMirrorPick.so_number == subq.c.so_number)
+        & (ERPMirrorPick.synced_at == subq.c.latest)
+    ).order_by(desc(ERPMirrorPick.synced_at))
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return render_template(
+        'sales/order_history.html',
+        orders=pagination.items,
+        pagination=pagination,
+        q=q,
+        status_filter=status_filter,
+        branch_filter=branch_filter,
+        date_from=date_from,
+        date_to=date_to,
+        branch_labels=BRANCH_LABELS,
+        order_statuses=ORDER_STATUSES,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3. Invoice Lookup
+# ---------------------------------------------------------------------------
+@sales.route('/invoices')
+def invoice_lookup():
+    """Search invoiced orders by invoice/SO number, customer, or date range."""
     q = request.args.get('q', '').strip()
     orders = [_normalize_order_row(r) for r in erp.get_sales_order_status(q=q, limit=100)]
     return render_template('sales/order_status.html', orders=orders, q=q)
 
-@sales.route('/customer-notes/<customer_number>', methods=['GET', 'POST'])
+
+# ---------------------------------------------------------------------------
+# 7. Customer Notes & Call Log
+# ---------------------------------------------------------------------------
+@sales.route('/customers/<customer_number>/notes', methods=['GET', 'POST'])
 def customer_notes(customer_number):
-    """View and add internal notes about a customer."""
+    """Log and view calls, site visits, emails for a customer."""
     if request.method == 'POST':
         note_type = request.form.get('note_type', 'Call')
         body = request.form.get('body', '').strip()
@@ -163,16 +245,22 @@ def invoice_lookup():
     invoices = [_normalize_order_row(r) for r in erp.get_sales_invoice_lookup(q=q, date_from=date_from, date_to=date_to, limit=50)]
     return render_template('sales/invoice_lookup.html', invoices=invoices, q=q, date_from=date_from, date_to=date_to)
 
+# ---------------------------------------------------------------------------
+# 8. Product Pricing Quick Reference
+# ---------------------------------------------------------------------------
 @sales.route('/products')
 def products():
-    """Product catalog with stock levels and pricing."""
+    """Search product/item catalog for pricing and descriptions."""
     q = request.args.get('q', '').strip()
     products_list = [_normalize_product_row(r) for r in erp.get_sales_products(q=q, limit=50)]
     return render_template('sales/products.html', products=products_list, q=q)
 
+# ---------------------------------------------------------------------------
+# 9. Sales Analytics & Reports
+# ---------------------------------------------------------------------------
 @sales.route('/reports')
 def reports():
-    """Sales analytics and territory reports."""
+    """YOY trends, top customers, branch comparisons, product category trends."""
     period_days = request.args.get('period', 30, type=int)
     report_data = erp.get_sales_reports(period_days=period_days)
     daily_orders = [_normalize_daily_order(r) for r in report_data['daily_orders']]
@@ -186,12 +274,17 @@ def reports():
         period_days=period_days,
         daily_orders=daily_orders,
         top_customers=top_customers,
+        by_sale_type=by_sale_type,
         status_breakdown=status_breakdown,
         daily_labels=daily_labels,
         daily_values=daily_values,
     )
 
-@sales.route('/customer-statement/<customer_number>')
+
+# ---------------------------------------------------------------------------
+# 10. Customer Statement / AR Snapshot
+# ---------------------------------------------------------------------------
+@sales.route('/customers/<customer_number>/statement')
 def customer_statement(customer_number):
     """Generate a simple summary statement for a customer."""
     customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=1)]
@@ -203,7 +296,8 @@ def customer_statement(customer_number):
         'sales/customer_statement.html',
         customer_number=customer_number,
         customer_name=customer_name,
-        now=now
+        open_orders=open_orders,
+        invoiced_orders=invoiced_orders,
     )
 
 @sales.route('/awards')

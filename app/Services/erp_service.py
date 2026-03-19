@@ -15,11 +15,11 @@ class ERPService:
     def __init__(self):
         self.sql_settings = get_sql_server_settings()
         self.cloud_mode = env_bool('CLOUD_MODE', False)
-        
+
         # Central DB Mode: Active if CENTRAL_DB_URL is set in config/env
         central_url = get_central_db_url() or ''
         self.central_db_mode = bool(central_url)
-        
+
         print(f"ERPService Init: CLOUD_MODE={self.cloud_mode}, CENTRAL_DB_MODE={self.central_db_mode}")
         self._gps_cache = None
 

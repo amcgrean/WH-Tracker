@@ -18,8 +18,8 @@ class Pick(db.Model):
     completed_time = db.Column(db.DateTime, index=True)
     barcode_number = db.Column(db.String(120), nullable=False)
     picker_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=False)
-    # 'picker_id' is a foreign key that links to the 'id' of the Pickster model
-    pick_type_id = db.Column(db.Integer, db.ForeignKey('PickTypes.pick_type_id'))  # New foreign key
+    pick_type_id = db.Column(db.Integer, db.ForeignKey('PickTypes.pick_type_id'))
+    notes = db.Column(db.Text)
 
 class PickTypes(db.Model):
     __tablename__ = 'PickTypes'
@@ -36,10 +36,13 @@ class WorkOrder(db.Model):
     description = db.Column(db.String(256))
     status = db.Column(db.String(50), default='Open')
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('pickster.id'))
+    completed_by_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
-    
-    assigned_to = db.relationship('Pickster', backref=db.backref('work_orders', lazy=True))
+    notes = db.Column(db.Text)
+
+    assigned_to = db.relationship('Pickster', foreign_keys=[assigned_to_id], backref=db.backref('work_orders', lazy=True))
+    completed_by = db.relationship('Pickster', foreign_keys=[completed_by_id], backref=db.backref('completed_work_orders', lazy=True))
 
 
 class PickAssignment(db.Model):
@@ -122,12 +125,49 @@ class CreditImage(db.Model):
     received_at   = db.Column(db.DateTime)   # when the email arrived
     uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
+# -------------------------------------------------------------------
+# Sales Team — Customer Notes / Call Log
+# Sales reps log calls, visits, emails, and follow-ups here.
+# -------------------------------------------------------------------
+
+class CustomerNote(db.Model):
+    __tablename__ = 'customer_notes'
+    id              = db.Column(db.Integer, primary_key=True)
+    customer_number = db.Column(db.String(50), index=True, nullable=False)
+    note_type       = db.Column(db.String(50), default='Call')   # Call, Visit, Email, Issue, etc.
+    body            = db.Column(db.Text, nullable=False)
+    rep_name        = db.Column(db.String(128))
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class ERPDeliveryKPI(db.Model):
     __tablename__ = 'erp_delivery_kpis'
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, index=True, nullable=False)
     count = db.Column(db.Integer, nullable=False)
     branch = db.Column(db.String(50), nullable=True) # 'all', '20gr', etc.
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# -------------------------------------------------------------------
+# Audit Trail
+# Records key state transitions: pick started/completed, WO completed,
+# staged confirmed, SO assigned, etc.
+# -------------------------------------------------------------------
+
+class AuditEvent(db.Model):
+    __tablename__ = 'audit_events'
+    id = db.Column(db.Integer, primary_key=True)
+    # e.g. 'pick_started', 'pick_completed', 'wo_completed', 'staged_confirmed', 'pick_assigned'
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    entity_type = db.Column(db.String(50), nullable=False)  # 'pick', 'work_order', 'erp_mirror_pick'
+    entity_id = db.Column(db.Integer)
+    so_number = db.Column(db.String(128), index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=True)
+    notes = db.Column(db.Text)
+    occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    actor = db.relationship('Pickster', backref=db.backref('audit_events', lazy=True))
 
 
 class ERPSyncState(db.Model):
@@ -148,16 +188,3 @@ class ERPSyncState(db.Model):
     last_payload_hash = db.Column(db.String(128), nullable=True)
     last_push_reason = db.Column(db.String(128), nullable=True)
     last_counts_json = db.Column(db.Text, nullable=True)
-
-# -------------------------------------------------------------------
-# Sales Team — Customer Notes / Call Log
-# -------------------------------------------------------------------
-
-class CustomerNote(db.Model):
-    __tablename__ = 'customer_notes'
-    id              = db.Column(db.Integer, primary_key=True)
-    customer_number = db.Column(db.String(50), index=True, nullable=False)
-    note_type       = db.Column(db.String(50), default='Call')
-    body            = db.Column(db.Text, nullable=False)
-    rep_name        = db.Column(db.String(128))
-    created_at      = db.Column(db.DateTime, default=datetime.utcnow)

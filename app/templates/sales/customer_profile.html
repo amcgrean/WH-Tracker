@@ -1,87 +1,166 @@
 {% extends "base.html" %}
-{% block title %}Customer Profile - {{ customer_name }}{% endblock %}
+{% block title %}Customer Profile — {{ customer_name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
 
-    <!-- Header / Breadcrumbs -->
-    <nav aria-label="breadcrumb">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
-            <li class="breadcrumb-item active">{{ customer_name }}</li>
+            <li class="breadcrumb-item active">Customer Profile</li>
         </ol>
     </nav>
 
+    <!-- Customer Header Card -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                         style="width:64px;height:64px;font-size:1.6rem;">
+                        <i class="fas fa-building"></i>
+                    </div>
+                </div>
+                <div class="col">
+                    <h2 class="font-weight-bold mb-0">{{ customer_name }}</h2>
+                    <span class="text-muted small">Customer # {{ customer_number }}</span>
+                </div>
+                <div class="col-auto d-flex flex-wrap gap-2">
+                    <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
+                       class="btn btn-outline-secondary btn-sm mr-2">
+                        <i class="fas fa-sticky-note mr-1"></i> Notes ({{ notes|length }})
+                    </a>
+                    <a href="{{ url_for('sales.customer_statement', customer_number=customer_number) }}"
+                       class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-file-alt mr-1"></i> Statement / AR
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
-        <!-- Left Column: Details -->
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="text-center mb-4">
-                        <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                            style="width: 80px; height: 80px; font-size: 2rem;">
-                            {{ customer_name[0] if customer_name else '?' }}
+        <!-- Left: KPI tiles -->
+        <div class="col-md-4">
+            <div class="row mb-3">
+                <div class="col-6">
+                    <div class="card border-0 shadow-sm text-center py-3">
+                        <div class="h3 font-weight-bold text-primary mb-0">{{ order_numbers|length }}</div>
+                        <div class="small text-muted">Total Orders</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card border-0 shadow-sm text-center py-3">
+                        <div class="h3 font-weight-bold text-success mb-0">
+                            {{ customer_rows|selectattr('so_status','eq','O')|list|length }}
                         </div>
-                        <h3 class="font-weight-bold mb-0">{{ customer_name }}</h3>
-                        <span class="badge badge-success">Active Account</span>
-                        <div class="text-muted small mt-1">Customer # {{ customer_number }}</div>
-                    </div>
-
-                    <hr>
-
-                    <div class="mb-4">
-                        <h6 class="font-weight-bold text-muted text-uppercase small">Contact Details</h6>
-                        <p class="mb-1 small"><i class="fas fa-map-marker-alt mr-2 text-muted"></i> Primary Ship-to
-                            found in mirror</p>
-                    </div>
-
-                    <div class="d-grid gap-2 mt-4">
-                        <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
-                            class="btn btn-block btn-outline-info btn-sm">
-                            <i class="fas fa-sticky-note mr-2"></i> View Account Notes ({{ notes|length }})
-                        </a>
-                        <a href="{{ url_for('sales.customer_statement', customer_number=customer_number) }}"
-                            class="btn btn-block btn-outline-info btn-sm">
-                            <i class="fas fa-file-invoice mr-2"></i> Account Statement / AR
-                        </a>
+                        <div class="small text-muted">Open Orders</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Account Snapshot -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white font-weight-bold">Account Snapshot</div>
-                <div class="card-body p-0">
-                    <table class="table table-sm mb-0">
-                        <tbody>
-                            <tr>
-                                <td class="px-3 py-2 text-muted small">Award Tier</td>
-                                <td class="px-3 py-2 text-right font-weight-bold small text-warning">Gold</td>
-                            </tr>
-                            <tr>
-                                <td class="px-3 py-2 text-muted small">Credit Limit</td>
-                                <td class="px-3 py-2 text-right font-weight-bold small">$50,000</td>
-                            </tr>
-                            <tr>
-                                <td class="px-3 py-2 text-muted small">Open Orders</td>
-                                <td class="px-3 py-2 text-right font-weight-bold small text-info">{{
-                                    order_numbers|length }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <!-- Award Level Placeholder -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-warning text-white font-weight-bold border-0">
+                    <i class="fas fa-trophy mr-1"></i> Award &amp; Loyalty Status
+                </div>
+                <div class="card-body text-center py-4">
+                    <div class="text-warning" style="font-size:2.5rem;"><i class="fas fa-award"></i></div>
+                    <div class="font-weight-bold mt-2">Award data will sync</div>
+                    <p class="text-muted small mb-0">
+                        Award tiers and loyalty points will populate here once the central DB
+                        receives award data from Agility.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Account Info Placeholder -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white font-weight-bold border-bottom">
+                    <i class="fas fa-id-card mr-1 text-primary"></i> Account Details
+                </div>
+                <div class="card-body py-2 small">
+                    <div class="row py-2 border-bottom">
+                        <div class="col-5 text-muted">Address</div>
+                        <div class="col-7">
+                            {% if customer_rows %}{{ customer_rows[0].address or '—' }}{% else %}—{% endif %}
+                        </div>
+                    </div>
+                    <div class="row py-2 border-bottom">
+                        <div class="col-5 text-muted">Handling</div>
+                        <div class="col-7">
+                            {% if customer_rows %}{{ customer_rows[0].handling_code or '—' }}{% else %}—{% endif %}
+                        </div>
+                    </div>
+                    <div class="row py-2 border-bottom">
+                        <div class="col-5 text-muted">Sale Type</div>
+                        <div class="col-7">
+                            {% if customer_rows %}{{ customer_rows[0].sale_type or '—' }}{% else %}—{% endif %}
+                        </div>
+                    </div>
+                    <div class="row py-2">
+                        <div class="col-5 text-muted">Credit Limit</div>
+                        <div class="col-7 text-muted fst-italic">Syncing from central DB</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column: Activity -->
-        <div class="col-lg-8">
-            <!-- Tabs Navigation -->
-            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
-                <li class="nav-item">
-                    <a class="nav-link active" id="pills-orders-tab" data-toggle="pill" href="#pills-orders"
-                        role="tab">Recent Activity</a>
-                </li>
-            </ul>
+        <!-- Right: Recent Orders & Notes -->
+        <div class="col-md-8">
+
+            <!-- Recent Orders -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-box-open mr-1 text-primary"></i> Recent Orders</span>
+                    <a href="{{ url_for('sales.order_history', q=customer_number) }}" class="small text-primary">View all</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>SO #</th>
+                                <th>Status</th>
+                                <th>Handling</th>
+                                <th>Expect Date</th>
+                                <th>Ship Via</th>
+                                <th>Items</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set seen = [] %}
+                            {% for row in customer_rows %}
+                            {% if row.so_number not in seen %}
+                            {% if seen.append(row.so_number) %}{% endif %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('main.warehouse_detail', so_number=row.so_number) }}"
+                                       class="font-weight-bold text-primary">{{ row.so_number }}</a>
+                                </td>
+                                <td>
+                                    {% if row.so_status == 'O' %}
+                                        <span class="badge badge-success">Open</span>
+                                    {% elif row.so_status in ['I','C'] %}
+                                        <span class="badge badge-secondary">Invoiced</span>
+                                    {% else %}
+                                        <span class="badge badge-light text-muted">{{ row.so_status or '—' }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ row.handling_code or '—' }}</td>
+                                <td>{{ row.expect_date or '—' }}</td>
+                                <td>{{ row.ship_via or '—' }}</td>
+                                <td>{{ row.line_count or '—' }}</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                            {% if not customer_rows %}
+                            <tr><td colspan="6" class="text-center text-muted py-4">No orders found.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             <div class="tab-content" id="pills-tabContent">
                 <div class="tab-pane fade show active" id="pills-orders" role="tabpanel">
@@ -143,16 +222,20 @@
                                     <span class="font-weight-bold text-info">{{ note.note_type }}</span>
                                     <span class="text-muted">{{ note.created_at.strftime('%m/%d') }}</span>
                                 </div>
-                                <p class="mb-0 text-muted">{{ note.body[:150] }}{% if note.body|length > 150 %}...{%
-                                    endif %}</p>
+                                <small class="text-muted">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') if note.created_at else '' }}</small>
                             </div>
-                            {% else %}
-                            <div class="list-group-item text-center py-4 text-muted">No notes found.</div>
-                            {% endfor %}
+                            <p class="mb-0 mt-1 small">{{ note.body }}</p>
                         </div>
-                    </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-sticky-note fa-2x mb-2 d-block"></i>
+                            No notes yet. <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}">Add the first one.</a>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
+
         </div>
     </div>
 </div>

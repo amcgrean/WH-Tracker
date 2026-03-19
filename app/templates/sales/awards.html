@@ -1,92 +1,141 @@
 {% extends "base.html" %}
-{% block title %}Sales Awards & Leaderboard{% endblock %}
+{% block title %}Customer Awards & Loyalty{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-    <div class="text-center mb-5">
-        <h1 class="display-4 font-weight-bold" style="color:#d4af37;">
-            <i class="fas fa-trophy"></i> Sales Excellence
-        </h1>
-        <p class="lead text-muted">Celebrating our top performers and milestone achievements.</p>
-    </div>
+<div class="container-fluid mt-4 pb-5">
 
-    <div class="row justify-content-center">
-        <!-- Monthly MVP -->
-        <div class="col-md-4 mb-4 text-center">
-            <div class="card border-0 shadow-sm p-4 h-100">
-                <div class="mb-3">
-                    <i class="fas fa-star fa-3x text-warning"></i>
-                </div>
-                <h5>Monthly MVP</h5>
-                <h3 class="font-weight-bold">Sarah Jenkins</h3>
-                <p class="text-muted small">Top volume for October</p>
-            </div>
-        </div>
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">Awards &amp; Loyalty</li>
+        </ol>
+    </nav>
 
-        <!-- Growth Award -->
-        <div class="col-md-4 mb-4 text-center">
-            <div class="card border-0 shadow-sm p-4 h-100">
-                <div class="mb-3">
-                    <i class="fas fa-chart-line fa-3x text-info"></i>
-                </div>
-                <h5>Growth Leader</h5>
-                <h3 class="font-weight-bold">Michael Chen</h3>
-                <p class="text-muted small">+25% YOY territory growth</p>
-            </div>
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold text-warning mb-0">
+                <i class="fas fa-trophy mr-2"></i> Customer Awards &amp; Loyalty
+            </h1>
+            <p class="text-muted mb-0">Customer award tiers and loyalty standing synced from Agility</p>
         </div>
     </div>
 
-    <!-- Leaderboard -->
-    <div class="row mt-4">
-        <div class="col-lg-8 mx-auto">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white font-weight-bold border-bottom text-center">
-                    Current Performance Leaderboard
+    <!-- Search -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-3">
+            <form method="get" action="{{ url_for('sales.awards') }}">
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                    </div>
+                    <input type="text" name="q" class="form-control" placeholder="Search customer name..." value="{{ q }}">
+                    <div class="input-group-append">
+                        <button class="btn btn-warning text-white" type="submit">Search</button>
+                    </div>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="thead-light">
-                            <tr>
-                                <th>Rank</th>
-                                <th>Sales Representative</th>
-                                <th>Status</th>
-                                <th class="text-right">Points</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><span class="badge badge-pill badge-warning">1</span></td>
-                                <td class="font-weight-bold">Sarah Jenkins</td>
-                                <td><span class="badge badge-success">On Track</span></td>
-                                <td class="text-right font-weight-bold">12,450</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge badge-pill badge-secondary">2</span></td>
-                                <td class="font-weight-bold">Michael Chen</td>
-                                <td><span class="badge badge-success">On Track</span></td>
-                                <td class="text-right font-weight-bold">11,200</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge badge-pill badge-bronze"
-                                        style="background:#cd7f32;color:white;">3</span></td>
-                                <td class="font-weight-bold">Robert Miller</td>
-                                <td><span class="badge badge-info">Rising</span></td>
-                                <td class="text-right font-weight-bold">9,800</td>
-                            </tr>
-                            <tr>
-                                <td>4</td>
-                                <td>Amanda Lee</td>
-                                <td>—</td>
-                                <td class="text-right">8,450</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            </form>
+        </div>
+    </div>
+
+    <!-- Award Tiers Legend -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white font-weight-bold border-bottom">
+            <i class="fas fa-layer-group mr-1 text-warning"></i> Award Tier Definitions
+            <span class="badge badge-warning badge-pill ml-2">Coming from Agility</span>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-3 mb-3">
+                    <div class="p-3 rounded" style="background:#f8f9fa;">
+                        <div style="font-size:2rem;">🏅</div>
+                        <div class="font-weight-bold">Bronze</div>
+                        <div class="text-muted small">Entry level</div>
+                    </div>
                 </div>
-                <div class="card-footer bg-white text-center small text-muted">
-                    Awards are updated on the 1st of every month based on invoiced sales volume.
+                <div class="col-md-3 mb-3">
+                    <div class="p-3 rounded" style="background:#f0f4ff;">
+                        <div style="font-size:2rem;">🥈</div>
+                        <div class="font-weight-bold">Silver</div>
+                        <div class="text-muted small">Established account</div>
+                    </div>
                 </div>
+                <div class="col-md-3 mb-3">
+                    <div class="p-3 rounded" style="background:#fffbf0;">
+                        <div style="font-size:2rem;">🥇</div>
+                        <div class="font-weight-bold">Gold</div>
+                        <div class="text-muted small">High-volume customer</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="p-3 rounded" style="background:#f9f0ff;">
+                        <div style="font-size:2rem;">💎</div>
+                        <div class="font-weight-bold">Platinum</div>
+                        <div class="text-muted small">Top-tier account</div>
+                    </div>
+                </div>
+            </div>
+            <div class="alert alert-info small mb-0">
+                <i class="fas fa-info-circle mr-1"></i>
+                Award tier data will be pulled from Agility once the central database sync includes the
+                <code>CustomerAwards</code> table. Until then, this page shows order activity as a proxy metric.
             </div>
         </div>
     </div>
+
+    <!-- Customer Order Activity (proxy for awards until real data lands) -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-users mr-1 text-warning"></i> Customer Activity (Order Count)</span>
+            <span class="text-muted small">Award tiers will replace this view once synced</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Customer</th>
+                        <th>Order Count</th>
+                        <th>Activity Level</th>
+                        <th>Projected Tier</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for i, cust in enumerate(customers) %}
+                    <tr>
+                        <td class="text-muted">{{ loop.index }}</td>
+                        <td class="font-weight-bold">{{ cust.customer_name or '—' }}</td>
+                        <td>
+                            <span class="badge badge-pill badge-warning">{{ cust.order_count }}</span>
+                        </td>
+                        <td>
+                            <div class="progress" style="height:6px;width:120px;">
+                                <div class="progress-bar bg-warning" style="width:{{ [cust.order_count * 5, 100]|min }}%"></div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if cust.order_count >= 20 %}
+                                <span class="text-purple font-weight-bold">💎 Platinum</span>
+                            {% elif cust.order_count >= 10 %}
+                                <span class="text-warning font-weight-bold">🥇 Gold</span>
+                            {% elif cust.order_count >= 5 %}
+                                <span class="text-secondary font-weight-bold">🥈 Silver</span>
+                            {% else %}
+                                <span class="text-muted">🏅 Bronze</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('sales.customer_profile', customer_number=cust.customer_name) }}"
+                               class="btn btn-xs btn-outline-warning">Profile</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">No customer data found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

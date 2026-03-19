@@ -3,6 +3,7 @@
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
+
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
@@ -19,50 +20,92 @@
         </div>
     </div>
 
+    <!-- Filter Card -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
-            <form method="GET" action="{{ url_for('sales.order_history', customer_number=customer_number) }}">
-                <div class="row">
-                    <div class="col-md-4 form-group">
-                        <label class="small font-weight-bold">Keyword / SO #</label>
-                        <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Search orders...">
+            <form method="get" action="{{ url_for('sales.order_history') }}">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="small font-weight-bold text-muted text-uppercase">Search</label>
+                        <input type="text" name="q" class="form-control form-control-sm"
+                               placeholder="SO #, customer, or reference..." value="{{ q }}">
                     </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-success px-4 shadow-sm">Filter</button>
-                        <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
-                            class="btn btn-link text-muted pr-0">Reset</a>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Status</label>
+                        <select name="status" class="form-control form-control-sm">
+                            <option value="">All Statuses</option>
+                            <option value="O" {% if status_filter == 'O' %}selected{% endif %}>Open</option>
+                            <option value="I" {% if status_filter == 'I' %}selected{% endif %}>Invoiced</option>
+                            <option value="C" {% if status_filter == 'C' %}selected{% endif %}>Closed</option>
+                            <option value="H" {% if status_filter == 'H' %}selected{% endif %}>On Hold</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Date From</label>
+                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Date To</label>
+                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Branch</label>
+                        <select name="branch" class="form-control form-control-sm">
+                            <option value="">All Branches</option>
+                            {% for code, label in branch_labels.items() %}
+                            <option value="{{ code }}" {% if branch_filter == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-search"></i>
+                        </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- Results -->
     <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="font-weight-bold"><i class="fas fa-list mr-1 text-success"></i> Orders</span>
+            <span class="badge badge-success badge-pill">{{ pagination.total }} total</span>
+        </div>
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover table-sm mb-0">
                 <thead class="thead-light">
                     <tr>
-                        <th>SO Number</th>
+                        <th>SO #</th>
                         <th>Customer</th>
-                        <th>Expected Date</th>
                         <th>Status</th>
-                        <th class="text-right">Reference</th>
+                        <th>Handling</th>
+                        <th>Expect Date</th>
+                        <th>Ship Via</th>
+                        <th>Driver</th>
+                        <th>Lines</th>
+                        <th>Sale Type</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for order in history %}
+                    {% for order in orders %}
                     <tr>
-                        <td class="font-weight-bold text-info">{{ order.so_number }}</td>
-                        <td>{{ order.customer_name }}</td>
-                        <td>{{ order.expect_date }}</td>
+                        <td class="font-weight-bold">{{ order.so_number }}</td>
+                        <td>{{ order.customer_name or '—' }}</td>
                         <td>
-                            <span
-                                class="badge badge-pill badge-{% if order.so_status == 'O' %}info{% elif order.so_status == 'I' %}success{% else %}secondary{% endif %}">
-                                {{ order.so_status }}
-                            </span>
+                            {% if order.so_status == 'O' %}
+                                <span class="badge badge-success">Open</span>
+                            {% elif order.so_status == 'I' %}
+                                <span class="badge badge-info">Invoiced</span>
+                            {% elif order.so_status == 'C' %}
+                                <span class="badge badge-secondary">Closed</span>
+                            {% elif order.so_status == 'H' %}
+                                <span class="badge badge-warning">On Hold</span>
+                            {% else %}
+                                <span class="badge badge-light text-muted">{{ order.so_status or '—' }}</span>
+                            {% endif %}
                         </td>
                         <td class="text-right small text-muted">{{ order.reference }}</td>
                         <td class="text-right">
@@ -71,13 +114,39 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">No history found for this customer.</td>
-                    </tr>
+                    <tr><td colspan="10" class="text-center text-muted py-5">
+                        <i class="fas fa-inbox fa-2x d-block mb-2"></i>
+                        No orders match your filters.
+                    </td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <div class="card-footer bg-white">
+            <nav>
+                <ul class="pagination pagination-sm mb-0 justify-content-center">
+                    {% for page in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                        {% if page %}
+                            <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('sales.order_history', q=q, status=status_filter, branch=branch_filter, date_from=date_from, date_to=date_to, page=page) }}">{{ page }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
     </div>
+
+    <p class="text-muted small mt-3">
+        <i class="fas fa-info-circle mr-1"></i>
+        Historical &amp; invoiced orders will appear here as the central database receives them from Agility.
+        Currently showing all synced records.
+    </p>
 </div>
 {% endblock %}

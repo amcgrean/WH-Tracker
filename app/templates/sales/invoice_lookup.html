@@ -3,6 +3,7 @@
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
+
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
@@ -19,40 +20,51 @@
         </div>
     </div>
 
+    <!-- Search -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
-            <form method="GET" action="{{ url_for('sales.invoice_lookup') }}">
-                <div class="row">
-                    <div class="col-md-4 form-group">
-                        <label class="small font-weight-bold">Search (SO # or Customer)</label>
-                        <input type="text" name="q" class="form-control" value="{{ q }}"
-                            placeholder="e.g. 102450 or Builder Name">
+            <form method="get" action="{{ url_for('sales.invoice_lookup') }}">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                        <label class="small font-weight-bold text-muted text-uppercase">Invoice / SO # or Customer Name</label>
+                        <input type="text" name="q" class="form-control" autofocus
+                               placeholder="e.g. 12345 or Smith Construction..." value="{{ q }}">
                     </div>
-                    <div class="col-md-3 form-group">
-                        <label class="small font-weight-bold">Date From</label>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Invoice Date From</label>
                         <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
                     </div>
-                    <div class="col-md-3 form-group">
-                        <label class="small font-weight-bold">Date To</label>
+                    <div class="col-md-2">
+                        <label class="small font-weight-bold text-muted text-uppercase">Invoice Date To</label>
                         <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
                     </div>
-                    <div class="col-md-2 form-group d-flex align-items-end">
-                        <button type="submit" class="btn btn-info btn-block shadow-sm">Search Archives</button>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-info text-white w-100">
+                            <i class="fas fa-search"></i> Search
+                        </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
 
+    {% if invoices %}
     <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="font-weight-bold"><i class="fas fa-file-invoice mr-1 text-info"></i> Results</span>
+            <span class="badge badge-info badge-pill">{{ pagination.total }}</span>
+        </div>
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover table-sm mb-0">
                 <thead class="thead-light">
                     <tr>
-                        <th>SO Number</th>
-                        <th>Customer Name</th>
+                        <th>SO / Invoice #</th>
+                        <th>Customer</th>
+                        <th>Status</th>
                         <th>Date</th>
-                        <th class="text-right">Reference</th>
+                        <th>Handling</th>
+                        <th>Ship Via</th>
+                        <th>Lines</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -71,24 +83,54 @@
                                 class="btn btn-xs btn-outline-info">Customer</a>
                             {% endif %}
                         </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center py-5">
-                            <i class="fas fa-search-minus fa-2x d-block mb-2 text-muted" style="opacity:0.2;"></i>
-                            Enter an invoice number, SO number, or customer name above to search.
+                        <td>{{ inv.expect_date or '—' }}</td>
+                        <td>{{ inv.handling_code or '—' }}</td>
+                        <td>{{ inv.ship_via or '—' }}</td>
+                        <td>{{ inv.line_count or '—' }}</td>
+                        <td>
+                            <a href="{{ url_for('sales.customer_profile', customer_number=inv.customer_name or inv.so_number) }}"
+                               class="btn btn-xs btn-outline-info">Customer</a>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% if pagination.pages > 1 %}
+        <div class="card-footer bg-white">
+            <nav>
+                <ul class="pagination pagination-sm mb-0 justify-content-center">
+                    {% for page in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                        {% if page %}
+                            <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('sales.invoice_lookup', q=q, date_from=date_from, date_to=date_to, page=page) }}">{{ page }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
     </div>
 
-    <div class="alert alert-info mt-4 small">
-        <i class="fas fa-info-circle mr-2"></i>
-        This page searches invoiced and closed orders in the central database mirror.
-        Historical data availability depends on Agility mirror sync frequency.
+    {% elif q %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5 text-muted">
+            <i class="fas fa-search fa-2x d-block mb-2"></i>
+            No invoiced orders found for <strong>"{{ q }}"</strong>.
+        </div>
     </div>
+    {% else %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5 text-muted">
+            <i class="fas fa-file-invoice-dollar fa-3x d-block mb-3 text-info" style="opacity:0.3;"></i>
+            <p>Enter an invoice number, SO number, or customer name above to search.</p>
+            <p class="small">This page searches <strong>invoiced and closed</strong> orders in the central database.</p>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}

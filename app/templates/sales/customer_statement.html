@@ -3,100 +3,169 @@
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
-    <div class="d-print-none mb-4 d-flex justify-content-between align-items-center">
-        <div>
-            <a href="{{ url_for('sales.customer_profile', customer_number=customer_number) }}"
-                class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left mr-1"></i> Back to Profile
-            </a>
+
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('sales.customer_profile', customer_number=customer_number) }}">{{ customer_name }}</a>
+            </li>
+            <li class="breadcrumb-item active">Statement / AR</li>
+        </ol>
+    </nav>
+
+    <div class="row align-items-center mb-4">
+        <div class="col">
+            <h1 class="h2 font-weight-bold mb-0 text-primary">
+                <i class="fas fa-file-alt mr-2"></i> Account Statement
+            </h1>
+            <p class="text-muted mb-0">{{ customer_name }} &mdash; Open AR &amp; order history</p>
         </div>
-        <div>
-            <button onclick="window.print();" class="btn btn-info btn-sm">
-                <i class="fas fa-print mr-1"></i> Print / Save PDF
+        <div class="col-auto">
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+                <i class="fas fa-print mr-1"></i> Print
             </button>
         </div>
     </div>
 
-    <!-- Statement View -->
-    <div class="card shadow-sm border-0 p-5 mx-auto" style="max-width: 900px; min-height: 1000px;">
-        <div class="row mb-5">
-            <div class="col-6">
-                <h3 class="font-weight-bold text-info">BEISSER OPS</h3>
-                <p class="text-muted small">
-                    Mirror Data Statement<br>
-                    Generated from WH-Tracker Central DB<br>
-                    Phone: (515) 270-6923
-                </p>
-            </div>
-            <div class="col-6 text-right">
-                <h1 class="font-weight-bold text-uppercase h3">Account Snapshot</h1>
-                <p class="mb-0"><strong>Customer:</strong> {{ customer_name }}</p>
-                <p class="mb-0"><strong>Customer #:</strong> {{ customer_number }}</p>
-                <p class="mb-0"><strong>As of:</strong> {{ now.strftime('%m/%d/%Y') }}</p>
+    <!-- AR Summary Cards (placeholder until AR data syncs) -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h3 font-weight-bold text-primary mb-0">{{ open_orders|length }}</div>
+                <div class="small text-muted">Open Orders</div>
             </div>
         </div>
-
-        <div class="row mb-5">
-            <div class="col-12">
-                <div class="bg-light p-3 rounded">
-                    <div class="row text-center">
-                        <div class="col-6 border-right">
-                            <h6 class="text-muted font-weight-bold text-uppercase small">Open AR (Agility)</h6>
-                            <h4 class="font-weight-bold text-info">Coming Soon</h4>
-                            <p class="muted-xs mb-0">Direct Agility integration pending</p>
-                        </div>
-                        <div class="col-6">
-                            <h6 class="text-muted font-weight-bold text-uppercase small">Last Pushed Total</h6>
-                            <h4 class="font-weight-bold">$12,450.00</h4>
-                            <p class="muted-xs mb-0">Mocked for demonstration</p>
-                        </div>
-                    </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h3 font-weight-bold text-success mb-0">{{ invoiced_orders|length }}</div>
+                <div class="small text-muted">Invoiced Orders</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h3 font-weight-bold text-warning mb-0">
+                    <i class="fas fa-sync-alt fa-spin small"></i>
                 </div>
+                <div class="small text-muted">Outstanding Balance</div>
+                <div class="text-muted" style="font-size:0.7rem;">Pending AR sync</div>
             </div>
         </div>
-
-        <h5 class="font-weight-bold mb-3">Recent Transactions (Last 20)</h5>
-        <table class="table table-sm">
-            <thead class="thead-light">
-                <tr>
-                    <th>Date</th>
-                    <th>SO #</th>
-                    <th>Ref/PO</th>
-                    <th class="text-right">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="text-muted italic">
-                    <td colspan="4" class="text-center py-4">
-                        Historical Ledger data will appear here once the central DB syncs financial transactions.
-                        Currently only warehouse pick records are available.
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div class="mt-5 text-center text-muted small">
-            <p>This is a mirror data report and may not reflect real-time Agility balances. Please verify with
-                accounting for credit decisions.</p>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="h3 font-weight-bold text-info mb-0">
+                    <i class="fas fa-sync-alt fa-spin small"></i>
+                </div>
+                <div class="small text-muted">Credit Limit</div>
+                <div class="text-muted" style="font-size:0.7rem;">Pending AR sync</div>
+            </div>
         </div>
     </div>
+
+    <div class="alert alert-info border-0 shadow-sm mb-4">
+        <i class="fas fa-database mr-1"></i>
+        <strong>AR data coming soon:</strong> Balance, credit limit, and payment terms will display here once the
+        central database sync includes the Agility AR/Customer tables.
+        The order data below is already available from the open order mirror.
+    </div>
+
+    <!-- Open Orders -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between">
+            <span><i class="fas fa-box-open mr-1 text-success"></i> Open Orders</span>
+            <span class="badge badge-success badge-pill">{{ open_orders|length }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>SO #</th>
+                        <th>Handling</th>
+                        <th>Expect Date</th>
+                        <th>Ship Via</th>
+                        <th>Driver</th>
+                        <th>Local Status</th>
+                        <th>Lines</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set seen = [] %}
+                    {% for r in open_orders %}
+                    {% if r.so_number not in seen %}
+                    {% if seen.append(r.so_number) %}{% endif %}
+                    <tr>
+                        <td class="font-weight-bold">
+                            <a href="{{ url_for('main.warehouse_detail', so_number=r.so_number) }}"
+                               class="text-success">{{ r.so_number }}</a>
+                        </td>
+                        <td>{{ r.handling_code or '—' }}</td>
+                        <td>{{ r.expect_date or '—' }}</td>
+                        <td>{{ r.ship_via or '—' }}</td>
+                        <td>{{ r.driver or '—' }}</td>
+                        <td>
+                            {% if r.local_pick_state %}
+                                <span class="badge badge-light">{{ r.local_pick_state }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ r.line_count or '—' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% if not open_orders %}
+                    <tr><td colspan="7" class="text-muted text-center py-3">No open orders found.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Invoiced Orders -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between">
+            <span><i class="fas fa-file-invoice-dollar mr-1 text-info"></i> Invoiced / Closed Orders</span>
+            <span class="badge badge-info badge-pill">{{ invoiced_orders|length }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>SO #</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Handling</th>
+                        <th>Ship Via</th>
+                        <th>Lines</th>
+                        <th>Invoice Amt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set seen2 = [] %}
+                    {% for r in invoiced_orders %}
+                    {% if r.so_number not in seen2 %}
+                    {% if seen2.append(r.so_number) %}{% endif %}
+                    <tr>
+                        <td class="font-weight-bold text-info">{{ r.so_number }}</td>
+                        <td>
+                            {% if r.so_status == 'I' %}<span class="badge badge-info">Invoiced</span>
+                            {% else %}<span class="badge badge-secondary">Closed</span>{% endif %}
+                        </td>
+                        <td>{{ r.expect_date or '—' }}</td>
+                        <td>{{ r.handling_code or '—' }}</td>
+                        <td>{{ r.ship_via or '—' }}</td>
+                        <td>{{ r.line_count or '—' }}</td>
+                        <td class="text-muted fst-italic small">AR sync pending</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% if not invoiced_orders %}
+                    <tr><td colspan="7" class="text-muted text-center py-3">
+                        No invoiced orders in the current sync. Historical data will appear here as the central DB grows.
+                    </td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
-
-<style type="text/css">
-    @media print {
-        body {
-            background: white !important;
-        }
-
-        .card {
-            border: none !important;
-            box-shadow: none !important;
-        }
-
-        .navbar,
-        .d-print-none {
-            display: none !important;
-        }
-    }
-</style>
 {% endblock %}

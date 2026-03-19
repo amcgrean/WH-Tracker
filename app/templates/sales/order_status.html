@@ -3,46 +3,97 @@
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
+
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
-            <li class="breadcrumb-item active">Order Status Lookup</li>
+            <li class="breadcrumb-item active">Quick Order Status</li>
         </ol>
     </nav>
 
-    <div class="mb-4">
-        <h1 class="h2 font-weight-bold mb-1">
-            <i class="fas fa-bolt text-warning mr-2"></i> Quick Order Status
-        </h1>
-        <p class="text-muted">Customer on the phone? Get live order status in seconds.</p>
+    <!-- Big Search Box -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-8">
+            <div class="text-center mb-4">
+                <h1 class="h2 font-weight-bold mb-1">
+                    <i class="fas fa-bolt text-warning mr-2"></i> Quick Order Status
+                </h1>
+                <p class="text-muted">Customer on the phone? Get live order status in seconds.</p>
+            </div>
+            <form method="get" action="{{ url_for('sales.order_status') }}" id="statusSearchForm">
+                <div class="input-group input-group-lg shadow-sm">
+                    <input type="text" name="q" id="statusSearchInput" class="form-control border-0"
+                           placeholder="Type SO number or customer name..." value="{{ q }}" autofocus
+                           autocomplete="off">
+                    <div class="input-group-append">
+                        <button class="btn btn-dark px-4" type="submit">
+                            <i class="fas fa-search mr-1"></i> Search
+                        </button>
+                    </div>
+                </div>
+                <!-- Live suggestion dropdown -->
+                <div id="statusSuggestions" class="card border-0 shadow-lg" style="display:none;position:absolute;width:100%;z-index:1050;top:100%;"></div>
+            </form>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card border-0 shadow-lg mb-4">
-                <div class="card-body p-4">
-                    <form method="GET" action="{{ url_for('sales.order_status') }}">
-                        <div class="input-group input-group-lg shadow-sm rounded">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text bg-white border-right-0"
-                                    style="border-radius:12px 0 0 12px;">
-                                    <i class="fas fa-search text-warning"></i>
-                                </span>
-                            </div>
-                            <input type="text" name="q" id="orderStatusSearch" class="form-control border-left-0 py-4"
-                                value="{{ q }}" placeholder="Type SO # or Customer Name..."
-                                style="border-radius:0 12px 12px 0; font-size:1.2rem;" autocomplete="off">
-                        </div>
-                    </form>
-                    <div id="statusSuggestions" class="mt-2" style="display:none;"></div>
-                </div>
-            </div>
-
-            {% if q %}
-            <h5 class="font-weight-bold mb-3 d-flex justify-content-between align-items-center">
-                <span>Results for "{{ q }}"</span>
-                <span class="badge badge-light border">{{ orders|length }} matches</span>
+    <!-- Results -->
+    {% if results %}
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <h5 class="font-weight-bold mb-3">
+                Results for <em>"{{ q }}"</em>
+                <span class="badge badge-dark badge-pill ml-1">{{ results|length }}</span>
             </h5>
+            {% set seen_so = [] %}
+            {% for r in results %}
+            {% if r.so_number not in seen_so %}
+            {% if seen_so.append(r.so_number) %}{% endif %}
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body py-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-3">
+                            <div class="small text-muted text-uppercase font-weight-bold">SO #</div>
+                            <div class="h5 font-weight-bold text-dark mb-0">{{ r.so_number }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="small text-muted text-uppercase font-weight-bold">Customer</div>
+                            <div class="font-weight-bold">{{ r.customer_name or '—' }}</div>
+                            <div class="small text-muted">{{ r.address or '' }}</div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="small text-muted text-uppercase font-weight-bold">Status</div>
+                            {% if r.so_status == 'O' %}
+                                <span class="badge badge-success px-3 py-1">Open</span>
+                                {% if r.shipment_status %}
+                                <div class="small text-muted mt-1">Ship: {{ r.shipment_status }}</div>
+                                {% endif %}
+                            {% elif r.so_status == 'I' %}
+                                <span class="badge badge-info px-3 py-1">Invoiced</span>
+                            {% elif r.so_status == 'H' %}
+                                <span class="badge badge-warning px-3 py-1">On Hold</span>
+                            {% else %}
+                                <span class="badge badge-secondary px-3 py-1">{{ r.so_status or 'Unknown' }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-2">
+                            <div class="small text-muted text-uppercase font-weight-bold">Expect Date</div>
+                            <div class="font-weight-bold">{{ r.expect_date or '—' }}</div>
+                            {% if r.driver %}
+                            <div class="small text-muted">Driver: {{ r.driver }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-2 text-right">
+                            <a href="{{ url_for('main.warehouse_detail', so_number=r.so_number) }}"
+                               class="btn btn-sm btn-outline-dark mb-1 d-block">
+                                <i class="fas fa-box mr-1"></i> WH Detail
+                            </a>
+                            <a href="{{ url_for('sales.customer_profile', customer_number=r.customer_name or r.so_number) }}"
+                               class="btn btn-sm btn-outline-primary d-block">
+                                <i class="fas fa-user mr-1"></i> Customer
+                            </a>
+                        </div>
+                    </div>
 
             <div class="row">
                 {% for r in orders %}
@@ -87,23 +138,28 @@
                 </a>
             </div>
             {% endif %}
+            {% endfor %}
         </div>
+    </div>
 
-        <div class="col-md-4">
+    {% elif q %}
+    <div class="row justify-content-center">
+        <div class="col-md-8">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white font-weight-bold">Search Tips</div>
-                <div class="card-body small">
-                    <ul class="pl-3 mb-0">
-                        <li class="mb-2">Enter at least <strong>3 characters</strong> to begin searching.</li>
-                        <li class="mb-2">Type partial customer names (e.g., "Hubbell") to see all their open orders.
-                        </li>
-                        <li>Search is based on the <strong>Central Database Mirror</strong> — if an order was just
-                            created in Agility, allow a few minutes for sync.</li>
-                    </ul>
+                <div class="card-body text-center py-5 text-muted">
+                    <i class="fas fa-search fa-2x d-block mb-2"></i>
+                    No orders found for <strong>"{{ q }}"</strong>.
+                    <div class="mt-2">
+                        <a href="{{ url_for('sales.order_history', q=q) }}" class="btn btn-sm btn-outline-dark">
+                            Search full order history
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+    {% endif %}
+
 </div>
 
 <style>

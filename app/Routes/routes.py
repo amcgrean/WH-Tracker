@@ -1,19 +1,24 @@
+import hmac
 import os
 import json
 from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.extensions import db
-from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, ERPDeliveryKPI, ERPSyncState
+from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, AuditEvent, ERPDeliveryKPI, ERPSyncState
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, text
+from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
-from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 import pytz
-#from pytz import timezone  # Import pytz to handle timezone conversions
+
 # Create a Blueprint
 main = Blueprint('main', __name__)
+
+# ── Pick type constants ───────────────────────────────────────────────────────
+WILL_CALL_TYPE_ID = 6
+CHUNK_SIZE = 900  # SQL Server IN-clause variable limit
 
 DEFAULT_PICK_TYPES = {
     1: 'Yard',
@@ -21,7 +26,7 @@ DEFAULT_PICK_TYPES = {
     3: 'Decking',
     4: 'EWP',
     5: 'Millwork',
-    6: 'Will Call',
+    WILL_CALL_TYPE_ID: 'Will Call',
 }
 
 
@@ -132,41 +137,8 @@ def calculate_business_elapsed_time(start_time, end_time=None):
             current = next_day
     return elapsed  # Return the timedelta object directly
 def format_elapsed_time(start_time, end_time=None):
-    # Define business hours in CST
-    BUSINESS_START = 7  # 7 AM
-    BUSINESS_END = 17   # 5 PM
-
-    # Localize the start time to CST
-    start_time_cst = localize_to_cst(start_time)
-    end_time_cst = localize_to_cst(end_time if end_time else datetime.utcnow())
-
-    # Initialize elapsed time
-    elapsed = timedelta()
-
-    # Loop over each day from start to end
-    current = start_time_cst
-    while current < end_time_cst:
-        # Calculate next day to handle edge cases
-        next_day = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = current.replace(hour=BUSINESS_END, minute=0, second=0, microsecond=0)
-        start_of_day = current.replace(hour=BUSINESS_START, minute=0, second=0, microsecond=0)
-
-        if current.hour < BUSINESS_START:
-            # If current time is before business hours, jump to business hours start
-            current = start_of_day
-        elif current.hour < BUSINESS_END:
-            # If during business hours, calculate until end of business or end time
-            if end_time_cst < end_of_day:
-                elapsed += end_time_cst - current
-                break
-            else:
-                elapsed += end_of_day - current
-                current = next_day
-        else:
-            # If after business hours, jump to next day
-            current = next_day
-
-    # Format elapsed time into hours and minutes
+    """Return business-hours elapsed time as a human-readable string (e.g. '2h 15m')."""
+    elapsed = calculate_business_elapsed_time(start_time, end_time)
     total_seconds = int(elapsed.total_seconds())
     hours, remainder = divmod(total_seconds, 3600)
     minutes, _ = divmod(remainder, 60)
@@ -234,18 +206,16 @@ def edit_picker(picker_id):
 
 @main.route('/delete_picker/<int:picker_id>', methods=['POST'])
 def delete_picker(picker_id):
-    # Hardcoded password hash (you should generate this securely and store it, example shown below)
-    password_hash = generate_password_hash('beisser1')
-    # Get the password from the form
-    password = request.form.get('password')
-    if check_password_hash(password_hash, password):
-        picker = Pickster.query.get_or_404(picker_id)  # Use the correct class name
-        db.session.delete(picker)
-        db.session.commit()
-        flash('Picker deleted successfully.', 'success')
-    else:
-       flash('Incorrect password.', 'error')
-
+    admin_password = os.environ.get('ADMIN_DELETE_PASSWORD', '')
+    submitted = request.form.get('password', '')
+    # Require the env var to be set and use constant-time comparison to prevent timing attacks
+    if not admin_password or not hmac.compare_digest(admin_password, submitted):
+        flash('Incorrect password.', 'error')
+        return redirect(url_for('main.admin'))
+    picker = Pickster.query.get_or_404(picker_id)
+    db.session.delete(picker)
+    db.session.commit()
+    flash('Picker deleted successfully.', 'success')
     return redirect(url_for('main.admin'))
 
 ###INPUT PICK AND COMPLETE TRACKING#####
@@ -270,7 +240,7 @@ def input_pick(picker_id, pick_type_id):
         barcode = request.form.get('barcode')
         if barcode:
             start_time = datetime.now()
-            completed_time = start_time if pick_type_id == 6 else None  # Set completed_time to start_time if pick_type_id is 6
+            completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None
             new_pick = Pick(
                 barcode_number=barcode,
                 start_time=start_time,
@@ -288,16 +258,35 @@ def input_pick(picker_id, pick_type_id):
 
 @main.route('/complete_pick/<int:pick_id>', methods=['GET', 'POST'])
 def complete_pick(pick_id):
-    pick = Pick.query.get_or_404(pick_id)  # Retrieves the pick or shows a 404 error
+    pick = Pick.query.get_or_404(pick_id)
 
     if request.method == 'POST':
-        # Updating the completed_time to now
-        pick.completed_time = datetime.utcnow()  # Consider using UTC
+        now = datetime.utcnow()
+        pick.completed_time = now
+
+        # Update ERPMirrorPick local state if no other open picks remain for this SO
+        mirror = ERPMirrorPick.query.filter_by(so_number=pick.barcode_number).first()
+        if mirror:
+            still_open = Pick.query.filter_by(
+                barcode_number=pick.barcode_number,
+                completed_time=None
+            ).filter(Pick.id != pick_id).count()
+            if still_open == 0:
+                mirror.local_pick_state = 'Picking Complete'
+
+        # Audit trail
+        audit = AuditEvent(
+            event_type='pick_completed',
+            entity_type='pick',
+            entity_id=pick.id,
+            so_number=pick.barcode_number,
+            occurred_at=now,
+        )
+        db.session.add(audit)
         db.session.commit()
         flash('Pick completed successfully.')
         return redirect(url_for('main.index'))
     else:
-        # For GET request, show a confirmation page or directly complete the pick
         return render_template('complete_pick.html', pick=pick)
 
 @main.route('/start_pick/<int:picker_id>/<int:pick_type_id>', methods=['POST'])
@@ -308,13 +297,16 @@ def start_pick(picker_id, pick_type_id):
         flash('Invalid pick type selected.', 'error')
         return redirect(url_for('main.index'))
 
-    barcode = request.form.get('barcode')
+    barcode = request.form.get('barcode', '').strip()
     if not barcode:
         flash('Barcode is required.', 'error')
-        return redirect(url_for('main.index'))  # Adjust redirect as needed
+        return redirect(url_for('main.index'))
+    if not barcode.isalnum() or len(barcode) > 50:
+        flash('Invalid barcode format.', 'error')
+        return redirect(url_for('main.index'))
 
-    start_time = datetime.utcnow()  # Consistently use UTC for all datetime records
-    completed_time = start_time if pick_type_id == 6 else None  # Automatically complete if type_id is 6
+    start_time = datetime.utcnow()
+    completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None
 
     new_pick = Pick(
         barcode_number=barcode,
@@ -324,14 +316,34 @@ def start_pick(picker_id, pick_type_id):
         pick_type_id=pick_type_id
     )
     db.session.add(new_pick)
+
+    # Update ERPMirrorPick local state
+    mirror = ERPMirrorPick.query.filter_by(so_number=barcode).first()
+    if mirror:
+        if completed_time:
+            mirror.local_pick_state = 'Picking Complete'
+        else:
+            mirror.local_pick_state = 'Picking'
+
+    # Audit trail
+    event_type = 'pick_completed' if completed_time else 'pick_started'
+    db.session.flush()  # get new_pick.id before commit
+    audit = AuditEvent(
+        event_type=event_type,
+        entity_type='pick',
+        entity_id=new_pick.id,
+        so_number=barcode,
+        actor_id=picker.id,
+        occurred_at=start_time,
+    )
+    db.session.add(audit)
     db.session.commit()
-    flash('Pick started successfully.')
+
+    if completed_time:
+        flash(f'Will Call {barcode} recorded.')
+    else:
+        flash('Pick started successfully.')
     return redirect(url_for('main.index'))
-
-# Add logging to debug
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
 
 ###OPEN PICKS####
 @main.route('/api/pickers_picks')
@@ -339,25 +351,17 @@ def api_pickers_picks():
     today = datetime.now().date()
     five_days_ago = today - timedelta(days=5)
 
-    will_call_type_id = 6
-
     # Count of all completed picks today excluding will call picks
     today_count = Pick.query.filter(
         func.date(Pick.completed_time) == today,
-        Pick.pick_type_id != will_call_type_id  # Exclude will call picks
+        Pick.pick_type_id != WILL_CALL_TYPE_ID
     ).count()
-
-    # Debug: Ensure that the correct pick_type_id is being targeted
-
-    print("Using pick_type_id for will call:", will_call_type_id)
 
     # Count for will call tickets today
     will_call_count = Pick.query.filter(
         func.date(Pick.completed_time) == today,
-        Pick.pick_type_id == will_call_type_id
+        Pick.pick_type_id == WILL_CALL_TYPE_ID
     ).count()
-
-    print("Will Call Count for today:", will_call_count)  # Debug output
 
     # Average count of completed picks over the last 5 days excluding will call picks
     recent_counts = db.session.query(
@@ -365,7 +369,7 @@ def api_pickers_picks():
     ).filter(
         func.date(Pick.completed_time) >= five_days_ago,
         func.date(Pick.completed_time) < today,
-        Pick.pick_type_id != will_call_type_id  # Exclude will call picks
+        Pick.pick_type_id != WILL_CALL_TYPE_ID
     ).group_by(
         func.date(Pick.completed_time)
     ).all()
@@ -532,12 +536,12 @@ def picker_stats():
     # For now, let's keep the table logic roughly same but using the new query style if possible, 
     # OR just pass the new type_stats to be displayed *above* the table.
     
-    # 4. Detailed Table Data (Existing Logic, slightly cleaned)
-    picks = Pick.query.join(Pickster).filter(
+    # 4. Detailed Table Data — capped at 2000 rows to prevent timeout on large date ranges
+    picks = Pick.query.options(joinedload(Pick.pickster)).filter(
         Pick.start_time >= start_date,
         Pick.completed_time < query_end_date,
         Pick.completed_time.isnot(None)
-    ).all()
+    ).order_by(Pick.completed_time.desc()).limit(2000).all()
 
     picker_stats = {}
     for pick in picks:
@@ -555,7 +559,7 @@ def picker_stats():
         # Simple/Legacy counters (Optional: can be removed if template stops using them)
         if pick.pick_type_id == 1: 
             picker_stats[picker_id]['yard_picks'] += 1
-        elif pick.pick_type_id == 6:
+        elif pick.pick_type_id == WILL_CALL_TYPE_ID:
             picker_stats[picker_id]['will_call_picks'] += 1
 
         elapsed_time = pick.completed_time - pick.start_time
@@ -782,6 +786,38 @@ def sync_erp_data():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@main.route('/api/confirm_staged/<so_number>', methods=['POST'])
+def confirm_staged(so_number):
+    """
+    Locally confirm that a Sales Order has been staged/loaded onto the truck.
+    Updates ERPMirrorPick.staged_at and logs an AuditEvent.
+    Used in cloud mode where workers can't update ERP directly.
+    """
+    so_number = so_number.strip()
+    if not so_number:
+        return jsonify({'error': 'SO number is required'}), 400
+
+    mirror = ERPMirrorPick.query.filter_by(so_number=so_number).first()
+    if not mirror:
+        return jsonify({'error': f'Order {so_number} not found in mirror'}), 404
+
+    now = datetime.utcnow()
+    mirror.staged_at = now
+    mirror.local_pick_state = 'Staging Confirmed'
+
+    audit = AuditEvent(
+        event_type='staged_confirmed',
+        entity_type='erp_mirror_pick',
+        entity_id=mirror.id,
+        so_number=so_number,
+        notes=request.json.get('notes') if request.is_json else None,
+        occurred_at=now,
+    )
+    db.session.add(audit)
+    db.session.commit()
+
+    return jsonify({'status': 'ok', 'so_number': so_number, 'staged_at': now.isoformat()})
+
 
 @main.route('/api/sync/status')
 def api_sync_status():
@@ -826,6 +862,7 @@ def api_sync_status():
         'counts': counts,
     })
 
+
 @main.route('/debug/counts')
 def debug_counts():
     try:
@@ -861,7 +898,7 @@ def api_dashboard():
         ).count()
         will_calls = Pick.query.filter(
             Pick.completed_time.between(start_date, query_end_date),
-            Pick.pick_type_id == 6  # Assuming 6 is the ID for will call picks
+            Pick.pick_type_id == WILL_CALL_TYPE_ID
         ).count()
         return completed_picks, will_calls
 
@@ -927,8 +964,20 @@ def work_orders_open(user_id):
 @main.route('/work_orders/complete/<int:wo_id>', methods=['POST'])
 def complete_work_order(wo_id):
     wo = WorkOrder.query.get_or_404(wo_id)
+    now = datetime.utcnow()
     wo.status = 'Complete'
-    wo.completed_at = datetime.utcnow()
+    wo.completed_at = now
+    wo.completed_by_id = wo.assigned_to_id  # the assigned worker is completing it
+
+    audit = AuditEvent(
+        event_type='wo_completed',
+        entity_type='work_order',
+        entity_id=wo.id,
+        so_number=wo.sales_order_number,
+        actor_id=wo.assigned_to_id,
+        occurred_at=now,
+    )
+    db.session.add(audit)
     db.session.commit()
     flash(f'Work Order {wo.work_order_number} completed!')
     return redirect(url_for('main.work_orders_open', user_id=wo.assigned_to_id))
@@ -1100,7 +1149,7 @@ def supervisor_dashboard():
     wo_assignments = {wo.assigned_to_id: wo.work_order_number for wo in WorkOrder.query.filter(WorkOrder.assigned_to_id != None, WorkOrder.completed_at == None).all()}
     
     # 3. Get currently Active Picks (Started but not Completed)
-    active_picks = Pick.query.filter(Pick.completed_time == None).all()
+    active_picks = Pick.query.options(joinedload(Pick.pickster)).filter(Pick.completed_time == None).all()
     active_map = {p.picker_id: p for p in active_picks}
 
     picker_data = []
@@ -1160,9 +1209,8 @@ def supervisor_work_orders():
     # Fetch local assignments for these WOs in chunks to avoid SQLite limit
     wo_ids = [str(wo['wo_id']) for wo in erp_wos]
     local_wos_list = []
-    chunk_size = 900
-    for i in range(0, len(wo_ids), chunk_size):
-        chunk = wo_ids[i:i + chunk_size]
+    for i in range(0, len(wo_ids), CHUNK_SIZE):
+        chunk = wo_ids[i:i + CHUNK_SIZE]
         local_wos_list.extend(WorkOrder.query.filter(WorkOrder.work_order_number.in_(chunk)).all())
     local_wos = {wo.work_order_number: wo for wo in local_wos_list}
     
