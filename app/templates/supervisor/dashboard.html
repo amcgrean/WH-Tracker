@@ -52,6 +52,12 @@
 </style>
 
 <div class="container-fluid mt-4">
+    {% if local_data_unavailable %}
+    <div class="alert alert-warning shadow-sm">
+        Live assignment data from the local Tracker database is temporarily unavailable. The page is showing whatever could be loaded safely.
+    </div>
+    {% endif %}
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="font-weight-bold"><i class="fas fa-shield-alt text-dark mr-2"></i>Supervisor Command Center</h1>
         <div class="text-muted">Live Update: {{ now.strftime('%I:%M %p') }}</div>
@@ -118,8 +124,12 @@
                             <span class="status-badge status-assigned"><i class="fas fa-clock mr-1"></i>Assigned</span>
                             <div class="small font-weight-bold mt-1 text-warning">
                                 {{ picker.task_type }}:
+                                {% if picker.task_type == 'Pick' and picker.current_task %}
                                 <a href="{{ url_for('main.pick_detail', so_number=picker.current_task) }}"
                                     class="text-warning">#{{ picker.current_task }}</a>
+                                {% else %}
+                                <span>#{{ picker.current_task or 'n/a' }}</span>
+                                {% endif %}
                             </div>
                             {% else %}
                             <span class="status-badge status-idle">Idle</span>
@@ -139,9 +149,10 @@
                 </div>
                 <div class="list-group list-group-flush">
                     {% for pick in recent_picks %}
+                    {% set so_info = erp_map.get(pick.barcode_number|string) %}
                     <div class="list-group-item border-0 border-bottom">
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="font-weight-bold">{{ pick.pickster.name }}</span>
+                            <span class="font-weight-bold">{{ pick.pickster.name if pick.pickster else 'Unknown picker' }}</span>
                             <span class="badge badge-light"><i class="far fa-clock mr-1"></i>{{
                                 pick.completed_time.strftime('%I:%M %p') }}</span>
                         </div>
@@ -149,12 +160,11 @@
                             <div>
                                 Completed <a href="{{ url_for('main.pick_detail', so_number=pick.barcode_number) }}">SO
                                     #{{ pick.barcode_number }}</a>
-                                {% if erp_map[pick.barcode_number] %}
+                                {% if so_info %}
                                 <br>
-                                <span class="text-dark font-weight-bold">{{ erp_map[pick.barcode_number].customer_name
-                                    }}</span>
-                                {% if erp_map[pick.barcode_number].reference %}
-                                | <span class="font-italic">Ref: {{ erp_map[pick.barcode_number].reference }}</span>
+                                <span class="text-dark font-weight-bold">{{ so_info.customer_name }}</span>
+                                {% if so_info.reference %}
+                                | <span class="font-italic">Ref: {{ so_info.reference }}</span>
                                 {% endif %}
                                 {% endif %}
                             </div>

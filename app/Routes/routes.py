@@ -1,7 +1,7 @@
 import hmac
 import os
 import json
-from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort
+from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort, current_app
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.extensions import db
@@ -9,7 +9,7 @@ from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignme
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.utils import secure_filename
 import pytz
 
@@ -1186,18 +1186,35 @@ def pick_detail(so_number):
 
 @main.route('/supervisor/dashboard')
 def supervisor_dashboard():
-    # 1. Fetch all pickers
-    pickers = Pickster.query.all()
-    
-    # 2. Get active assignments (who is assigned to what)
-    # Picks
-    pick_assignments = {a.picker_id: a.so_number for a in PickAssignment.query.all()}
-    # Work Orders (Production)
-    wo_assignments = {wo.assigned_to_id: wo.work_order_number for wo in WorkOrder.query.filter(WorkOrder.assigned_to_id != None, WorkOrder.completed_at == None).all()}
-    
-    # 3. Get currently Active Picks (Started but not Completed)
-    active_picks = Pick.query.options(joinedload(Pick.pickster)).filter(Pick.completed_time == None).all()
-    active_map = {p.picker_id: p for p in active_picks}
+    local_data_unavailable = False
+    try:
+        pickers = Pickster.query.all()
+
+        # 2. Get active assignments (who is assigned to what)
+        pick_assignments = {a.picker_id: a.so_number for a in PickAssignment.query.all()}
+        wo_assignments = {
+            wo.assigned_to_id: wo.work_order_number
+            for wo in WorkOrder.query.filter(
+                WorkOrder.assigned_to_id != None,
+                WorkOrder.completed_at == None,
+            ).all()
+        }
+
+        # 3. Get currently Active Picks (Started but not Completed)
+        active_picks = Pick.query.options(joinedload(Pick.pickster)).filter(Pick.completed_time == None).all()
+        active_map = {p.picker_id: p for p in active_picks}
+        recent_picks = Pick.query.options(joinedload(Pick.pickster)).filter(
+            Pick.completed_time != None
+        ).order_by(Pick.completed_time.desc()).limit(10).all()
+    except SQLAlchemyError:
+        current_app.logger.exception("Supervisor dashboard local DB query failed")
+        flash('Supervisor live assignment data is temporarily unavailable.', 'warning')
+        local_data_unavailable = True
+        pickers = []
+        pick_assignments = {}
+        wo_assignments = {}
+        active_map = {}
+        recent_picks = []
 
     picker_data = []
     for p in pickers:
@@ -1216,8 +1233,9 @@ def supervisor_dashboard():
             p_info['status'] = 'active'
             p_info['current_task'] = pick.barcode_number
             p_info['task_type'] = 'Pick'
-            duration = (datetime.utcnow() - pick.start_time).total_seconds() / 60
-            p_info['active_duration'] = int(duration)
+            if pick.start_time:
+                duration = (datetime.utcnow() - pick.start_time).total_seconds() / 60
+                p_info['active_duration'] = max(0, int(duration))
         
         # 2. Check Pick Assignments (Planned)
         elif p.id in pick_assignments:
@@ -1233,19 +1251,22 @@ def supervisor_dashboard():
             
         picker_data.append(p_info)
 
-    # 4. Recent Completed Picks
-    recent_picks = Pick.query.filter(Pick.completed_time != None).order_by(Pick.completed_time.desc()).limit(10).all()
-    
     # Enrich recent picks with ERP data
     recent_so_numbers = [p.barcode_number for p in recent_picks]
     erp = ERPService()
-    hist_data = erp.get_historical_so_summary(so_numbers=recent_so_numbers) if recent_so_numbers else []
-    erp_map = {item['so_number']: item for item in hist_data}
+    hist_data = []
+    if recent_so_numbers:
+        try:
+            hist_data = erp.get_historical_so_summary(so_numbers=recent_so_numbers)
+        except Exception:
+            current_app.logger.exception("Supervisor dashboard ERP enrichment failed")
+    erp_map = {str(item.get('so_number')): item for item in hist_data if item.get('so_number')}
 
     return render_template('supervisor/dashboard.html', 
                           pickers=picker_data, 
                           recent_picks=recent_picks, 
                           erp_map=erp_map,
+                          local_data_unavailable=local_data_unavailable,
                           now=datetime.utcnow())
 
 @main.route('/supervisor/work_orders')

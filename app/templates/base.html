@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
 
     <style>
         .search-wrapper {
@@ -54,6 +55,7 @@
 </head>
 
 <body>
+    {% block navbar %}
     <nav class="navbar navbar-expand-lg navbar-light navbar-ops sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="/">
@@ -104,29 +106,6 @@
                             <div class="nav-category-header">Credits</div>
                             <a class="dropdown-item rounded" href="{{ url_for('main.credits_search') }}">
                                 <i class="fas fa-file-image mr-1 small"></i> RMA Credit Images</a>
-                        </div>
-                    </li>
-
-                    <!-- Sales Group -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
-                            <i class="fas fa-handshake mr-1 small"></i> Sales
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-lg p-2">
-                            <div class="nav-category-header">Sales Intelligence</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.hub') }}">Sales Hub Dashboard</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.order_status') }}">Order Status
-                                Lookup</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.invoice_lookup') }}">Invoice
-                                Search</a>
-                            <div class="dropdown-divider"></div>
-                            <div class="nav-category-header">Performance & Products</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.rep_dashboard') }}">My
-                                Dashboard</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.reports') }}">Analytics &
-                                Reports</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.awards') }}">Leaderboard</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.products') }}">Product Lookup</a>
                         </div>
                     </li>
 
@@ -216,6 +195,7 @@
             </div>
         </div>
     </nav>
+    {% endblock %}
 
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -261,7 +241,7 @@
 
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
