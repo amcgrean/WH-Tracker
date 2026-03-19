@@ -2585,10 +2585,37 @@ class ERPService:
         Local Mode: Queries ERP directly.
         Cloud Mode: Queries ERPDeliveryKPI mirror table.
         """
+        if self.central_db_mode:
+            stats = self.get_historical_delivery_stats(days=14, branch_id=branch_id)
+            if not stats:
+                return {'avg_7d': 0, 'yesterday': 0}
+
+            stats_by_date = {}
+            for row in stats:
+                try:
+                    stats_by_date[str(row.get('date'))] = int(row.get('count') or 0)
+                except Exception:
+                    continue
+
+            yesterday = date.today() - timedelta(days=1)
+            yesterday_key = yesterday.isoformat()
+            yesterday_total = stats_by_date.get(yesterday_key, 0)
+
+            last_7 = []
+            for offset in range(1, 8):
+                day_key = (date.today() - timedelta(days=offset)).isoformat()
+                last_7.append(stats_by_date.get(day_key, 0))
+
+            avg_7d = sum(last_7) / len(last_7) if last_7 else 0
+            return {
+                'avg_7d': round(avg_7d, 1),
+                'yesterday': yesterday_total,
+            }
+
         if self.cloud_mode:
             from app.Models.models import ERPDeliveryKPI
             from sqlalchemy import func
-            
+
             query = ERPDeliveryKPI.query
             if branch_id:
                 query = query.filter_by(branch=branch_id)
