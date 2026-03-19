@@ -167,7 +167,16 @@ def main():
         ("GET", "/work_orders/open/1", None),
         ("GET", "/work_orders/scan/1", None),
         ("GET", "/work_orders/select?user_id=1&barcode=SO100", None),
-        ("POST", "/work_orders/start", {"user_id": "1", "selected_items": ["WO1|ITEM1|Build door"]}),
+        (
+            "POST",
+            "/work_orders/start",
+            {
+                "user_id": "1",
+                "selected_items": [
+                    '{"wo_id": "WO1", "so_number": "SO100", "item_number": "ITEM1", "description": "Build door"}'
+                ],
+            },
+        ),
         ("GET", "/supervisor/dashboard", None),
         ("GET", "/supervisor/work_orders", None),
         (

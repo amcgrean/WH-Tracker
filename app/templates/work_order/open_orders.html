@@ -7,7 +7,9 @@
         <thead>
             <tr>
                 <th>Work Order #</th>
+                <th>Sales Order #</th>
                 <th>Description</th>
+                <th>Status</th>
                 <th>Start Time</th>
                 <th>Action</th>
             </tr>
@@ -16,8 +18,10 @@
             {% for wo in open_orders %}
             <tr>
                 <td>{{ wo.work_order_number }}</td>
+                <td>{{ wo.sales_order_number or '—' }}</td>
                 <td>{{ wo.description }}</td>
-                <td>{{ wo.created_at.strftime('%m/%d/%y %H:%M') }}</td>
+                <td>{{ wo.status }}</td>
+                <td>{{ wo.created_at.strftime('%m/%d/%y %H:%M') if wo.created_at else '—' }}</td>
                 <td>
                     <form action="{{ url_for('main.complete_work_order', wo_id=wo.id) }}" method="post">
                         <button type="submit">Complete</button>
@@ -26,7 +30,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="4">No open work orders.</td>
+                <td colspan="6">No open work orders.</td>
             </tr>
             {% endfor %}
         </tbody>
