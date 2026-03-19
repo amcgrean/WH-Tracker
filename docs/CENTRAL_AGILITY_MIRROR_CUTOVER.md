@@ -151,6 +151,17 @@ For `tracker` on Vercel or any other serverless platform:
 
 That setup is the minimum needed to avoid connection-count spikes when many concurrent requests cold-start at once. The app code is now configured to honor those engine settings, but the database endpoint itself still needs to be the pooled variant in production.
 
+## Tracker App DB Cutover
+
+Tracker can now run with both:
+
+- `DATABASE_URL` pointing at Supabase for app-owned tables like `pickster`, `pick`, `work_orders`, and `customer_notes`
+- `CENTRAL_DB_URL` pointing at the same Supabase database for normalized ERP mirror reads
+
+For local cutover support, `migrate_tracker_tables_to_supabase.py` copies the core Tracker-owned tables from the old database into Supabase.
+
+By default it migrates the app-owned tables needed for live Tracker behavior. The old legacy cache tables (`erp_mirror_picks`, `erp_mirror_work_orders`, `erp_delivery_kpis`) are left out unless `INCLUDE_LEGACY_MIRROR_TABLES` is explicitly set, because the app should now prefer normalized mirror reads from Supabase instead of depending on the older cache tables.
+
 As of 2026-03-19, that smoke path also validates the current Alembic chain on SQLite, including:
 
 - the normalized ERP mirror migration branch
