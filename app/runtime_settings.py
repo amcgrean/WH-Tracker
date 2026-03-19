@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from sqlalchemy.pool import NullPool
 
 
 def project_root() -> Path:
@@ -47,6 +48,43 @@ def get_central_db_url() -> str | None:
     return normalize_database_url(os.environ.get("CENTRAL_DB_URL"))
 
 
+def is_pooled_postgres_url(url: str | None) -> bool:
+    normalized = normalize_database_url(url) or ""
+    if not normalized.startswith("postgresql://"):
+        return False
+    return "pooler" in normalized.lower()
+
+
+def get_sqlalchemy_engine_options(url: str | None, *, serverless_default: bool = True) -> dict:
+    if not url:
+        return {}
+
+    normalized = normalize_database_url(url) or ""
+    if not normalized.startswith("postgresql://"):
+        return {}
+
+    use_null_pool = env_bool("DB_USE_NULL_POOL", serverless_default and env_bool("VERCEL", False))
+    if use_null_pool:
+        return {
+            "poolclass": NullPool,
+            "pool_pre_ping": True,
+        }
+
+    pool_size = max(1, env_int("DB_POOL_SIZE", 5))
+    max_overflow = max(0, env_int("DB_MAX_OVERFLOW", 5))
+    pool_timeout = max(5, env_int("DB_POOL_TIMEOUT", 30))
+    pool_recycle = max(60, env_int("DB_POOL_RECYCLE", 300))
+
+    return {
+        "pool_pre_ping": True,
+        "pool_recycle": pool_recycle,
+        "pool_timeout": pool_timeout,
+        "pool_use_lifo": True,
+        "pool_size": pool_size,
+        "max_overflow": max_overflow,
+    }
+
+
 def get_sync_settings() -> dict:
     return {
         "api_url": os.environ.get("CLOUD_API_URL", "http://localhost:5000/erp-cloud-sync"),
@@ -54,6 +92,20 @@ def get_sync_settings() -> dict:
         "database_url": get_database_url(),
         "interval_seconds": max(3, env_int("SYNC_INTERVAL_SECONDS", 5)),
         "change_monitoring": env_bool("SYNC_CHANGE_MONITORING", True),
+        "worker_name": os.environ.get("SYNC_WORKER_NAME", "erp-sync"),
+        "worker_mode": os.environ.get("SYNC_WORKER_MODE", "pi"),
+    }
+
+
+def get_mirror_sync_settings() -> dict:
+    return {
+        "heartbeat_interval_seconds": max(3, env_int("SYNC_HEARTBEAT_INTERVAL_SECONDS", 5)),
+        "master_cadence_seconds": max(30, env_int("SYNC_MASTER_CADENCE_SECONDS", 300)),
+        "operational_cadence_seconds": max(3, env_int("SYNC_OPERATIONAL_CADENCE_SECONDS", 5)),
+        "ar_cadence_seconds": max(30, env_int("SYNC_AR_CADENCE_SECONDS", 300)),
+        "document_cadence_seconds": max(30, env_int("SYNC_DOCUMENT_CADENCE_SECONDS", 300)),
+        "batch_size": max(100, env_int("SYNC_BATCH_SIZE", 1000)),
+        "staging_schema": os.environ.get("MIRROR_STAGING_SCHEMA", "public"),
         "worker_name": os.environ.get("SYNC_WORKER_NAME", "erp-sync"),
         "worker_mode": os.environ.get("SYNC_WORKER_MODE", "pi"),
     }

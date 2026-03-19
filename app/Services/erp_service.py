@@ -4,7 +4,13 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 from sqlalchemy import bindparam, create_engine, inspect, text
 from app.Models.models import ERPMirrorPick, ERPMirrorWorkOrder
-from app.runtime_settings import build_sql_connection_strings, env_bool, get_central_db_url, get_sql_server_settings
+from app.runtime_settings import (
+    build_sql_connection_strings,
+    env_bool,
+    get_central_db_url,
+    get_sql_server_settings,
+    get_sqlalchemy_engine_options,
+)
 
 try:
     import pyodbc
@@ -29,7 +35,7 @@ class ERPService:
         url = (get_central_db_url() or "").strip()
         if not url:
             return None
-        return create_engine(url, pool_pre_ping=True, pool_recycle=300)
+        return create_engine(url, **get_sqlalchemy_engine_options(url))
 
     def _mirror_query(self, sql, params=None, expanding=None):
         engine = self._mirror_engine()
