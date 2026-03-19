@@ -6,7 +6,6 @@ import time
 from datetime import datetime, date
 from pathlib import Path
 
-import requests
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -21,8 +20,6 @@ class LocalSync:
         from app.Services.geocoding_service import GeocodingService
 
         self.settings = get_sync_settings()
-        self.api_url = self.settings["api_url"]
-        self.api_key = self.settings["api_key"]
         self.database_url = self.settings["database_url"]
         self.sync_interval = self.settings["interval_seconds"]
         self.change_monitoring = self.settings["change_monitoring"]
@@ -39,18 +36,22 @@ class LocalSync:
         self.last_payload_hash = None
         self.last_change_token = None
 
-        if self.database_url:
-            print(f"[{datetime.now()}] Direct SQL Mode Enabled. Connecting to mirror DB...")
-            try:
-                self.engine = create_engine(self.database_url)
-                self.Session = sessionmaker(bind=self.engine)
-                self.db_session = self.Session()
-                with self.engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                print(f"[{datetime.now()}] Mirror DB connection successful.")
-            except Exception as e:
-                print(f"[{datetime.now()}] Mirror DB connection failed: {e}")
-                self.db_session = None
+        if not self.database_url:
+            raise RuntimeError(
+                "DATABASE_URL is required for sync_erp.py. Legacy API sync mode has been retired."
+            )
+
+        print(f"[{datetime.now()}] Direct SQL Mode Enabled. Connecting to mirror DB...")
+        try:
+            self.engine = create_engine(self.database_url)
+            self.Session = sessionmaker(bind=self.engine)
+            self.db_session = self.Session()
+            with self.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"[{datetime.now()}] Mirror DB connection successful.")
+        except Exception as e:
+            print(f"[{datetime.now()}] Mirror DB connection failed: {e}")
+            raise
 
     def _parse_erp_datetime(self, date_str):
         if not date_str:
@@ -127,7 +128,7 @@ class LocalSync:
             "worker_name": self.worker_name,
             "worker_mode": self.worker_mode,
             "source_mode": "local_sql",
-            "target_mode": "direct_db" if self.db_session else "cloud_api",
+            "target_mode": "direct_db",
             "interval_seconds": self.sync_interval,
             "change_monitoring": self.change_monitoring,
             "status": status,
@@ -180,16 +181,10 @@ class LocalSync:
             state.last_error_at = now
         self.db_session.commit()
 
-    def _record_status_api(self, payload):
-        self._send_payload({"sync_status": payload}, reset=False)
-
     def record_status(self, payload):
         self._write_status_file(payload)
         try:
-            if self.db_session:
-                self._record_status_direct(payload)
-            else:
-                self._record_status_api(payload)
+            self._record_status_direct(payload)
         except Exception as e:
             print(f"[{datetime.now()}] Failed to persist sync status: {e}")
 
@@ -210,10 +205,7 @@ class LocalSync:
             return status
 
         try:
-            if self.db_session:
-                self.push_direct_to_db(data)
-            else:
-                self.push_via_api(data, sync_started_at=sync_started_at)
+            self.push_direct_to_db(data)
 
             status = self._status_payload(
                 status="success",
@@ -405,52 +397,6 @@ class LocalSync:
         except Exception:
             self.db_session.rollback()
             raise
-
-    def push_via_api(self, data, sync_started_at):
-        chunk_size = 500
-
-        picks = data.get("picks", [])
-        for i in range(0, len(picks), chunk_size):
-            chunk = picks[i:i + chunk_size]
-            self._send_payload(
-                {
-                    "picks": chunk,
-                    "sync_started_at": sync_started_at,
-                    "complete": i + chunk_size >= len(picks),
-                },
-                reset=True,
-            )
-
-        work_orders = data.get("work_orders", [])
-        for i in range(0, len(work_orders), chunk_size):
-            chunk = work_orders[i:i + chunk_size]
-            self._send_payload(
-                {
-                    "work_orders": chunk,
-                    "sync_started_at": sync_started_at,
-                    "complete": i + chunk_size >= len(work_orders),
-                },
-                reset=True,
-            )
-
-        kpis = data.get("kpis", [])
-        if kpis:
-            self._send_payload(
-                {
-                    "kpis": kpis,
-                    "sync_started_at": sync_started_at,
-                    "complete": True,
-                },
-                reset=True,
-            )
-
-    def _send_payload(self, payload, reset=True):
-        headers = {"X-API-KEY": self.api_key}
-        params = {"reset": "true" if reset else "false"}
-        response = requests.post(self.api_url, json=payload, headers=headers, params=params, timeout=60)
-        if response.status_code != 200:
-            raise RuntimeError(f"API sync failed: {response.status_code} - {response.text[:200]}")
-        print(f"[{datetime.now()}] API sync payload accepted.")
 
     def run(self):
         print("Starting Local ERP Sync Service with change monitoring...")
