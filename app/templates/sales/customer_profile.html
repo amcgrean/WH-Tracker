@@ -135,7 +135,7 @@
                             {% if seen.append(row.so_number) %}{% endif %}
                             <tr>
                                 <td>
-                                    <a href="{{ url_for('main.warehouse_detail', so_number=row.so_number) }}"
+                                    <a href="{{ url_for('main.pick_detail', so_number=row.so_number) }}"
                                        class="font-weight-bold text-primary">{{ row.so_number }}</a>
                                 </td>
                                 <td>
@@ -223,16 +223,16 @@
                                     <span class="text-muted">{{ note.created_at.strftime('%m/%d') }}</span>
                                 </div>
                                 <small class="text-muted">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') if note.created_at else '' }}</small>
+                                <p class="mb-0 mt-1 small">{{ note.body }}</p>
                             </div>
-                            <p class="mb-0 mt-1 small">{{ note.body }}</p>
+                            {% else %}
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-sticky-note fa-2x mb-2 d-block"></i>
+                                No notes yet. <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}">Add the first one.</a>
+                            </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center text-muted py-4">
-                            <i class="fas fa-sticky-note fa-2x mb-2 d-block"></i>
-                            No notes yet. <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}">Add the first one.</a>
-                        </div>
-                    {% endif %}
+                    </div>
                 </div>
             </div>
 

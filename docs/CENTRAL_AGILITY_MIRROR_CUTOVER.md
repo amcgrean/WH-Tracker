@@ -1,6 +1,6 @@
 # Central Agility Mirror + ToolBx Cutover
 
-Last updated: 2026-03-18
+Last updated: 2026-03-19
 
 ## Ownership
 
@@ -140,6 +140,15 @@ Run it with the project venv:
 
 The script stands up a temporary SQLite app DB, mocks ERP service responses, and verifies the key sales, work-order, and supervisor routes render and post without relying on live ERP connectivity.
 
+As of 2026-03-19, that smoke path also validates the current Alembic chain on SQLite, including:
+
+- the normalized ERP mirror migration branch
+- the customer notes branch
+- the merge migration that reunifies those heads
+- the audit trail migration in SQLite-safe batch mode
+
+This keeps local and CI-style boot checks from passing the routes while silently leaving the migration graph in a branched or partially applied state.
+
 ## Current Cleanup Boundary
 
 Safe to keep:
@@ -179,3 +188,4 @@ Recommended next cleanup happens only after confirming no deployment still depen
 - some ERP tables may not have reliable change timestamps
 - document metadata/file linkage may need one more schema pass after first mirror validation
 - 3-5 second sync is realistic for only the hottest table families at first
+- serverless startup still logs a migration error when the configured Postgres target is unreachable; import continues, but live deployment validation should still be done against reachable DB credentials

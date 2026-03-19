@@ -59,6 +59,20 @@ def get_sync_settings() -> dict:
     }
 
 
+def get_mirror_sync_settings() -> dict:
+    return {
+        "heartbeat_interval_seconds": max(3, env_int("SYNC_HEARTBEAT_INTERVAL_SECONDS", 5)),
+        "master_cadence_seconds": max(30, env_int("SYNC_MASTER_CADENCE_SECONDS", 300)),
+        "operational_cadence_seconds": max(3, env_int("SYNC_OPERATIONAL_CADENCE_SECONDS", 5)),
+        "ar_cadence_seconds": max(30, env_int("SYNC_AR_CADENCE_SECONDS", 300)),
+        "document_cadence_seconds": max(30, env_int("SYNC_DOCUMENT_CADENCE_SECONDS", 300)),
+        "batch_size": max(100, env_int("SYNC_BATCH_SIZE", 1000)),
+        "staging_schema": os.environ.get("MIRROR_STAGING_SCHEMA", "public"),
+        "worker_name": os.environ.get("SYNC_WORKER_NAME", "erp-sync"),
+        "worker_mode": os.environ.get("SYNC_WORKER_MODE", "pi"),
+    }
+
+
 def get_sql_server_settings() -> dict:
     dsn = (os.environ.get("SQLSERVER_DSN") or "").strip()
     if dsn:

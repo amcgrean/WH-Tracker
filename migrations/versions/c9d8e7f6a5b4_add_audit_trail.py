@@ -20,14 +20,16 @@ def upgrade():
     # Add notes column to pick table
     op.add_column('pick', sa.Column('notes', sa.Text(), nullable=True))
 
-    # Add notes and completed_by_id to work_orders table
-    op.add_column('work_orders', sa.Column('notes', sa.Text(), nullable=True))
-    op.add_column('work_orders', sa.Column('completed_by_id', sa.Integer(), nullable=True))
-    op.create_foreign_key(
-        'fk_work_orders_completed_by_id',
-        'work_orders', 'pickster',
-        ['completed_by_id'], ['id']
-    )
+    # Use batch mode so SQLite test databases can apply this migration too.
+    with op.batch_alter_table('work_orders', schema=None) as batch_op:
+        batch_op.add_column(sa.Column('notes', sa.Text(), nullable=True))
+        batch_op.add_column(sa.Column('completed_by_id', sa.Integer(), nullable=True))
+        batch_op.create_foreign_key(
+            'fk_work_orders_completed_by_id',
+            'pickster',
+            ['completed_by_id'],
+            ['id'],
+        )
 
     # Create audit_events table
     op.create_table(
@@ -54,8 +56,9 @@ def downgrade():
     op.drop_index('ix_audit_events_event_type', table_name='audit_events')
     op.drop_table('audit_events')
 
-    op.drop_constraint('fk_work_orders_completed_by_id', 'work_orders', type_='foreignkey')
-    op.drop_column('work_orders', 'completed_by_id')
-    op.drop_column('work_orders', 'notes')
+    with op.batch_alter_table('work_orders', schema=None) as batch_op:
+        batch_op.drop_constraint('fk_work_orders_completed_by_id', type_='foreignkey')
+        batch_op.drop_column('completed_by_id')
+        batch_op.drop_column('notes')
 
     op.drop_column('pick', 'notes')

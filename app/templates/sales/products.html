@@ -3,11 +3,10 @@
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5">
-
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
-            <li class="breadcrumb-item active">Product Pricing</li>
+            <li class="breadcrumb-item active">Product Reference</li>
         </ol>
     </nav>
 
@@ -16,22 +15,18 @@
             <h1 class="h2 font-weight-bold mb-0" style="color:#6f42c1;">
                 <i class="fas fa-tags mr-2"></i> Product Pricing Quick Reference
             </h1>
-            <p class="text-muted mb-0">Search the item catalog for descriptions and pricing synced from the central database</p>
+            <p class="text-muted mb-0">Search the item catalog for descriptions and pricing synced from the central DB</p>
         </div>
     </div>
 
-    <!-- Search -->
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body py-3">
-            <form method="get" action="{{ url_for('sales.products') }}">
-                <div class="input-group input-group-lg">
-                    <div class="input-group-prepend">
-                        <span class="input-group-text bg-white border-right-0"><i class="fas fa-search text-muted"></i></span>
-                    </div>
-                    <input type="text" name="q" class="form-control border-left-0" autofocus
-                           placeholder="Item number, description, or keyword..." value="{{ q }}">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('sales.products') }}">
+                <div class="input-group input-group-lg shadow-sm">
+                    <input type="text" name="q" class="form-control" value="{{ q }}"
+                        placeholder="Search item # or description (e.g. 2x4-92 5/8 or 10240)...">
                     <div class="input-group-append">
-                        <button class="btn text-white px-4" style="background:#6f42c1;" type="submit">Search</button>
+                        <button class="btn text-white" style="background:#6f42c1;" type="submit">Search Item</button>
                     </div>
                 </div>
             </form>
@@ -46,7 +41,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between mb-2">
                         <span class="badge badge-light border">{{ item.item_number }}</span>
-                        <span class="text-info font-weight-bold">$1.00</span> <!-- Price proxy -->
+                        <span class="text-info font-weight-bold">$1.00</span>
                     </div>
                     <h6 class="font-weight-bold mb-3">{{ item.description }}</h6>
                     <div class="d-flex justify-content-between small border-top pt-2">
@@ -60,71 +55,28 @@
                 </div>
             </div>
         </div>
-        <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0">
-                <thead class="thead-light">
-                    <tr>
-                        <th>Item Number</th>
-                        <th>Description</th>
-                        <th>Unit Price</th>
-                        <th>Availability</th>
-                        <th>Categories</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr>
-                        <td class="font-weight-bold" style="color:#6f42c1;">{{ item.item_number or '—' }}</td>
-                        <td>{{ item.description or '—' }}</td>
-                        <td class="text-muted fst-italic">
-                            <span class="badge badge-light">Sync pending</span>
-                        </td>
-                        <td>
-                            <span class="badge badge-light text-muted">Check Agility</span>
-                        </td>
-                        <td>
-                            <a href="{{ url_for('sales.order_history', q=item.item_number) }}"
-                               class="btn btn-xs btn-outline-secondary">Orders</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-search-minus fa-2x mb-3 text-muted"></i>
+            <p class="text-muted">No items found matching "{{ q }}". Try a broader search term or item number prefix.</p>
         </div>
+        {% endfor %}
     </div>
-
-    {% elif q %}
-    <div class="card border-0 shadow-sm">
-        <div class="card-body text-center py-5 text-muted">
-            <i class="fas fa-search fa-2x d-block mb-2"></i>
-            No items found for <strong>"{{ q }}"</strong>.
-            <p class="small mt-2">Try a broader search term or item number prefix.</p>
-        </div>
-    </div>
-
     {% else %}
-    <div class="card border-0 shadow-sm">
-        <div class="card-body text-center py-5">
-            <i class="fas fa-tags fa-3x d-block mb-3" style="opacity:0.15;color:#6f42c1;"></i>
-            <h5 class="text-muted">Search the product catalog above</h5>
-            <p class="text-muted small">
-                Item data is sourced from order line records in the central database.
-                Full catalog and pricing will be added as Agility sync expands.
-            </p>
-
-            <!-- Common Category Quick Links (illustrative) -->
+    <div class="row justify-content-center py-5">
+        <div class="col-md-6 text-center">
+            <i class="fas fa-box-open fa-3x mb-4" style="color:#6f42c1; opacity:0.1;"></i>
+            <h5 class="font-weight-bold">Search the product catalog above</h5>
+            <p class="text-muted small">Item data is sourced from order line records in the central database. Full
+                catalog and pricing will be added as Agility sync expands.</p>
             <div class="mt-4">
-                <p class="small font-weight-bold text-muted text-uppercase">Quick searches</p>
-                <div class="d-flex flex-wrap justify-content-center gap-2">
-                    {% for term in ['Lumber', 'Decking', 'Millwork', 'Doors', 'Windows', 'Hardware', 'EWP', 'Trim'] %}
-                    <a href="{{ url_for('sales.products', q=term) }}"
-                       class="btn btn-sm btn-outline-secondary m-1">{{ term }}</a>
-                    {% endfor %}
-                </div>
+                <span class="text-muted small mr-2">Quick searches:</span>
+                {% for term in ['2x4', 'Trim', 'Door', 'Siding', 'Hardware'] %}
+                <a href="{{ url_for('sales.products', q=term) }}" class="badge badge-light border mx-1 px-3 py-2">{{ term }}</a>
+                {% endfor %}
             </div>
         </div>
     </div>
     {% endif %}
-
 </div>
 {% endblock %}
