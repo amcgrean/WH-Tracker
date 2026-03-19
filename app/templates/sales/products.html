@@ -38,19 +38,27 @@
         </div>
     </div>
 
-    <!-- Pricing Note Banner -->
-    <div class="alert alert-warning border-0 shadow-sm mb-4">
-        <i class="fas fa-exclamation-triangle mr-2"></i>
-        <strong>Pricing data note:</strong> Pricing will be populated once the central database sync includes the
-        Agility pricing tables. Item numbers and descriptions are already available from order line data.
-        Contact IT to add the <code>ItemPricing</code> table to the sync.
-    </div>
-
-    {% if items %}
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between">
-            <span><i class="fas fa-list mr-1" style="color:#6f42c1;"></i> Items matching "{{ q }}"</span>
-            <span class="badge badge-pill text-white" style="background:#6f42c1;">{{ items|length }} items</span>
+    {% if q %}
+    <div class="row">
+        {% for item in products %}
+        <div class="col-md-4 col-lg-3 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="badge badge-light border">{{ item.item_number }}</span>
+                        <span class="text-info font-weight-bold">$1.00</span> <!-- Price proxy -->
+                    </div>
+                    <h6 class="font-weight-bold mb-3">{{ item.description }}</h6>
+                    <div class="d-flex justify-content-between small border-top pt-2">
+                        <span class="text-muted">Mirror Qty:</span>
+                        <span class="font-weight-bold">{{ item.quantity_on_hand|int }}</span>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top-0 d-flex p-2">
+                    <a href="{{ url_for('sales.order_history', customer_number='', q=item.item_number) }}"
+                        class="btn btn-xs btn-block btn-outline-secondary">Recent Usage</a>
+                </div>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-sm mb-0">

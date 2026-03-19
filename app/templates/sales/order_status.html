@@ -95,26 +95,47 @@
                         </div>
                     </div>
 
-                    <!-- Progress bar for order lifecycle -->
-                    <div class="mt-3">
-                        <div class="d-flex small text-muted mb-1 justify-content-between">
-                            <span>Pick Printed</span><span>Picking</span><span>Staged</span><span>Delivered</span>
-                        </div>
-                        <div class="progress" style="height:8px;border-radius:4px;">
-                            {% if r.delivered_at %}
-                                <div class="progress-bar bg-success" style="width:100%"></div>
-                            {% elif r.staged_at %}
-                                <div class="progress-bar bg-info" style="width:75%"></div>
-                            {% elif r.local_pick_state == 'Picking Complete' %}
-                                <div class="progress-bar bg-primary" style="width:50%"></div>
-                            {% elif r.printed_at %}
-                                <div class="progress-bar bg-warning" style="width:25%"></div>
-                            {% else %}
-                                <div class="progress-bar bg-light" style="width:10%"></div>
-                            {% endif %}
+            <div class="row">
+                {% for r in orders %}
+                <div class="col-md-6 mb-3">
+                    <div class="card border-0 shadow-sm transition-hover">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-2">
+                                <h5 class="font-weight-bold mb-0 text-primary">{{ r.so_number }}</h5>
+                                <span
+                                    class="badge badge-pill badge-{% if r.so_status == 'O' %}info{% elif r.so_status == 'I' %}success{% else %}secondary{% endif %}">
+                                    {{ r.so_status }}
+                                </span>
+                            </div>
+                            <div class="font-weight-bold small mb-3">{{ r.customer_name }}</div>
+
+                            <div class="row small mb-3">
+                                <div class="col-6">
+                                    <div class="text-muted">Expected</div>
+                                    <div class="font-weight-bold">{{ r.expect_date or '—' }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted">Handling</div>
+                                    <div class="font-weight-bold">{{ r.handling_code or '—' }}</div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex border-top pt-3 mt-1">
+                                <a href="{{ url_for('main.pick_detail', so_number=r.so_number) }}"
+                                    class="btn btn-xs btn-outline-secondary mr-2 flex-grow-1">WH Detail</a>
+                                <a href="{{ url_for('sales.customer_profile', customer_number=r.customer_code or r.customer_name) }}"
+                                    class="btn btn-xs btn-outline-info flex-grow-1">Customer</a>
+                            </div>
                         </div>
                     </div>
                 </div>
+                {% endfor %}
+            </div>
+
+            <div class="text-center mt-3">
+                <a href="{{ url_for('sales.order_history', customer_number='', q=q) }}" class="small font-weight-bold text-info">
+                    Search full order history <i class="fas fa-chevron-right ml-1"></i>
+                </a>
             </div>
             {% endif %}
             {% endfor %}
@@ -141,42 +162,10 @@
 
 </div>
 
-{% block scripts %}
-<script>
-$(document).ready(function() {
-    const $input = $('#statusSearchInput');
-    const $sugg = $('#statusSuggestions');
-
-    $input.on('input', function() {
-        const q = $(this).val().trim();
-        if (q.length < 2) { $sugg.hide(); return; }
-
-        $.getJSON('/sales/api/order-status-search?q=' + encodeURIComponent(q), function(data) {
-            $sugg.empty();
-            if (!data.length) { $sugg.hide(); return; }
-            data.forEach(function(r) {
-                $sugg.append(`
-                    <div class="p-3 border-bottom suggestion-item" style="cursor:pointer;"
-                         onclick="window.location='/sales/order-status?q=${encodeURIComponent(r.so_number)}'">
-                        <div class="d-flex justify-content-between">
-                            <span class="font-weight-bold">${r.so_number}</span>
-                            <span class="badge badge-${r.so_status==='O'?'success':'secondary'}">${r.so_status==='O'?'Open':'Other'}</span>
-                        </div>
-                        <div class="small text-muted">${r.customer_name || ''} — Expect: ${r.expect_date || '—'}</div>
-                    </div>
-                `);
-            });
-            $sugg.show();
-        });
-    });
-
-    $(document).on('click', function(e) {
-        if (!$(e.target).closest('#statusSearchForm').length) $sugg.hide();
-    });
-
-    $('.suggestion-item').on('mouseenter', function() { $(this).css('background','#f8f9fa'); })
-                          .on('mouseleave', function() { $(this).css('background',''); });
-});
-</script>
-{% endblock %}
+<style>
+    .transition-hover:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+    }
+</style>
 {% endblock %}

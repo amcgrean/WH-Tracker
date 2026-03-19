@@ -107,15 +107,10 @@
                                 <span class="badge badge-light text-muted">{{ order.so_status or '—' }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ order.handling_code or '—' }}</td>
-                        <td>{{ order.expect_date or '—' }}</td>
-                        <td>{{ order.ship_via or '—' }}</td>
-                        <td>{{ order.driver or '—' }}</td>
-                        <td>{{ order.line_count or '—' }}</td>
-                        <td>{{ order.sale_type or '—' }}</td>
-                        <td>
-                            <a href="{{ url_for('main.warehouse_detail', so_number=order.so_number) }}"
-                               class="btn btn-xs btn-outline-primary">View</a>
+                        <td class="text-right small text-muted">{{ order.reference }}</td>
+                        <td class="text-right">
+                            <a href="{{ url_for('main.pick_detail', so_number=order.so_number) }}"
+                                class="btn btn-xs btn-outline-secondary">View</a>
                         </td>
                     </tr>
                     {% else %}

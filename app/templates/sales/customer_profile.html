@@ -162,22 +162,65 @@
                 </div>
             </div>
 
-            <!-- Recent Notes -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-sticky-note mr-1 text-secondary"></i> Activity Notes</span>
-                    <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-plus mr-1"></i> Add Note
-                    </a>
-                </div>
-                <div class="card-body py-2">
-                    {% if notes %}
-                        {% for note in notes %}
-                        <div class="py-2 border-bottom">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <span class="badge badge-secondary badge-pill mr-1">{{ note.note_type }}</span>
-                                    <small class="text-muted">by {{ note.rep_name or 'Sales Rep' }}</small>
+            <div class="tab-content" id="pills-tabContent">
+                <div class="tab-pane fade show active" id="pills-orders" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <span class="font-weight-bold">Last 10 Sync Records</span>
+                            <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
+                                class="btn btn-xs btn-link text-info">View All History</a>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>SO #</th>
+                                        <th>Expected</th>
+                                        <th>Status</th>
+                                        <th class="text-right">Synced At</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in recent_orders %}
+                                    <tr>
+                                        <td class="font-weight-bold text-info">{{ row.so_number }}</td>
+                                        <td>{{ row.expect_date or '—' }}</td>
+                                        <td>
+                                            <span
+                                                class="badge badge-pill badge-{% if row.so_status == 'O' %}info{% elif row.so_status == 'I' %}success{% else %}secondary{% endif %}">
+                                                {{ row.so_status }}
+                                            </span>
+                                        </td>
+                                        <td class="text-right small text-muted">{{ row.synced_at_display }}</td>
+                                        <td class="text-right">
+                                            <a href="{{ url_for('main.pick_detail', so_number=row.so_number) }}"
+                                                class="btn btn-xs btn-outline-secondary">Details</a>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-muted">No records found for this
+                                            customer number.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm mt-4">
+                        <div class="card-header bg-white font-weight-bold d-flex justify-content-between">
+                            <span>Recent Notes</span>
+                            <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
+                                class="btn btn-xs btn-outline-info">Add Note</a>
+                        </div>
+                        <div class="list-group list-group-flush small">
+                            {% for note in notes[:3] %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="font-weight-bold text-info">{{ note.note_type }}</span>
+                                    <span class="text-muted">{{ note.created_at.strftime('%m/%d') }}</span>
                                 </div>
                                 <small class="text-muted">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') if note.created_at else '' }}</small>
                             </div>
