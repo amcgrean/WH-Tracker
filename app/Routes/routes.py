@@ -6,6 +6,7 @@ from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.extensions import db
 from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, AuditEvent, ERPDeliveryKPI, ERPSyncState
+from app.runtime_settings import env_bool
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
@@ -694,6 +695,9 @@ def search_results():
 def sync_erp_data():
     # Legacy back-compat ingest path for ERPMirrorPick/ERPMirrorWorkOrder.
     # Central mirror reads now flow through ERPService when CENTRAL_DB_URL is configured.
+    if os.environ.get('VERCEL') and not env_bool('ENABLE_LEGACY_SYNC_ENDPOINT', False):
+        return jsonify({'error': 'Legacy sync endpoint disabled in serverless deployment'}), 404
+
     api_key = request.headers.get('X-API-KEY')
     # Simple security check
     if not api_key or api_key != os.environ.get('SYNC_API_KEY'):

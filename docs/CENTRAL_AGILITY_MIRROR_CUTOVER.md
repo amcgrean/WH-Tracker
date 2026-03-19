@@ -97,6 +97,7 @@ Worker/system tables:
 - SQL Server is read-only from the Pi worker
 - Supabase/Postgres is write-only for the mirror worker
 - mirror reads from apps never require local ERP network access
+- for serverless deployments, Postgres should use a pooled connection endpoint and serverless-safe SQLAlchemy engine options
 - Pi steady state is:
   - continuous worker on `--family operational`
   - separate master sync timer
@@ -139,6 +140,16 @@ Run it with the project venv:
 - `.\venv\Scripts\python.exe .\verify_route_smoke.py`
 
 The script stands up a temporary SQLite app DB, mocks ERP service responses, and verifies the key sales, work-order, and supervisor routes render and post without relying on live ERP connectivity.
+
+## Deployment Capacity Notes
+
+For `tracker` on Vercel or any other serverless platform:
+
+- use a pooled Postgres connection string, not a direct raw Postgres host, for `DATABASE_URL`
+- keep `DB_USE_NULL_POOL=true` unless you have a non-serverless runtime with controlled worker counts
+- use the same guidance for `CENTRAL_DB_URL` if central-mirror reads are enabled from the app runtime
+
+That setup is the minimum needed to avoid connection-count spikes when many concurrent requests cold-start at once. The app code is now configured to honor those engine settings, but the database endpoint itself still needs to be the pooled variant in production.
 
 As of 2026-03-19, that smoke path also validates the current Alembic chain on SQLite, including:
 

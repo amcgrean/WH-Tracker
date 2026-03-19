@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 from flask_migrate import upgrade
 from .extensions import db, migrate
@@ -6,6 +8,7 @@ from .Models.central_db import CentralSalesOrder, CentralSalesOrderLine, Central
 from .Routes.routes import main as main_blueprint
 from .Routes.dispatch_routes import dispatch as dispatch_blueprint
 from .Routes.sales_routes import sales as sales_blueprint
+from .runtime_settings import env_bool, get_central_db_url, get_database_url, is_pooled_postgres_url
 
 
 def _resolve_branched_alembic_state(app):
@@ -103,8 +106,19 @@ def create_app():
     app.register_blueprint(dispatch_blueprint)
     app.register_blueprint(sales_blueprint)
 
-    # Run all pending migrations on startup (handles new columns, tables, etc.)
-    with app.app_context():
-        _run_migrations(app)
+    if app.config.get("VERCEL") or os.environ.get("VERCEL"):
+        primary_url = get_database_url()
+        central_url = get_central_db_url()
+        if primary_url and not is_pooled_postgres_url(primary_url):
+            app.logger.warning("DATABASE_URL does not appear to be a pooled Postgres endpoint; burst traffic may exhaust connections.")
+        if central_url and not is_pooled_postgres_url(central_url):
+            app.logger.warning("CENTRAL_DB_URL does not appear to be a pooled Postgres endpoint; burst mirror reads may exhaust connections.")
+
+    run_migrations_on_start = env_bool("RUN_MIGRATIONS_ON_START", not os.environ.get("VERCEL"))
+    if run_migrations_on_start:
+        with app.app_context():
+            _run_migrations(app)
+    else:
+        app.logger.info("Skipping runtime migrations on startup.")
 
     return app

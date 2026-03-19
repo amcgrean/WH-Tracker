@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from sqlalchemy.pool import NullPool
 
 
 def project_root() -> Path:
@@ -45,6 +46,43 @@ def get_database_url() -> str | None:
 
 def get_central_db_url() -> str | None:
     return normalize_database_url(os.environ.get("CENTRAL_DB_URL"))
+
+
+def is_pooled_postgres_url(url: str | None) -> bool:
+    normalized = normalize_database_url(url) or ""
+    if not normalized.startswith("postgresql://"):
+        return False
+    return "pooler" in normalized.lower()
+
+
+def get_sqlalchemy_engine_options(url: str | None, *, serverless_default: bool = True) -> dict:
+    if not url:
+        return {}
+
+    normalized = normalize_database_url(url) or ""
+    if not normalized.startswith("postgresql://"):
+        return {}
+
+    use_null_pool = env_bool("DB_USE_NULL_POOL", serverless_default and env_bool("VERCEL", False))
+    if use_null_pool:
+        return {
+            "poolclass": NullPool,
+            "pool_pre_ping": True,
+        }
+
+    pool_size = max(1, env_int("DB_POOL_SIZE", 5))
+    max_overflow = max(0, env_int("DB_MAX_OVERFLOW", 5))
+    pool_timeout = max(5, env_int("DB_POOL_TIMEOUT", 30))
+    pool_recycle = max(60, env_int("DB_POOL_RECYCLE", 300))
+
+    return {
+        "pool_pre_ping": True,
+        "pool_recycle": pool_recycle,
+        "pool_timeout": pool_timeout,
+        "pool_use_lifo": True,
+        "pool_size": pool_size,
+        "max_overflow": max_overflow,
+    }
 
 
 def get_sync_settings() -> dict:
