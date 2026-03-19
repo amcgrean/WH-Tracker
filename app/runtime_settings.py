@@ -45,7 +45,7 @@ def get_database_url() -> str | None:
 
 
 def get_central_db_url() -> str | None:
-    return normalize_database_url(os.environ.get("CENTRAL_DB_URL"))
+    return normalize_database_url(os.environ.get("CENTRAL_DB_URL") or os.environ.get("DATABASE_URL"))
 
 
 def is_pooled_postgres_url(url: str | None) -> bool:
