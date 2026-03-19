@@ -113,8 +113,7 @@
                                                 {{ row.so_status }}
                                             </span>
                                         </td>
-                                        <td class="text-right small text-muted">{{ row.synced_at.strftime('%m/%d %H:%M')
-                                            }}</td>
+                                        <td class="text-right small text-muted">{{ row.synced_at_display }}</td>
                                         <td class="text-right">
                                             <a href="{{ url_for('main.pick_detail', so_number=row.so_number) }}"
                                                 class="btn btn-xs btn-outline-secondary">Details</a>
