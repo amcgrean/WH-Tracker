@@ -9,6 +9,7 @@ from .Routes.routes import main as main_blueprint
 from .Routes.dispatch_routes import dispatch as dispatch_blueprint
 from .Routes.sales_routes import sales as sales_blueprint
 from .runtime_settings import env_bool, get_central_db_url, get_database_url, is_pooled_postgres_url
+from .navigation import build_navigation, get_current_user_roles
 
 
 def _resolve_branched_alembic_state(app):
@@ -105,6 +106,14 @@ def create_app():
     app.register_blueprint(main_blueprint)
     app.register_blueprint(dispatch_blueprint)
     app.register_blueprint(sales_blueprint)
+
+    @app.context_processor
+    def inject_navigation():
+        current_roles = get_current_user_roles()
+        return {
+            "nav_sections": build_navigation(current_roles),
+            "current_user_roles": current_roles,
+        }
 
     if app.config.get("VERCEL") or os.environ.get("VERCEL"):
         primary_url = get_database_url()
