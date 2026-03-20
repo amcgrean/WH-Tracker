@@ -189,7 +189,9 @@ def invoice_lookup():
 def products():
     """Product catalog with stock levels and pricing."""
     q = request.args.get('q', '').strip()
-    products_list = [_normalize_product_row(r) for r in erp.get_sales_products(q=q, limit=50)]
+    products_list = []
+    if q:
+        products_list = [_normalize_product_row(r) for r in erp.get_sales_products(q=q, limit=50)]
     return render_template('sales/products.html', products=products_list, q=q)
 
 
@@ -239,6 +241,8 @@ def awards():
     return render_template('sales/awards.html')
 
 
+PAGE_SIZE = 50
+
 @sales.route('/order-history', defaults={'customer_number': ''})
 @sales.route('/order-history/<customer_number>')
 def order_history(customer_number):
@@ -248,17 +252,25 @@ def order_history(customer_number):
     date_to = request.args.get('date_to', '')
     status = request.args.get('status', '')
     branch = request.args.get('branch', '').strip()
+    page = request.args.get('page', 1, type=int)
+    page = max(1, page)
     searched = bool(customer_number or q or date_from or date_to or status or branch)
 
     history = []
     if searched:
         history = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(
-            customer_number, q=q, date_from=date_from, date_to=date_to, status=status, branch=branch, limit=200
+            customer_number, q=q, date_from=date_from, date_to=date_to, status=status,
+            branch=branch, limit=PAGE_SIZE, page=page
         )]
     return render_template(
         'sales/order_history.html',
-        history=history, customer_number=customer_number,
-        q=q, date_from=date_from, date_to=date_to, status=status, branch=branch, searched=searched,
+        history=history,
+        customer_number=customer_number,
+        q=q, date_from=date_from, date_to=date_to, status=status, branch=branch,
+        searched=searched,
+        page=page,
+        page_size=PAGE_SIZE,
+        has_next=len(history) == PAGE_SIZE,
     )
 
 
