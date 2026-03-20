@@ -27,14 +27,35 @@
                         <label class="small font-weight-bold">Keyword / SO #</label>
                         <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Search orders...">
                     </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-success px-4 shadow-sm">Filter</button>
-                        <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
-                            class="btn btn-link text-muted pr-0">Reset</a>
+                    <div class="col-md-2 form-group">
+                        <label class="small font-weight-bold">Status</label>
+                        <select name="status" class="form-control">
+                            <option value="" {% if not status %}selected{% endif %}>All Statuses</option>
+                            <option value="O" {% if status == 'O' %}selected{% endif %}>Open</option>
+                            <option value="I" {% if status == 'I' %}selected{% endif %}>Invoiced</option>
+                            <option value="C" {% if status == 'C' %}selected{% endif %}>Closed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 form-group">
+                        <label class="small font-weight-bold">Date From</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-2 form-group">
+                        <label class="small font-weight-bold">Date To</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-2 form-group d-flex align-items-end">
+                        <button type="submit" class="btn btn-success btn-block shadow-sm">Filter</button>
                     </div>
                 </div>
+                {% if searched %}
+                <div class="row">
+                    <div class="col-auto">
+                        <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
+                            class="btn btn-link text-muted px-0 small">Reset filters</a>
+                    </div>
+                </div>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -53,6 +74,14 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% if not searched %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="fas fa-filter fa-2x d-block mb-2" style="opacity:0.2;"></i>
+                            Use the filters above to search order history.
+                        </td>
+                    </tr>
+                    {% else %}
                     {% for order in history %}
                     <tr>
                         <td class="font-weight-bold text-info">{{ order.so_number }}</td>
@@ -61,7 +90,7 @@
                         <td>
                             <span
                                 class="badge badge-pill badge-{% if order.so_status == 'O' %}info{% elif order.so_status == 'I' %}success{% else %}secondary{% endif %}">
-                                {{ order.so_status }}
+                                {% if order.so_status == 'O' %}Open{% elif order.so_status == 'I' %}Invoiced{% elif order.so_status == 'C' %}Closed{% else %}{{ order.so_status }}{% endif %}
                             </span>
                         </td>
                         <td class="text-right small text-muted">{{ order.reference }}</td>
@@ -72,9 +101,10 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">No history found for this customer.</td>
+                        <td colspan="6" class="text-center py-5 text-muted">No orders found. Try adjusting your filters.</td>
                     </tr>
                     {% endfor %}
+                    {% endif %}
                 </tbody>
             </table>
         </div>
