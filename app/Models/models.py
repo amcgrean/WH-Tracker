@@ -58,100 +58,6 @@ class PickAssignment(db.Model):
 
 
 # -------------------------------------------------------------------
-# Cloud Sync Mirrors
-# These tables store a copy of the open ERP data for the cloud instance.
-# -------------------------------------------------------------------
-
-class ERPMirrorPick(db.Model):
-    __tablename__ = 'erp_mirror_picks'
-    id = db.Column(db.Integer, primary_key=True)
-    so_number = db.Column(db.String(128), index=True)
-    customer_name = db.Column(db.String(256))
-    address = db.Column(db.String(256))
-    reference = db.Column(db.String(256))
-    handling_code = db.Column(db.String(50))
-    sequence = db.Column(db.Integer)
-    item_number = db.Column(db.String(128))
-    description = db.Column(db.String(256))
-    qty = db.Column(db.Float)
-    line_count = db.Column(db.Integer)
-    so_status = db.Column(db.String(10))
-    shipment_status = db.Column(db.String(10))
-    status_flag_delivery = db.Column(db.String(10)) # NEW: Granular delivery status from shipments_header
-    system_id = db.Column(db.String(50))
-    expect_date = db.Column(db.String(50))
-    sale_type = db.Column(db.String(50))
-    local_pick_state = db.Column(db.String(50)) # NEW: Tracks local app pick status (Pick Printed, Picking, Picking Complete)
-    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # NEW fields for features 
-    ship_via = db.Column(db.String(128))
-    driver = db.Column(db.String(128))
-    route = db.Column(db.String(128))
-    printed_at = db.Column(db.DateTime, nullable=True) # Pick printed timestamp
-    staged_at = db.Column(db.DateTime, nullable=True)  # Loaded/Staged timestamp
-    delivered_at = db.Column(db.DateTime, nullable=True) # Delivered timestamp
-    latitude = db.Column(db.Float, nullable=True)
-    longitude = db.Column(db.Float, nullable=True)
-    geocode_status = db.Column(db.String(50), nullable=True) # 'exact', 'fuzzy', 'failed'
-
-    
-class ERPMirrorWorkOrder(db.Model):
-    __tablename__ = 'erp_mirror_work_orders'
-    id = db.Column(db.Integer, primary_key=True)
-    wo_id = db.Column(db.String(128), index=True)
-    so_number = db.Column(db.String(128))
-    description = db.Column(db.String(256))
-    item_number = db.Column(db.String(128))
-    status = db.Column(db.String(50))
-    qty = db.Column(db.Integer)
-    department = db.Column(db.String(50))
-    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-# -------------------------------------------------------------------
-# Credit / RMA Image Tracking
-# Sales people email photos of credits; the poller saves them here
-# so dispatchers can view them on the portal.
-# -------------------------------------------------------------------
-
-class CreditImage(db.Model):
-    __tablename__ = 'credit_images'
-    id            = db.Column(db.Integer, primary_key=True)
-    rma_number    = db.Column(db.String(20), index=True, nullable=False)
-    filename      = db.Column(db.String(256), nullable=False)
-    filepath      = db.Column(db.String(512), nullable=False)  # relative to UPLOAD_FOLDER
-    email_from    = db.Column(db.String(256))
-    email_subject = db.Column(db.String(512))
-    received_at   = db.Column(db.DateTime)   # when the email arrived
-    uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
-
-# -------------------------------------------------------------------
-# Sales Team — Customer Notes / Call Log
-# Sales reps log calls, visits, emails, and follow-ups here.
-# -------------------------------------------------------------------
-
-class CustomerNote(db.Model):
-    __tablename__ = 'customer_notes'
-    id              = db.Column(db.Integer, primary_key=True)
-    customer_number = db.Column(db.String(50), index=True, nullable=False)
-    note_type       = db.Column(db.String(50), default='Call')   # Call, Visit, Email, Issue, etc.
-    body            = db.Column(db.Text, nullable=False)
-    rep_name        = db.Column(db.String(128))
-    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-class ERPDeliveryKPI(db.Model):
-    __tablename__ = 'erp_delivery_kpis'
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, index=True, nullable=False)
-    count = db.Column(db.Integer, nullable=False)
-    branch = db.Column(db.String(50), nullable=True) # 'all', '20gr', etc.
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-# -------------------------------------------------------------------
-# Audit Trail
-# Records key state transitions: pick started/completed, WO completed,
 # staged confirmed, SO assigned, etc.
 # -------------------------------------------------------------------
 
@@ -496,5 +402,36 @@ class ERPMirrorPrintTransactionDetail(db.Model, MirrorSyncMetadataMixin):
     )
 
 # -------------------------------------------------------------------
+# Credit / RMA Image Tracking
+# Sales people email photos of credits; the poller saves them here
+# so dispatchers can view them on the portal.
+# -------------------------------------------------------------------
+
+class CreditImage(db.Model):
+    __tablename__ = 'credit_images'
+    id            = db.Column(db.Integer, primary_key=True)
+    rma_number    = db.Column(db.String(20), index=True, nullable=False)
+    filename      = db.Column(db.String(256), nullable=False)
+    filepath      = db.Column(db.String(512), nullable=False)  # relative to UPLOAD_FOLDER
+    email_from    = db.Column(db.String(256))
+    email_subject = db.Column(db.String(512))
+    received_at   = db.Column(db.DateTime)   # when the email arrived
+    uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+# -------------------------------------------------------------------
 # Sales Team — Customer Notes / Call Log
+# Sales reps log calls, visits, emails, and follow-ups here.
+# -------------------------------------------------------------------
+
+class CustomerNote(db.Model):
+    __tablename__ = 'customer_notes'
+    id              = db.Column(db.Integer, primary_key=True)
+    customer_number = db.Column(db.String(50), index=True, nullable=False)
+    note_type       = db.Column(db.String(50), default='Call')   # Call, Visit, Email, Issue, etc.
+    body            = db.Column(db.Text, nullable=False)
+    rep_name        = db.Column(db.String(128))
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+# -------------------------------------------------------------------
+# Audit Trail / Sync Batch Metadata
 # -------------------------------------------------------------------

@@ -5,7 +5,7 @@ from flask import render_template, request, redirect, url_for, flash, Blueprint,
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.extensions import db
-from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, CreditImage, AuditEvent, ERPDeliveryKPI, ERPSyncState
+from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, CreditImage, AuditEvent, ERPSyncState
 from app.runtime_settings import env_bool
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, text
