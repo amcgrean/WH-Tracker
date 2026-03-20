@@ -168,9 +168,13 @@ def invoice_lookup():
     q = request.args.get('q', '').strip()
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
+    status = request.args.get('status', '')
+    searched = bool(q or date_from or date_to or status)
 
-    invoices = [_normalize_order_row(r) for r in erp.get_sales_invoice_lookup(q=q, date_from=date_from, date_to=date_to, limit=50)]
-    return render_template('sales/invoice_lookup.html', invoices=invoices, q=q, date_from=date_from, date_to=date_to)
+    invoices = []
+    if searched:
+        invoices = [_normalize_order_row(r) for r in erp.get_sales_invoice_lookup(q=q, date_from=date_from, date_to=date_to, status=status, limit=100)]
+    return render_template('sales/invoice_lookup.html', invoices=invoices, q=q, date_from=date_from, date_to=date_to, status=status, searched=searched)
 
 
 @sales.route('/products')
@@ -230,8 +234,18 @@ def awards():
 def order_history(customer_number):
     """Full order history for a customer."""
     q = request.args.get('q', '').strip()
-    history = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, q=q, limit=None if customer_number else 200)]
-    return render_template('sales/order_history.html', history=history, customer_number=customer_number, q=q)
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    status = request.args.get('status', '')
+    searched = bool(customer_number or q or date_from or date_to or status)
+
+    history = []
+    if searched:
+        history = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(
+            customer_number, q=q, date_from=date_from, date_to=date_to, status=status, limit=200
+        )]
+    return render_template('sales/order_history.html', history=history, customer_number=customer_number,
+                           q=q, date_from=date_from, date_to=date_to, status=status, searched=searched)
 
 
 @sales.route('/customer/<customer_number>')

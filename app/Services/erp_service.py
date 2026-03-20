@@ -1895,12 +1895,15 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_invoice_lookup(self, q="", date_from="", date_to="", limit=50):
+    def get_sales_invoice_lookup(self, q="", date_from="", date_to="", status="", limit=50):
         if self.central_db_mode:
             params = {"limit": limit}
-            clauses = [
-                "UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"
-            ]
+            if status and status.upper() in ('I', 'C'):
+                clauses = [f"UPPER(COALESCE(soh.so_status, '')) = '{status.upper()}'"]
+            else:
+                clauses = [
+                    "UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"
+                ]
             if q:
                 params["q"] = f"%{q}%"
                 clauses.append(
@@ -1940,7 +1943,10 @@ class ERPService:
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
-            clauses = ["UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"]
+            if status and status.upper() in ('I', 'C'):
+                clauses = [f"UPPER(COALESCE(soh.so_status, '')) = '{status.upper()}'"]
+            else:
+                clauses = ["UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"]
             params = []
             if q:
                 like = f"%{q}%"
@@ -1991,19 +1997,19 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_customer_orders(self, customer_number, q="", limit=None):
-        # Cache per-customer full order lists for up to 60 s (skip cache when q filtering)
-        cache_key = f'cust_orders_{customer_number}_{limit}' if not q else None
+    def get_sales_customer_orders(self, customer_number, q="", limit=None, date_from="", date_to="", status=""):
+        # Cache per-customer full order lists for up to 60 s (skip cache when filtering)
+        cache_key = f'cust_orders_{customer_number}_{limit}' if not (q or date_from or date_to or status) else None
         if cache_key:
             cached = self._cache_get(cache_key)
             if cached is not None:
                 return cached
-        result = self._get_sales_customer_orders_inner(customer_number=customer_number, q=q, limit=limit)
+        result = self._get_sales_customer_orders_inner(customer_number=customer_number, q=q, limit=limit, date_from=date_from, date_to=date_to, status=status)
         if cache_key:
             self._cache_set(cache_key, result)
         return result
 
-    def _get_sales_customer_orders_inner(self, customer_number, q="", limit=None):
+    def _get_sales_customer_orders_inner(self, customer_number, q="", limit=None, date_from="", date_to="", status=""):
         if self.central_db_mode:
             sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
             if "line_no" in sod_columns:
@@ -2024,6 +2030,18 @@ class ERPService:
                 clauses.append(
                     "(CAST(soh.so_id AS TEXT) ILIKE :q OR COALESCE(soh.reference, '') ILIKE :q OR COALESCE(c.cust_name, '') ILIKE :q OR COALESCE(c.cust_code, '') ILIKE :q)"
                 )
+            if date_from:
+                params["date_from"] = date_from
+                clauses.append("CAST(soh.expect_date AS DATE) >= :date_from")
+            if date_to:
+                params["date_to"] = date_to
+                clauses.append("CAST(soh.expect_date AS DATE) <= :date_to")
+            if status:
+                valid_statuses = [s.strip().upper() for s in status.split(',') if s.strip()]
+                if valid_statuses:
+                    placeholders = ', '.join(f"'{s}'" for s in valid_statuses if s.isalpha() and len(s) == 1)
+                    if placeholders:
+                        clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
             limit_clause = "LIMIT :limit" if limit else ""
             if limit:
                 params["limit"] = limit
@@ -2087,6 +2105,17 @@ class ERPService:
                     "(CAST(soh.so_id AS VARCHAR(64)) LIKE ? OR COALESCE(soh.reference, '') LIKE ? OR COALESCE(c.cust_name, '') LIKE ? OR COALESCE(c.cust_code, '') LIKE ?)"
                 )
                 params.extend([search_like, search_like, search_like, search_like])
+            if date_from:
+                clauses.append("CAST(soh.expect_date AS DATE) >= ?")
+                params.append(date_from)
+            if date_to:
+                clauses.append("CAST(soh.expect_date AS DATE) <= ?")
+                params.append(date_to)
+            if status:
+                valid_statuses = [s.strip().upper() for s in status.split(',') if s.strip() and s.strip().isalpha() and len(s.strip()) == 1]
+                if valid_statuses:
+                    placeholders = ', '.join(f"'{s}'" for s in valid_statuses)
+                    clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
 
             where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
             top_clause = f"TOP {int(limit)}" if limit else ""
