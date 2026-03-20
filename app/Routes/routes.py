@@ -1368,30 +1368,44 @@ def sales_delivery_tracker(branch=None):
     """
     erp = ERPService()
     samsara = SamsaraService()
-    
-    deliveries = erp.get_sales_delivery_tracker(branch_id=branch)
-    kpis = erp.get_delivery_kpis(branch_id=branch)
-    
+
+    normalized_branch = ERPService._normalize_branch_system_id(branch)
+    branch_slug_map = {
+        '20GR': '20gr',
+        '25BW': '25bw',
+        '10FD': '10fd',
+        '40CV': '40cv',
+    }
+    current_branch = branch_slug_map.get(normalized_branch)
+
+    deliveries = erp.get_sales_delivery_tracker(branch_id=normalized_branch)
+    kpis = erp.get_delivery_kpis(branch_id=normalized_branch)
+
     # Get vehicle locations from Samsara for Fleet Status table
     tag_ids = None
-    if branch:
+    if normalized_branch:
         all_tags = samsara.get_tags()
-        if branch.lower() in ['20gr', 'grimes']:
+        if normalized_branch == '20GR':
             tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['GRIMES', 'GR'])]
-        elif branch.lower() in ['25bw', 'birchwood']:
+        elif normalized_branch == '25BW':
             tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['BIRCHWOOD', 'BW'])]
+        elif normalized_branch == '10FD':
+            tag_ids = [t['id'] for t in all_tags if 'FORT DODGE' in t['name'].upper() or '10FD' in t['name'].upper()]
+        elif normalized_branch == '40CV':
+            tag_ids = [t['id'] for t in all_tags if 'CORALVILLE' in t['name'].upper() or '40CV' in t['name'].upper()]
 
     vehicle_locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
     active_trucks = len(vehicle_locations)
     in_transit_count = sum(1 for loc in vehicle_locations if loc.get('speed_mph', 0) > 0)
-    
+
     return render_template('sales/delivery_tracker.html', 
                            deliveries=deliveries, 
                            kpis=kpis,
                            vehicle_locations=vehicle_locations,
                            active_trucks=active_trucks,
                            in_transit_count=in_transit_count,
-                           current_branch=branch,
+                           current_branch=current_branch,
+                           current_branch_code=normalized_branch or 'all',
                            today=datetime.now().strftime('%Y-%m-%d'))
 
 
