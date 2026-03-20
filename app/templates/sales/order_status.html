@@ -41,107 +41,79 @@
     {% if orders %}
     <div class="row justify-content-center">
         <div class="col-md-10">
-            <h5 class="font-weight-bold mb-3">
+            <h5 class="font-weight-bold mb-3 px-2">
                 Results for <em>"{{ q }}"</em>
                 <span class="badge badge-dark badge-pill ml-1">{{ orders|length }}</span>
             </h5>
-            {% set seen_so = [] %}
-            {% for r in orders %}
-            {% if r.so_number not in seen_so %}
-            {% if seen_so.append(r.so_number) %}{% endif %}
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-body py-3">
-                    <div class="row align-items-center">
-                        <div class="col-md-3">
-                            <div class="small text-muted text-uppercase font-weight-bold">SO #</div>
-                            <div class="h5 font-weight-bold text-dark mb-0">{{ r.so_number }}</div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="small text-muted text-uppercase font-weight-bold">Customer</div>
-                            <div class="font-weight-bold">{{ r.customer_name or '—' }}</div>
-                            <div class="small text-muted">{{ r.address or '' }}</div>
-                        </div>
-                        <div class="col-md-2">
-                            <div class="small text-muted text-uppercase font-weight-bold">Status</div>
-                            {% if r.so_status == 'O' %}
-                                <span class="badge badge-success px-3 py-1">Open</span>
-                                {% if r.shipment_status %}
-                                <div class="small text-muted mt-1">Ship: {{ r.shipment_status }}</div>
-                                {% endif %}
-                            {% elif r.so_status == 'I' %}
-                                <span class="badge badge-info px-3 py-1">Invoiced</span>
-                            {% elif r.so_status == 'H' %}
-                                <span class="badge badge-warning px-3 py-1">On Hold</span>
-                            {% else %}
-                                <span class="badge badge-secondary px-3 py-1">{{ r.so_status or 'Unknown' }}</span>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-2">
-                            <div class="small text-muted text-uppercase font-weight-bold">Expect Date</div>
-                            <div class="font-weight-bold">{{ r.expect_date or '—' }}</div>
-                            {% if r.driver %}
-                            <div class="small text-muted">Driver: {{ r.driver }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-2 text-right">
-                            <a href="{{ url_for('main.warehouse_detail', so_number=r.so_number) }}"
-                               class="btn btn-sm btn-outline-dark mb-1 d-block">
-                                <i class="fas fa-box mr-1"></i> WH Detail
-                            </a>
-                            <a href="{{ url_for('sales.customer_profile', customer_number=r.customer_name or r.so_number) }}"
-                               class="btn btn-sm btn-outline-primary d-block">
-                                <i class="fas fa-user mr-1"></i> Customer
-                            </a>
-                        </div>
-                    </div>
-
+            
             <div class="row">
+                {% set seen_so = [] %}
                 {% for r in orders %}
-                <div class="col-md-6 mb-3">
-                    <div class="card border-0 shadow-sm transition-hover">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between mb-2">
-                                <h5 class="font-weight-bold mb-0 text-primary">{{ r.so_number }}</h5>
-                                <span
-                                    class="badge badge-pill badge-{% if r.so_status == 'O' %}info{% elif r.so_status == 'I' %}success{% else %}secondary{% endif %}">
-                                    {{ r.so_status }}
-                                </span>
+                {% if r.so_number not in seen_so %}
+                {% if seen_so.append(r.so_number) %}{% endif %}
+                <div class="col-md-6 mb-4">
+                    <div class="glass-card animate-fade-in" style="border-radius: 20px;">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <div class="small text-muted text-uppercase font-weight-bold" style="letter-spacing: 1px;">SO Number</div>
+                                    <h3 class="font-weight-bold mb-0 text-gradient">#{{ r.so_number }}</h3>
+                                </div>
+                                <div>
+                                    {% if r.so_status == 'O' %}
+                                        <span class="status-pill status-active">Open</span>
+                                    {% elif r.so_status == 'I' %}
+                                        <span class="status-pill status-assigned">Invoiced</span>
+                                    {% elif r.so_status == 'H' %}
+                                        <span class="status-pill status-idle" style="background: #fff5f5; color: #c53030; border-color: #feb2b2;">On Hold</span>
+                                    {% else %}
+                                        <span class="status-pill status-idle">{{ r.so_status or 'Unknown' }}</span>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <div class="font-weight-bold small mb-3">{{ r.customer_name }}</div>
 
-                            <div class="row small mb-3">
-                                <div class="col-6">
-                                    <div class="text-muted">Expected</div>
+                            <div class="mb-4">
+                                <div class="small text-muted text-uppercase font-weight-bold mb-1" style="letter-spacing: 1px;">Customer</div>
+                                <div class="font-weight-bold text-dark h5 mb-1">{{ r.customer_name or '—' }}</div>
+                                <div class="small text-muted"><i class="fas fa-map-marker-alt mr-1"></i> {{ r.address or 'No address provided' }}</div>
+                            </div>
+
+                            <div class="row mb-4">
+                                <div class="col-6 border-right">
+                                    <div class="small text-muted text-uppercase font-weight-bold" style="letter-spacing: 0.5px;">Expect Date</div>
                                     <div class="font-weight-bold">{{ r.expect_date or '—' }}</div>
                                 </div>
-                                <div class="col-6">
-                                    <div class="text-muted">Handling</div>
+                                <div class="col-6 pl-4">
+                                    <div class="small text-muted text-uppercase font-weight-bold" style="letter-spacing: 0.5px;">Handling</div>
                                     <div class="font-weight-bold">{{ r.handling_code or '—' }}</div>
                                 </div>
                             </div>
 
-                            <div class="d-flex border-top pt-3 mt-1">
+                            <div class="d-flex gap-2">
                                 <a href="{{ url_for('main.pick_detail', so_number=r.so_number) }}"
-                                    class="btn btn-xs btn-outline-secondary mr-2 flex-grow-1">WH Detail</a>
+                                   class="btn-ops-primary flex-grow-1 text-center py-2" style="font-size: 0.85rem; border-radius: 12px;">
+                                    <i class="fas fa-box mr-1"></i> WH Detail
+                                </a>
+                                <div class="mx-1"></div>
                                 <a href="{{ url_for('sales.customer_profile', customer_number=r.customer_code or r.customer_name) }}"
-                                    class="btn btn-xs btn-outline-info flex-grow-1">Customer</a>
+                                   class="btn btn-outline-dark flex-grow-1 py-2" style="font-size: 0.85rem; border-radius: 12px; font-weight: 700;">
+                                    <i class="fas fa-user mr-1"></i> Customer
+                                </a>
                             </div>
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
             </div>
 
-            <div class="text-center mt-3">
-                <a href="{{ url_for('sales.order_history', customer_number='', q=q) }}" class="small font-weight-bold text-info">
+            <div class="text-center mt-5">
+                <a href="{{ url_for('sales.order_history', customer_number='', q=q) }}" class="btn btn-link text-muted font-weight-bold">
                     Search full order history <i class="fas fa-chevron-right ml-1"></i>
                 </a>
             </div>
-            {% endif %}
-            {% endfor %}
         </div>
     </div>
-
     {% elif q %}
     <div class="row justify-content-center">
         <div class="col-md-8">
