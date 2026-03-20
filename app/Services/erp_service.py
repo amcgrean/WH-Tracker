@@ -1482,7 +1482,13 @@ class ERPService:
                 """,
                 params,
             )
-            return [dict(row) for row in rows]
+            return [
+                {
+                    **dict(row),
+                    "address": ", ".join(part for part in [row.get("address_1"), row.get("city")] if part),
+                }
+                for row in rows
+            ]
         self._require_central_db_for_cloud_mode()
 
         conn = self.get_connection()
@@ -1739,14 +1745,21 @@ class ERPService:
                     CAST(soh.so_id AS TEXT) AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
+                    MAX(cs.address_1) AS address_1,
+                    MAX(cs.city) AS city,
                     MAX(soh.expect_date) AS expect_date,
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
                     MAX(soh.synced_at) AS synced_at,
-                    MAX(COALESCE(ib.handling_code, '')) AS handling_code
+                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    MAX(soh.sale_type) AS sale_type,
+                    MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                LEFT JOIN erp_mirror_cust_shipto cs
+                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 LEFT JOIN erp_mirror_item_branch ib
@@ -1759,7 +1772,13 @@ class ERPService:
                 """,
                 params,
             )
-            return [dict(row) for row in rows]
+            return [
+                {
+                    **dict(row),
+                    "address": ", ".join(part for part in [row.get("address_1"), row.get("city")] if part),
+                }
+                for row in rows
+            ]
 
         self._require_central_db_for_cloud_mode()
         conn = self.get_connection()
@@ -1784,13 +1803,20 @@ class ERPService:
                     CAST(soh.so_id AS VARCHAR(64)) AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
+                    MAX(cs.address_1) AS address_1,
+                    MAX(cs.city) AS city,
                     MAX(soh.expect_date) AS expect_date,
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
-                    MAX(COALESCE(ib.handling_code, '')) AS handling_code
+                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    MAX(soh.sale_type) AS sale_type,
+                    MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    COUNT(DISTINCT sod.line_no) AS line_count
                 FROM so_header soh
                 LEFT JOIN cust c
-                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                    ON soh.system_id = c.system_id AND CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                LEFT JOIN cust_shipto cs
+                    ON soh.system_id = cs.system_id AND CAST(cs.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64)) AND CAST(cs.seq_num AS VARCHAR(64)) = CAST(soh.shipto_seq_num AS VARCHAR(64))
                 LEFT JOIN so_detail sod
                     ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
                 LEFT JOIN item_branch ib
@@ -1811,7 +1837,11 @@ class ERPService:
                     "expect_date": row.expect_date,
                     "reference": row.reference,
                     "so_status": row.so_status,
+                    "address": ", ".join(part for part in [row.address_1, row.city] if part),
                     "handling_code": row.handling_code,
+                    "sale_type": row.sale_type,
+                    "ship_via": row.ship_via,
+                    "line_count": row.line_count,
                 }
                 for row in rows
             ]
@@ -1940,13 +1970,25 @@ class ERPService:
                     CAST(soh.so_id AS TEXT) AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
+                    MAX(cs.address_1) AS address_1,
+                    MAX(cs.city) AS city,
                     MAX(soh.expect_date) AS expect_date,
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
-                    MAX(soh.synced_at) AS synced_at
+                    MAX(soh.synced_at) AS synced_at,
+                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    MAX(soh.sale_type) AS sale_type,
+                    MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                LEFT JOIN erp_mirror_cust_shipto cs
+                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                LEFT JOIN erp_mirror_so_detail sod
+                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
+                LEFT JOIN erp_mirror_item_branch ib
+                    ON ib.system_id = sod.system_id AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC NULLS LAST, soh.so_id DESC
@@ -1954,7 +1996,13 @@ class ERPService:
                 """,
                 params,
             )
-            return [dict(row) for row in rows]
+            return [
+                {
+                    **dict(row),
+                    "address": ", ".join(part for part in [row.get("address_1"), row.get("city")] if part),
+                }
+                for row in rows
+            ]
 
         self._require_central_db_for_cloud_mode()
         conn = self.get_connection()
@@ -1983,12 +2031,24 @@ class ERPService:
                     CAST(soh.so_id AS VARCHAR(64)) AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
+                    MAX(cs.address_1) AS address_1,
+                    MAX(cs.city) AS city,
                     MAX(soh.expect_date) AS expect_date,
                     MAX(soh.reference) AS reference,
-                    MAX(soh.so_status) AS so_status
+                    MAX(soh.so_status) AS so_status,
+                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    MAX(soh.sale_type) AS sale_type,
+                    MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    COUNT(DISTINCT sod.line_no) AS line_count
                 FROM so_header soh
                 LEFT JOIN cust c
-                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                    ON soh.system_id = c.system_id AND CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                LEFT JOIN cust_shipto cs
+                    ON soh.system_id = cs.system_id AND CAST(cs.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64)) AND CAST(cs.seq_num AS VARCHAR(64)) = CAST(soh.shipto_seq_num AS VARCHAR(64))
+                LEFT JOIN so_detail sod
+                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                LEFT JOIN item_branch ib
+                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC, soh.so_id DESC
@@ -2004,6 +2064,11 @@ class ERPService:
                     "expect_date": row.expect_date,
                     "reference": row.reference,
                     "so_status": row.so_status,
+                    "address": ", ".join(part for part in [row.address_1, row.city] if part),
+                    "handling_code": row.handling_code,
+                    "sale_type": row.sale_type,
+                    "ship_via": row.ship_via,
+                    "line_count": row.line_count,
                 }
                 for row in rows
             ]
