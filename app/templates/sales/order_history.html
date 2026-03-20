@@ -23,7 +23,7 @@
         <div class="card-body">
             <form method="GET" action="{{ url_for('sales.order_history', customer_number=customer_number) }}">
                 <div class="row">
-                    <div class="col-md-4 form-group">
+                    <div class="col-md-3 form-group">
                         <label class="small font-weight-bold">Keyword / SO #</label>
                         <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Search orders...">
                     </div>
@@ -37,10 +37,20 @@
                         </select>
                     </div>
                     <div class="col-md-2 form-group">
+                        <label class="small font-weight-bold">Branch</label>
+                        <select name="branch" class="form-control">
+                            <option value="" {% if not branch %}selected{% endif %}>All Branches</option>
+                            <option value="20GR" {% if branch == '20GR' %}selected{% endif %}>Grimes (20GR)</option>
+                            <option value="25BW" {% if branch == '25BW' %}selected{% endif %}>Birchwood (25BW)</option>
+                            <option value="10FD" {% if branch == '10FD' %}selected{% endif %}>Fort Dodge (10FD)</option>
+                            <option value="40CV" {% if branch == '40CV' %}selected{% endif %}>Coralville (40CV)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 form-group">
                         <label class="small font-weight-bold">Date From</label>
                         <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
                     </div>
-                    <div class="col-md-2 form-group">
+                    <div class="col-md-1 form-group">
                         <label class="small font-weight-bold">Date To</label>
                         <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
                     </div>
