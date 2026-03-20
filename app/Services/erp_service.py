@@ -58,16 +58,40 @@ class ERPService:
             return tuple()
         return tuple(column["name"] for column in inspect(engine).get_columns(table_name))
 
+    @staticmethod
+    def _normalize_branch_system_id(branch_id):
+        if not branch_id:
+            return None
+        normalized = str(branch_id).strip()
+        if not normalized:
+            return None
+
+        branch_map = {
+            'all': None,
+            '20gr': '20GR',
+            'grimes': '20GR',
+            'grimesarea': '20GR',
+            '25bw': '25BW',
+            'birchwood': '25BW',
+            '10fd': '10FD',
+            'fortdodge': '10FD',
+            '40cv': '40CV',
+            'coralville': '40CV',
+        }
+        compact = normalized.lower().replace('-', '').replace('_', '').replace(' ', '').strip()
+        return branch_map.get(compact, normalized.upper())
+
     def _expand_branch_filters(self, branches):
         if not branches:
             return []
-        raw_branches = [item.strip().upper() for item in branches.split(",") if item.strip()]
+        raw_branches = [item.strip() for item in branches.split(",") if item.strip()]
         expanded = []
         for branch in raw_branches:
-            if branch in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
+            normalized = self._normalize_branch_system_id(branch)
+            if normalized == '20GR' and str(branch).strip().upper() in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
                 expanded.extend(["20GR", "25BW"])
-            else:
-                expanded.append(branch)
+            elif normalized:
+                expanded.append(normalized)
         return sorted(set(expanded))
 
     def _mirror_so_detail_backorder_expr(self):
@@ -671,8 +695,8 @@ class ERPService:
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
-                LEFT JOIN cust c ON TRY_CAST(soh.cust_key AS INT) = TRY_CAST(c.cust_key AS INT)
-                LEFT JOIN cust_shipto cs ON TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
+                LEFT JOIN cust c ON soh.system_id = c.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(c.cust_key AS INT)
+                LEFT JOIN cust_shipto cs ON soh.system_id = cs.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
                 LEFT JOIN (
                     SELECT so_id, system_id, 
                            MAX(status_flag) as status_flag, 
@@ -2285,9 +2309,10 @@ class ERPService:
             today = datetime.now().strftime('%Y-%m-%d')
             params = {"today": today}
             branch_filter = ""
-            if branch_id:
+            system_id = self._normalize_branch_system_id(branch_id)
+            if system_id:
                 branch_filter = " AND soh.system_id = :branch_id"
-                params["branch_id"] = branch_id
+                params["branch_id"] = system_id
 
             rows = self._mirror_query(
                 f"""
@@ -2323,8 +2348,8 @@ class ERPService:
                     OR (soh.so_status IN ('K', 'P', 'S') AND (CAST(soh.expect_date AS DATE) = :today OR CAST(soh.expect_date AS DATE) < :today))
                   )
                   AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
-                GROUP BY soh.so_id
-                ORDER BY soh.so_id DESC
+                GROUP BY soh.system_id, soh.so_id
+                ORDER BY MAX(soh.so_id) DESC
                 """,
                 params,
             )
@@ -2375,9 +2400,10 @@ class ERPService:
             
             query_params = []
             branch_filter = ""
-            if branch_id:
+            system_id = self._normalize_branch_system_id(branch_id)
+            if system_id:
                 branch_filter = " AND soh.system_id = ?"
-                query_params.append(branch_id)
+                query_params.append(system_id)
 
             query = f"""
                 SELECT 
@@ -2397,8 +2423,8 @@ class ERPService:
                 MAX(sh.driver) as driver,
                 MAX(sh.status_flag_delivery) as status_flag_delivery
                 FROM so_header soh
-                LEFT JOIN cust c ON TRY_CAST(soh.cust_key AS INT) = TRY_CAST(c.cust_key AS INT)
-                LEFT JOIN cust_shipto cs ON TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
+                LEFT JOIN cust c ON soh.system_id = c.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(c.cust_key AS INT)
+                LEFT JOIN cust_shipto cs ON soh.system_id = cs.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
                 WHERE soh.so_status != 'C'
                   {branch_filter}
@@ -2409,8 +2435,8 @@ class ERPService:
                     OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = '{today}' OR soh.expect_date < '{today}')) -- Show backlog too but avoid future ones
                   )
                   AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
-                GROUP BY soh.so_id
-                ORDER BY soh.so_id DESC
+                GROUP BY soh.system_id, soh.so_id
+                ORDER BY MAX(soh.so_id) DESC
             """
             
             cursor.execute(query, query_params)
@@ -2461,9 +2487,10 @@ class ERPService:
         if self.central_db_mode:
             params = {"days": int(days)}
             branch_filter = ""
-            if branch_id and branch_id.lower() != 'all':
+            system_id = self._normalize_branch_system_id(branch_id)
+            if system_id:
                 branch_filter = " AND soh.system_id = :branch_id"
-                params["branch_id"] = branch_id.upper()
+                params["branch_id"] = system_id
 
             rows = self._mirror_query(
                 f"""
@@ -2493,20 +2520,12 @@ class ERPService:
             return [] # Local only
 
         try:
-            branch_map = {
-                '20gr': '20GR',
-                '25bw': '25BW',
-                '10fd': '10FD',
-                '40cv': '40CV'
-            }
-            
             branch_filter = ""
             query_params = []
-            if branch_id and branch_id.lower() != 'all':
-                normalized_id = branch_id.lower()
-                sys_id = branch_map.get(normalized_id, branch_id.upper()) # Fallback to uppercase
+            system_id = self._normalize_branch_system_id(branch_id)
+            if system_id:
                 branch_filter = " AND soh.system_id = ?"
-                query_params.append(sys_id)
+                query_params.append(system_id)
 
             query = f"""
                 SELECT 
