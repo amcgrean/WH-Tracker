@@ -1,0 +1,32 @@
+
+======================================================================
+--- Shipments Header Mapping Columns ---
+so_id | shipment_num | ship_via | driver | route_id_char
+----------------------------------------------------------------------
+1463333 | 1 | Fork Needed |  | 
+1461704 | 2 |  |  | 
+1463258 | 1 |  |  | 
+1463749 | 1 |  |  | 
+1463351 | 1 |  |  | 
+======================================================================
+
+
+======================================================================
+--- Shipments Header ALL Columns ---
+prrowid | system_id | so_id | so_id_sysid | shipment_num | ship_date | billed_flag | status_flag | route_id_sysid | print_status | created_by | created_date | update_by | update_date | update_time | tax_description | tax_amt | total_tax | print_charges | total_charges | journal_number | journal_number_sysid | route_id_char | pick_status | sale_type | sale_type_sysid | rep_1_sysid | rep_1 | rep_2 | rep_3 | invoice_date | prof_name | expect_date | type | adf | override_adf | tax_tot_percent | stop | rep_1_pct | rep_2_pct | rep_3_pct | pay_terms_code_sysid | pay_terms_code | edi_process_date | edi_process_time | edi_ack_date | edi_ack_time | created_time | rep_4 | rep_5 | rep_6 | rep_4_pct | rep_5_pct | rep_6_pct | loaded_date | loaded_time | overridden_taxable_sell | credit_status | order_total | cm_orig_shipment | cm_orig_so | currency_conv_factor | currency | hold_from_invoicing | shipments_header_guid | so_header_guid | cust_guid | cust_shipto_guid | unloading_seq | review_status | driver | apply_loyalty | status_flag_delivery | pro_number | etl_processed | ship_via_sysid | ship_via | Pro2SrcPDB | pro2created | pro2modified
+----------------------------------------------------------------------
+No data found.
+======================================================================
+
+
+======================================================================
+--- Print Transaction Table ---
+prrowid | system_id | rpt_job | rpt_key | tran_id | tran_type | created_by | created_date | update_by | update_date | update_time | processed | branch | last_print_record | cust_key | cust_key_sysid | invoice_date | original_print_date | prev_print_status | created_time | tran_seq | shipment_num | num_labels | pick_id | pick_seq | supplier_key | supplier_key_sysid | seq_num | print_file_name | Pro2SrcPDB | pro2created | pro2modified
+----------------------------------------------------------------------
+0x0000000003dee3c1 | 20GR | 13828637 | 6448829 | 0001463759 | Order Acknowledgment | mattb | 2026-03-04 00:00:00 | mattb | 2026-03-04 00:00:00 | 16:54:19 | False | 20GR | True | 00003065 | 00CO | None | 2026-03-04 00:00:00 |  | 16:54:19 | 0 | 0 | 0 | 0 | 0 |  |  | 0 |  | platte | 2026-03-04 16:54:29.670000 | 2026-03-04 16:54:29.670000
+0x0000000003dee3c0 | 10FD | 13828636 | 6448828 | 0001463652 | Order Acknowledgment | michaelas | 2026-03-04 00:00:00 | michaelas | 2026-03-04 00:00:00 | 16:52:24 | False | 10FD | True | 00004759 | 00CO | None | 2026-03-04 00:00:00 |  | 16:52:24 | 0 | 0 | 0 | 0 | 0 |  |  | 0 |  | platte | 2026-03-04 16:52:26.337000 | 2026-03-04 16:52:26.337000
+0x0000000003dee537 | 40CV | 13828635 | 6448827 | 0001461704-002 | Delivery Ticket | trentenv | 2026-03-04 00:00:00 | trentenv | 2026-03-04 00:00:00 | 16:50:11 | False | 40CV | True | 00001361 | 00CO | None | 2026-03-04 00:00:00 |  | 16:50:11 | 0 | 0 | 0 | 0 | 0 |  |  | 0 |  | platte | 2026-03-04 16:50:11.787000 | 2026-03-04 16:50:11.787000
+0x0000000003dee536 | 25BW | 13828634 | 6448825 | 0001463258-001 | Delivery Ticket | bradf | 2026-03-04 00:00:00 | bradf | 2026-03-04 00:00:00 | 16:43:52 | False | 25BW | True | 00004511 | 00CO | None | 2026-03-04 00:00:00 |  | 16:43:52 | 0 | 0 | 0 | 0 | 0 |  |  | 0 |  | platte | 2026-03-04 16:43:54.870000 | 2026-03-04 16:43:54.870000
+0x0000000003dee535 | 25BW | 13827863 | 6448824 | 304730 | Purchase Order | zacl | 2026-03-04 00:00:00 | zacl | 2026-03-04 00:00:00 | 16:39:43 | False | 25BW | True | 00004767 | 00CO | None | 2026-03-04 00:00:00 |  | 16:39:43 | 0 | 0 | 0 | 0 | 0 |     4176 | 00CO | 0 |  | platte | 2026-03-04 16:40:01.873000 | 2026-03-04 16:40:01.873000
+======================================================================
+

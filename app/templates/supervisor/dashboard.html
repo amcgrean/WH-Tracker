@@ -1,88 +1,51 @@
 {% extends "base.html" %}
 
 {% block content %}
-<style>
-    .supervisor-card {
-        border: none;
-        border-radius: 12px;
-        transition: transform 0.2s;
-    }
-
-    .supervisor-card:hover {
-        transform: translateY(-5px);
-    }
-
-    .status-badge {
-        padding: 8px 12px;
-        border-radius: 20px;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.75rem;
-    }
-
-    .status-active {
-        background-color: #d4edda;
-        color: #155724;
-    }
-
-    .status-assigned {
-        background-color: #fff3cd;
-        color: #856404;
-    }
-
-    .status-idle {
-        background-color: #f8f9fa;
-        color: #6c757d;
-    }
-
-    .picker-icon {
-        width: 40px;
-        height: 40px;
-        background-color: #e9ecef;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 15px;
-    }
-
-    .active-row {
-        border-left: 5px solid #28a745;
-    }
-</style>
-
-<div class="container-fluid mt-4">
+<div class="container-fluid mt-4 px-lg-5">
     {% if local_data_unavailable %}
-    <div class="alert alert-warning shadow-sm">
-        Live assignment data from the local Tracker database is temporarily unavailable. The page is showing whatever could be loaded safely.
+    <div class="alert alert-warning glass-card border-warning mb-4 animate-fade-in shadow-sm">
+        <i class="fas fa-exclamation-triangle mr-2"></i> Live assignment data from the local Tracker database is temporarily unavailable.
     </div>
     {% endif %}
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="font-weight-bold"><i class="fas fa-shield-alt text-dark mr-2"></i>Supervisor Command Center</h1>
-        <div class="text-muted">Live Update: {{ now.strftime('%I:%M %p') }}</div>
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 animate-fade-in">
+        <div>
+            <h1 class="display-4 font-weight-bold mb-0 text-gradient">Supervisor Command</h1>
+            <p class="text-muted lead mb-0">Operational overview and live team coordination</p>
+        </div>
+        <div class="text-md-right mt-3 mt-md-0">
+            <div class="badge badge-light p-2 px-3 glass-card border-0 mb-1">
+                <i class="fas fa-sync-alt fa-spin mr-2 text-primary"></i> Live Updating
+            </div>
+            <div class="text-muted small">Shift start: 6:00 AM | {{ now.strftime('%I:%M %p') }}</div>
+        </div>
     </div>
 
     <div class="row">
         <!-- Quick Links -->
-        <div class="col-md-3 mb-4">
-            <div class="card shadow-sm h-100 supervisor-card">
-                <div class="card-header bg-dark text-white font-weight-bold">
-                    <i class="fas fa-bars mr-2"></i>Quick Access
+        <div class="col-xl-3 col-lg-4 mb-4 animate-fade-in delay-1">
+            <div class="glass-card h-100">
+                <div class="card-header-ops">
+                    <i class="fas fa-bolt mr-2"></i>Quick Actions
                 </div>
-                <div class="card-body d-flex flex-column">
-                    <a href="{{ url_for('main.warehouse_board') }}" class="btn btn-primary mb-3 py-3 shadow-sm">
-                        <i class="fas fa-clipboard-check mr-2"></i> Open Picks Management
+                <div class="card-body d-flex flex-column p-4">
+                    <a href="{{ url_for('main.warehouse_board') }}" class="btn btn-ops-primary mb-3 py-3 w-100">
+                        <i class="fas fa-clipboard-check mr-2"></i> Open Picks
                     </a>
-                    <a href="{{ url_for('main.supervisor_work_orders') }}" class="btn btn-success mb-3 py-3 shadow-sm">
-                        <i class="fas fa-hammer mr-2"></i> Work Order Board
+                    <a href="{{ url_for('main.supervisor_work_orders') }}" class="btn btn-ops-gold mb-3 py-3 w-100">
+                        <i class="fas fa-hammer mr-2"></i> Work Orders
                     </a>
-                    <a href="{{ url_for('main.picker_stats') }}" class="btn btn-info py-3 shadow-sm">
-                        <i class="fas fa-chart-line mr-2"></i> Performance Metrics
+                    <a href="{{ url_for('main.picker_stats') }}" class="btn btn-dark mb-4 py-3 w-100 shadow-sm" style="border-radius: 12px; font-weight: 700;">
+                        <i class="fas fa-chart-line mr-2"></i> Team Metrics
                     </a>
-                    <div class="mt-auto pt-4 border-top">
-                        <a href="{{ url_for('main.admin') }}" class="btn btn-link text-muted p-0">
-                            <i class="fas fa-cog mr-1"></i> Admin Settings
+                    
+                    <div class="mt-auto pt-4 border-top" style="border-color: rgba(0,0,0,0.05) !important;">
+                        <h6 class="text-muted small font-weight-bold text-uppercase mb-3">System Utilities</h6>
+                        <a href="{{ url_for('main.admin') }}" class="nav-link p-2 bg-light rounded text-center mb-2">
+                            <i class="fas fa-cog mr-1"></i> Admin Console
+                        </a>
+                        <a href="{{ url_for('dispatch.index') }}" class="nav-link p-2 bg-light rounded text-center">
+                            <i class="fas fa-shipping-fast mr-1"></i> Dispatch Desk
                         </a>
                     </div>
                 </div>
@@ -90,49 +53,51 @@
         </div>
 
         <!-- Team Status -->
-        <div class="col-md-5 mb-4">
-            <div class="card shadow-sm h-100 supervisor-card">
-                <div class="card-header bg-primary text-white font-weight-bold d-flex justify-content-between">
+        <div class="col-xl-5 col-lg-8 mb-4 animate-fade-in delay-2">
+            <div class="glass-card h-100">
+                <div class="card-header-ops d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-users mr-2"></i>Live Team Status</span>
-                    <span class="badge badge-light">{{ pickers|length }} Total</span>
+                    <span class="badge badge-light px-3 py-2" style="border-radius: 10px;">{{ pickers|length }} Active</span>
                 </div>
-                <div class="list-group list-group-flush">
+                <div class="list-group list-group-flush bg-transparent">
                     {% for picker in pickers %}
-                    <div
-                        class="list-group-item d-flex justify-content-between align-items-center {% if picker.status == 'active' %}active-row{% endif %}">
+                    <div class="list-group-item bg-transparent d-flex justify-content-between align-items-center py-4 border-0 border-bottom" style="border-color: rgba(0,0,0,0.05) !important;">
                         <div class="d-flex align-items-center">
-                            <div class="picker-icon">
-                                <i class="fas fa-user text-muted"></i>
+                            <div class="picker-avatar mr-4 position-relative">
+                                <div class="avatar-circle d-flex align-items-center justify-content-center bg-white shadow-sm" style="width: 54px; height: 54px; border-radius: 18px; border: 1px solid rgba(0,0,0,0.05);">
+                                    <i class="fas fa-user-ninja {% if picker.status == 'active' %}text-primary{% else %}text-muted{% endif %} fa-lg"></i>
+                                </div>
+                                {% if picker.status == 'active' %}
+                                <span class="position-absolute" style="bottom: -2px; right: -2px; width: 14px; height: 14px; background: #28a745; border: 2px solid #fff; border-radius: 50%;"></span>
+                                {% endif %}
                             </div>
                             <div>
-                                <h6 class="mb-0 font-weight-bold">{{ picker.name }}</h6>
-                                <small class="text-muted font-italic">{{ picker.user_type | replace('_', ' ') |
-                                    capitalize }}</small>
+                                <h6 class="mb-0 font-weight-bold" style="font-size: 1.1rem;">{{ picker.name }}</h6>
+                                <span class="text-muted small text-uppercase font-weight-bold letter-spacing-1">
+                                    {{ picker.user_type | replace('_', ' ') }}
+                                </span>
                             </div>
                         </div>
 
                         <div class="text-right">
                             {% if picker.status == 'active' %}
-                            <span class="status-badge status-active"><i class="fas fa-running mr-1"></i>{{
-                                picker.task_type }}</span>
-                            <div class="font-weight-bold text-success mt-1">
-                                <a href="{{ url_for('main.pick_detail', so_number=picker.current_task) }}"
-                                    class="text-success">#{{ picker.current_task }}</a>
+                            <div class="status-pill status-active mb-1">
+                                <span class="mr-2" style="width: 6px; height: 6px; background: currentColor; border-radius: 50%;"></span>
+                                Picking #{{ picker.current_task }}
                             </div>
-                            <div class="small badge badge-dark">{{ picker.active_duration }} min elapsed</div>
+                            <div class="small font-weight-bold text-muted">
+                                <i class="far fa-clock mr-1"></i> {{ picker.active_duration }}m elapsed
+                            </div>
                             {% elif picker.status == 'assigned' %}
-                            <span class="status-badge status-assigned"><i class="fas fa-clock mr-1"></i>Assigned</span>
-                            <div class="small font-weight-bold mt-1 text-warning">
-                                {{ picker.task_type }}:
-                                {% if picker.task_type == 'Pick' and picker.current_task %}
-                                <a href="{{ url_for('main.pick_detail', so_number=picker.current_task) }}"
-                                    class="text-warning">#{{ picker.current_task }}</a>
-                                {% else %}
-                                <span>#{{ picker.current_task or 'n/a' }}</span>
-                                {% endif %}
+                            <div class="status-pill status-assigned mb-1">
+                                <i class="fas fa-hourglass-start mr-2 small"></i> Assigned
                             </div>
+                            <div class="small text-muted">Task: {{ picker.task_type }}</div>
                             {% else %}
-                            <span class="status-badge status-idle">Idle</span>
+                            <div class="status-pill status-idle mb-1">
+                                <i class="fas fa-moon mr-2 small"></i> Idle
+                            </div>
+                            <div class="small text-muted italic">Ready for task</div>
                             {% endif %}
                         </div>
                     </div>
@@ -141,39 +106,53 @@
             </div>
         </div>
 
-        <!-- Recent Activity -->
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm h-100 supervisor-card">
-                <div class="card-header bg-info text-white font-weight-bold">
-                    <i class="fas fa-history mr-2"></i>Live Activity Feed
+        <!-- Recent Activity Feed -->
+        <div class="col-xl-4 col-lg-12 mb-4 animate-fade-in delay-3">
+            <div class="glass-card h-100">
+                <div class="card-header-ops">
+                    <i class="fas fa-stream mr-2"></i>Pick Completion Stream
                 </div>
-                <div class="list-group list-group-flush">
-                    {% for pick in recent_picks %}
-                    {% set so_info = erp_map.get(pick.barcode_number|string) %}
-                    <div class="list-group-item border-0 border-bottom">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="font-weight-bold">{{ pick.pickster.name if pick.pickster else 'Unknown picker' }}</span>
-                            <span class="badge badge-light"><i class="far fa-clock mr-1"></i>{{
-                                pick.completed_time.strftime('%I:%M %p') }}</span>
-                        </div>
-                        <div class="d-flex justify-content-between small text-muted">
-                            <div>
-                                Completed <a href="{{ url_for('main.pick_detail', so_number=pick.barcode_number) }}">SO
-                                    #{{ pick.barcode_number }}</a>
-                                {% if so_info %}
-                                <br>
-                                <span class="text-dark font-weight-bold">{{ so_info.customer_name }}</span>
-                                {% if so_info.reference %}
-                                | <span class="font-italic">Ref: {{ so_info.reference }}</span>
-                                {% endif %}
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush bg-transparent">
+                        {% for pick in recent_picks %}
+                        {% set so_info = erp_map.get(pick.barcode_number|string) %}
+                        <div class="list-group-item bg-transparent border-0 border-bottom p-4" style="border-color: rgba(0,0,0,0.05) !important;">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-success-light rounded-circle p-2 mr-3" style="background: rgba(40, 167, 69, 0.1);">
+                                        <i class="fas fa-check-circle text-success"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-weight-bold text-dark">{{ pick.pickster.name if pick.pickster else 'Warehouse Team' }}</span>
+                                        <div class="text-muted small">{{ pick.completed_time.strftime('%I:%M %p') }}</div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="badge badge-light font-weight-bold" style="font-size: 0.85rem;">
+                                        {{ ((pick.completed_time - pick.start_time).seconds / 60) | int }} MINS
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="glass-panel p-3 mt-2 rounded" style="background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.03);">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <a href="{{ url_for('main.pick_detail', so_number=pick.barcode_number) }}" class="font-weight-bold text-primary">
+                                        SO #{{ pick.barcode_number }}
+                                    </a>
+                                    {% if so_info %}
+                                    <span class="small font-weight-bold text-dark">{{ so_info.customer_name }}</span>
+                                    {% endif %}
+                                </div>
+                                {% if so_info and so_info.reference %}
+                                <div class="text-muted small mt-1 italic">Ref: {{ so_info.reference }}</div>
                                 {% endif %}
                             </div>
-                            <span class="text-success font-weight-bold">
-                                {{ ((pick.completed_time - pick.start_time).seconds / 60) | int }} mins
-                            </span>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
+                </div>
+                <div class="card-footer bg-transparent border-0 text-center py-3">
+                    <a href="{{ url_for('main.picker_stats') }}" class="font-weight-bold small text-uppercase">View All Activity <i class="fas fa-arrow-right ml-1"></i></a>
                 </div>
             </div>
         </div>

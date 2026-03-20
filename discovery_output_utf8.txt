@@ -1,0 +1,119 @@
+
+======================================================================
+--- Load Timeframe: cust_shipto ---
+Error querying Load Timeframe: cust_shipto: ('42S22', "[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'cust_name'. (207) (SQLExecDirectW)")
+
+======================================================================
+--- Load Timeframe: delivery instructions ---
+shipto_name | shipping_tracking_delv_instruct
+----------------------------------------------------------------------
+Paul Erickson | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+1st Interiors, Inc. | 
+======================================================================
+
+
+======================================================================
+--- Audit History: so_header dates ---
+system_id | so_id | created_date | created_time | update_date | update_time
+----------------------------------------------------------------------
+20GR | 1463743 | 2026-03-04 00:00:00 | 16:13:33 | 2026-03-04 00:00:00 | 16:13:52
+20GR | 1463748 | 2026-03-04 00:00:00 | 16:12:23 | 2026-03-04 00:00:00 | 16:12:24
+10FD | 1463747 | 2026-03-04 00:00:00 | 16:11:09 | 2026-03-04 00:00:00 | 16:12:22
+20GR | 1463740 | 2026-03-04 00:00:00 | 16:03:28 | 2026-03-04 00:00:00 | 16:04:28
+25BW | 1463739 | 2026-03-04 00:00:00 | 15:59:13 | 2026-03-04 00:00:00 | 15:59:13
+40CV | 1463737 | 2026-03-04 00:00:00 | 15:54:33 | 2026-03-04 00:00:00 | 15:54:50
+10FD | 1463736 | 2026-03-04 00:00:00 | 15:54:26 | 2026-03-04 00:00:00 | 15:54:33
+20GR | 1463735 | 2026-03-04 00:00:00 | 15:51:28 | 2026-03-04 00:00:00 | 15:52:01
+40CV | 1463734 | 2026-03-04 00:00:00 | 15:49:51 | 2026-03-04 00:00:00 | 15:56:36
+20GR | 1463733 | 2026-03-04 00:00:00 | 15:45:45 | 2026-03-04 00:00:00 | 15:53:52
+25BW | 1463722 | 2026-03-04 00:00:00 | 15:43:16 | 2026-03-04 00:00:00 | 15:43:16
+10FD | 1463730 | 2026-03-04 00:00:00 | 15:40:39 | 2026-03-04 00:00:00 | 15:40:39
+20GR | 1463721 | 2026-03-04 00:00:00 | 15:39:40 | 2026-03-04 00:00:00 | 16:10:53
+40CV | 1463724 | 2026-03-04 00:00:00 | 15:38:27 | 2026-03-04 00:00:00 | 15:39:07
+10FD | 1463723 | 2026-03-04 00:00:00 | 15:38:10 | 2026-03-04 00:00:00 | 15:38:17
+10FD | 1463717 | 2026-03-04 00:00:00 | 15:37:33 | 2026-03-04 00:00:00 | 15:37:38
+40CV | 1463714 | 2026-03-04 00:00:00 | 15:35:16 | 2026-03-04 00:00:00 | 15:54:09
+20GR | 1463720 | 2026-03-04 00:00:00 | 15:35:12 | 2026-03-04 00:00:00 | 15:40:55
+10FD | 1463719 | 2026-03-04 00:00:00 | 15:34:14 | 2026-03-04 00:00:00 | 15:38:19
+20GR | 1463718 | 2026-03-04 00:00:00 | 15:32:26 | 2026-03-04 00:00:00 | 15:39:31
+======================================================================
+
+
+======================================================================
+--- Audit History: pick_header columns ---
+prrowid | created_by | created_date | created_time | pick_id | pick_seq | print_status | system_id | update_by | update_date | update_time | Pro2SrcPDB | pro2created | pro2modified
+----------------------------------------------------------------------
+0x000000000000fb7a | trevorn | 2026-03-04 00:00:00 | 10:41:48 | 445024 | 0 | Pick Ticket | 20GR | trevorn | 2026-03-04 00:00:00 | 10:41:48 | platte | 2026-03-04 10:41:55.497000 | 2026-03-04 10:41:55.497000
+0x000000000000fb7c | trevorn | 2026-03-04 00:00:00 | 10:42:51 | 445026 | 0 | Pick Ticket | 20GR | trevorn | 2026-03-04 00:00:00 | 10:42:51 | platte | 2026-03-04 10:42:54.247000 | 2026-03-04 10:42:54.247000
+0x000000000000fb8a | wesh | 2026-03-04 00:00:00 | 11:23:09 | 12389 | 0 | Pick Ticket | 25BW | wesh | 2026-03-04 00:00:00 | 11:23:09 | platte | 2026-03-04 11:23:13.870000 | 2026-03-04 11:23:13.870000
+0x000000000000fb47 | wesh | 2026-03-04 00:00:00 | 11:03:26 | 445029 | 0 | Pick Ticket | 20GR | wesh | 2026-03-04 00:00:00 | 11:03:26 | platte | 2026-03-04 11:03:30 | 2026-03-04 11:03:30
+0x000000000000fb88 | wesh | 2026-03-04 00:00:00 | 11:22:27 | 12387 | 0 | Pick Ticket | 25BW | wesh | 2026-03-04 00:00:00 | 11:22:27 | platte | 2026-03-04 11:22:31.207000 | 2026-03-04 11:22:31.207000
+======================================================================
+
+
+======================================================================
+--- Audit History: shipments_header tracking ---
+prrowid | system_id | so_id | so_id_sysid | shipment_num | ship_date | billed_flag | status_flag | route_id_sysid | print_status | created_by | created_date | update_by | update_date | update_time | tax_description | tax_amt | total_tax | print_charges | total_charges | journal_number | journal_number_sysid | route_id_char | pick_status | sale_type | sale_type_sysid | rep_1_sysid | rep_1 | rep_2 | rep_3 | invoice_date | prof_name | expect_date | type | adf | override_adf | tax_tot_percent | stop | rep_1_pct | rep_2_pct | rep_3_pct | pay_terms_code_sysid | pay_terms_code | edi_process_date | edi_process_time | edi_ack_date | edi_ack_time | created_time | rep_4 | rep_5 | rep_6 | rep_4_pct | rep_5_pct | rep_6_pct | loaded_date | loaded_time | overridden_taxable_sell | credit_status | order_total | cm_orig_shipment | cm_orig_so | currency_conv_factor | currency | hold_from_invoicing | shipments_header_guid | so_header_guid | cust_guid | cust_shipto_guid | unloading_seq | review_status | driver | apply_loyalty | status_flag_delivery | pro_number | etl_processed | ship_via_sysid | ship_via | Pro2SrcPDB | pro2created | pro2modified
+----------------------------------------------------------------------
+0x00000000049f69e0 | 20GR | 1463329 | 20GR | 1 | 2026-03-04 00:00:00 |  | S |  |  | mikes | 2026-03-04 00:00:00 | mikes | 2026-03-04 00:00:00 | 07:57:41 |  |  | 0.00 |  | 0.00 |  |  |  | 0 |  |  | 00CO |  |  |  | None | 20GR | 2026-03-04 00:00:00 | SO | 0.00 | False |  | 0 | 0.00 | 0.00 | 0.00 |  |  | None |  | None |  | 07:57:41 |  |  |  | 0.00 | 0.00 | 0.00 | None |  | 0.00 |  | 61.05 | 0 | 0 | 1.0000000000 | USA | False | 30832014edf4cf71-819f-3581-eb14-0088b8e210b8 | 30831914edf4cf71-819f-3581-eb14-fd87c054dcfc | 3331654d88a37aa-1c36-409c-fa13-d97a28d82e83 | 30018345bb795ac2-792d-e88a-e414-62bb60845c94 | 0 |  |  | False |  |  | False |  |  | platte | 2026-03-04 07:57:46.400000 | 2026-03-04 07:57:46.400000
+0x00000000049f69ea | 40CV | 1463333 | 40CV | 1 | 2026-03-04 00:00:00 |  | L |  |  | austinb | 2026-03-04 00:00:00 | marke | 2026-03-04 00:00:00 | 14:04:59 |  |  | 0.00 |  | 0.00 |  |  |  | 0 |  |  | 00CO |  |  |  | None | 40CV | 2026-03-04 00:00:00 | SO | 0.00 | False |  | 0 | 0.00 | 0.00 | 0.00 |  |  | None |  | None |  | 08:25:03 |  |  |  | 0.00 | 0.00 | 0.00 | 2026-03-04 00:00:00 | 14:04:59 | 0.00 |  | 2468.39 | 0 | 0 | 1.0000000000 | USA | False | 30831909edf4cf71-819f-3581-eb14-4d889099a227 | 30831914edf4cf71-819f-3581-eb14-158828c3eb8b | 20459619c49a7fae-3ff1-4089-9c14-1697ccd05b86 | 30085689d55cb6c0-9c85-faa7-e514-ee07709a06c8 | 0 |  |  | False |  |  | False |  |  | platte | 2026-03-04 08:25:11.427000 | 2026-03-04 14:05:05.423000
+0x00000000049f69e1 | 25BW | 1453715 | 25BW | 2 | 2026-03-04 00:00:00 |  | D | 25BW |  | bradf | 2026-03-04 00:00:00 | darinc | 2026-03-04 00:00:00 | 09:42:36 |  |  | 0.00 |  | 0.00 |  |  | darinc | 15 |  |  | 00CO |  |  |  | None | 25BW | 2026-03-04 00:00:00 | SO | 0.00 | False |  | 0 | 0.00 | 0.00 | 0.00 |  |  | None |  | None |  | 07:59:37 |  |  |  | 0.00 | 0.00 | 0.00 | None |  | 0.00 |  | 1324.66 | 0 | 0 | 1.0000000000 | USA | False | 30832014edf4cf71-819f-3581-eb14-0688b8a5f81b | 30617490edbba95b-3220-6ea5-e914-03e460e4db9f | 3331654d88a37aa-1c36-409c-fa13-b27a786d9112 | 30569325a62bfd64-85ea-709e-e914-dd4300b2af4d | 0 |  | darinc | False |  |  | False |  |  | platte | 2026-03-04 07:59:37.970000 | 2026-03-04 09:42:36.677000
+0x00000000049f69eb | 20GR | 1463351 | 20GR | 1 | 2026-03-04 00:00:00 |  | S |  |  | katelynj | 2026-03-04 00:00:00 | katelynj | 2026-03-04 00:00:00 | 08:33:55 |  |  | 0.00 |  | 0.00 |  |  |  | 0 |  |  | 00CO |  |  |  | None | 20GR | 2026-03-04 00:00:00 | SO | 0.00 | False |  | 0 | 0.00 | 0.00 | 0.00 |  |  | None |  | None |  | 08:33:55 |  |  |  | 0.00 | 0.00 | 0.00 | None |  | 0.00 |  | 161.36 | 0 | 0 | 1.0000000000 | USA | False | 30831909edf4cf71-819f-3581-eb14-6588e8eb82ed | 30831875edf4cf71-819f-3581-eb14-6488581f9615 | 3331654d88a37aa-1c36-409c-fa13-907a40d0651c | 3331654d88a37aa-1c36-409c-fa13-907ad8cc991c | 0 |  |  | False |  |  | False |  |  | platte | 2026-03-04 08:34:00.010000 | 2026-03-04 08:34:00.010000
+0x00000000049f69e2 | 20GR | 1449996 | 20GR | 1 | 2026-03-04 00:00:00 |  | D | 20GR |  | bradf | 2026-03-04 00:00:00 | darinc | 2026-03-04 00:00:00 | 09:51:57 |  |  | 0.00 |  | 0.00 |  |  | darinc | 15 |  |  | 00CO |  |  |  | None | 20GR | 2026-03-04 00:00:00 | SO | 0.00 | False |  | 0 | 0.00 | 0.00 | 0.00 |  |  | None |  | None |  | 08:00:42 |  |  |  | 0.00 | 0.00 | 0.00 | None |  | 0.00 |  | 867.47 | 0 | 0 | 1.0000000000 | USA | False | 30831909edf4cf71-819f-3581-eb14-0988b057391f | 30569259a62bfd64-85ea-709e-e914-fd4318c2cfda | 3331654d88a37aa-1c36-409c-fa13-b27a786d9112 | 30569325a62bfd64-85ea-709e-e914-dd4300b2af4d | 0 |  | darinc | False |  |  | False |  |  | platte | 2026-03-04 08:00:49.100000 | 2026-03-04 09:52:01.797000
+======================================================================
+
+
+======================================================================
+--- Branch Tag: item_branch ---
+Error querying Branch Tag: item_branch: ('42S22', '[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name \'branch\'. (207) (SQLExecDirectW); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name \'branch\'. (207); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name \'branch\'. (207); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name \'branch\'. (207); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name \'branch\'. (207); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]The multi-part identifier "c.cust_name" could not be bound. (4104)')
+
+======================================================================
+--- En Route Match: so_header ship_via and driver ---
+so_id | ship_via | driver
+----------------------------------------------------------------------
+1463740 | Will Call | 
+1463747 | Fork Needed | 
+1463748 | Transfer | 
+1463739 | Van | 
+1463284 | Small Truck | 
+1463743 | Will Call | 
+1463285 | Fork Needed | 
+1463333 | Fork Needed | 
+1463289 | Fork Needed | 
+1463335 | Van | 
+1463287 | Van | 
+1463336 | Will Call | 
+1463291 | Van | 
+1463338 | Will Call | 
+1463294 | Fork Needed | 
+======================================================================
+
+
+======================================================================
+--- En Route Match: ship_to_address ---
+shipment_num | tracking_number | ship_to_address_guid | orig_source_login
+----------------------------------------------------------------------
+0 |  | 25996529a9a232cc-7ce2-31a0-c914-bbf2188f4f69 | None
+0 |  | 25996530a9a232cc-7ce2-31a0-c914-a8f748d5f3c5 | None
+0 |  | 25996531a9a232cc-7ce2-31a0-ca14-8424382f1778 | None
+0 |  | 25998830a9a232cc-7ce2-31a0-ca14-dd22e0e0feb1 | None
+0 |  | 25998116a9a232cc-7ce2-31a0-ca14-7e214087172b | None
+0 |  | 25996531a9a232cc-7ce2-31a0-ca14-5e242817bd7a | None
+0 |  | 257964939721253a-fe21-0897-c814-3edd487d892c | None
+0 |  | 25996531a9a232cc-7ce2-31a0-ca14-902450599d94 | None
+0 |  | 25998116a9a232cc-7ce2-31a0-ca14-ab24881cff26 | None
+0 |  | 25998830a9a232cc-7ce2-31a0-ca14-c024e8440fe7 | None
+======================================================================
+
+
+======================================================================
+--- En Route Match: dispatch tracking ---
+Error querying En Route Match: dispatch tracking: ('42S22', "[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'dispatch_tran_id'. (207) (SQLExecDirectW); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'type'. (207)")
