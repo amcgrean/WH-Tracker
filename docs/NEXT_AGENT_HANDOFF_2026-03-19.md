@@ -107,7 +107,7 @@ High-signal hotspots:
 - local pick state updates in:
   - `complete_pick()`
   - `start_pick()`
-- legacy `/erp-cloud-sync` ingest endpoint
+- legacy `/erp-cloud-sync` ingest endpoint at the time of this handoff
 - `/api/confirm_staged/<so_number>`
 - `/debug/counts`
 
@@ -178,6 +178,7 @@ Then:
 
 - run a final reference audit for `ERPMirrorPick` / `ERPMirrorWorkOrder`
 - remove legacy `/erp-cloud-sync` path if no longer needed
+  This was completed after this handoff was written.
 - decide whether to keep the legacy cache tables in Supabase as temporary ballast or retire them entirely
 
 ## Notes About the Supabase Pooler

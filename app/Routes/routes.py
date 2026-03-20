@@ -5,7 +5,7 @@ from flask import render_template, request, redirect, url_for, flash, Blueprint,
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.extensions import db
-from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, ERPMirrorPick, ERPMirrorWorkOrder, CreditImage, AuditEvent, ERPDeliveryKPI, ERPSyncState
+from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, CreditImage, AuditEvent, ERPSyncState
 from app.runtime_settings import env_bool
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, text
@@ -298,16 +298,6 @@ def complete_pick(pick_id):
         now = datetime.utcnow()
         pick.completed_time = now
 
-        # Update ERPMirrorPick local state if no other open picks remain for this SO
-        mirror = ERPMirrorPick.query.filter_by(so_number=pick.barcode_number).first()
-        if mirror:
-            still_open = Pick.query.filter_by(
-                barcode_number=pick.barcode_number,
-                completed_time=None
-            ).filter(Pick.id != pick_id).count()
-            if still_open == 0:
-                mirror.local_pick_state = 'Picking Complete'
-
         # Audit trail
         audit = AuditEvent(
             event_type='pick_completed',
@@ -350,14 +340,6 @@ def start_pick(picker_id, pick_type_id):
         pick_type_id=pick_type_id
     )
     db.session.add(new_pick)
-
-    # Update ERPMirrorPick local state
-    mirror = ERPMirrorPick.query.filter_by(so_number=barcode).first()
-    if mirror:
-        if completed_time:
-            mirror.local_pick_state = 'Picking Complete'
-        else:
-            mirror.local_pick_state = 'Picking'
 
     # Audit trail
     event_type = 'pick_completed' if completed_time else 'pick_started'
@@ -685,174 +667,26 @@ def search_results():
         return jsonify(results)
     return jsonify([])
 
-# -------------------------------------------------------------------
-# Legacy mirror ingest / compatibility endpoints.
-# These keep the old ERPMirrorPick + ERPMirrorWorkOrder path alive for
-# fallback deployments, but they are no longer the primary read path.
-# -------------------------------------------------------------------
-@main.route('/erp-cloud-sync', methods=['GET', 'POST'])
-@main.route('/erp-cloud-sync/', methods=['GET', 'POST'])
-def sync_erp_data():
-    # Legacy back-compat ingest path for ERPMirrorPick/ERPMirrorWorkOrder.
-    # Central mirror reads now flow through ERPService when CENTRAL_DB_URL is configured.
-    if os.environ.get('VERCEL') and not env_bool('ENABLE_LEGACY_SYNC_ENDPOINT', False):
-        return jsonify({'error': 'Legacy sync endpoint disabled in serverless deployment'}), 404
-
-    api_key = request.headers.get('X-API-KEY')
-    # Simple security check
-    if not api_key or api_key != os.environ.get('SYNC_API_KEY'):
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    data = request.json
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-
-    try:
-        # Determine if we should clear existing data (default to True for backward compatibility)
-        should_reset = request.args.get('reset', 'true').lower() == 'true'
-        sync_started_at = parse_sync_timestamp(data.get('sync_started_at'))
-        sync_complete = bool(data.get('complete'))
-
-        # 1. Sync Picks
-        if 'picks' in data:
-            for p in data['picks']:
-                so_num = str(p.get('so_number'))
-                seq = p.get('sequence')
-                
-                # Check for existing record to preserve cloud-only fields
-                existing = ERPMirrorPick.query.filter_by(so_number=so_num, sequence=seq).first()
-                if existing:
-                    # Update ERP fields
-                    existing.customer_name = p.get('customer_name')
-                    existing.address = p.get('address')
-                    existing.reference = p.get('reference')
-                    existing.handling_code = p.get('handling_code')
-                    existing.item_number = p.get('item_number')
-                    existing.description = p.get('description')
-                    existing.qty = p.get('qty')
-                    existing.line_count = int(p.get('line_count', 0))
-                    existing.so_status = p.get('so_status')
-                    existing.shipment_status = p.get('shipment_status')
-                    existing.status_flag_delivery = p.get('status_flag_delivery')
-                    existing.system_id = p.get('system_id')
-                    existing.expect_date = p.get('expect_date')
-                    existing.sale_type = p.get('sale_type')
-                    existing.ship_via = p.get('ship_via')
-                    existing.driver = p.get('driver')
-                    existing.route = p.get('route')
-                    # Preserve cloud timestamps if ERP is empty
-                    if p.get('printed_at') and not existing.printed_at: existing.printed_at = p.get('printed_at')
-                    if p.get('staged_at') and not existing.staged_at: existing.staged_at = p.get('staged_at')
-                    if p.get('delivered_at') and not existing.delivered_at: existing.delivered_at = p.get('delivered_at')
-                    existing.synced_at = datetime.utcnow()
-                else:
-                    new_pick = ERPMirrorPick(
-                        so_number=so_num,
-                        sequence=seq,
-                        customer_name=p.get('customer_name'),
-                        address=p.get('address'),
-                        reference=p.get('reference'),
-                        handling_code=p.get('handling_code'),
-                        item_number=p.get('item_number'),
-                        description=p.get('description'),
-                        qty=p.get('qty'),
-                        line_count=int(p.get('line_count', 0)),
-                        so_status=p.get('so_status'),
-                        shipment_status=p.get('shipment_status'),
-                        status_flag_delivery=p.get('status_flag_delivery'),
-                        system_id=p.get('system_id'),
-                        expect_date=p.get('expect_date'),
-                        sale_type=p.get('sale_type'),
-                        ship_via=p.get('ship_via'),
-                        driver=p.get('driver'),
-                        route=p.get('route'),
-                        printed_at=p.get('printed_at'),
-                        staged_at=p.get('staged_at'),
-                        delivered_at=p.get('delivered_at'),
-                        synced_at=datetime.utcnow()
-                    )
-                    db.session.add(new_pick)
-
-            if should_reset and sync_complete and sync_started_at:
-                ERPMirrorPick.query.filter(ERPMirrorPick.synced_at < sync_started_at).delete(synchronize_session=False)
-
-        # 2. Sync Work Orders
-        if 'work_orders' in data:
-            for wo in data['work_orders']:
-                wo_id = str(wo.get('wo_id'))
-                existing_wo = ERPMirrorWorkOrder.query.filter_by(wo_id=wo_id).first()
-                if existing_wo:
-                    existing_wo.description = wo.get('description')
-                    existing_wo.item_number = wo.get('item_number')
-                    existing_wo.status = wo.get('status')
-                    existing_wo.qty = float(wo.get('qty', 0))
-                    existing_wo.department = wo.get('department')
-                    existing_wo.synced_at = datetime.utcnow()
-                else:
-                    new_wo = ERPMirrorWorkOrder(
-                        wo_id=wo_id,
-                        so_number=str(wo.get('so_number')),
-                        description=wo.get('description'),
-                        item_number=wo.get('item_number'),
-                        status=wo.get('status'),
-                        qty=float(wo.get('qty', 0)),
-                        department=wo.get('department'),
-                        synced_at=datetime.utcnow()
-                    )
-                    db.session.add(new_wo)
-
-            if should_reset and sync_complete and sync_started_at:
-                ERPMirrorWorkOrder.query.filter(ERPMirrorWorkOrder.synced_at < sync_started_at).delete(synchronize_session=False)
-
-        # 3. Sync KPIs
-        if 'kpis' in data:
-            if should_reset:
-                ERPDeliveryKPI.query.delete()
-            for kpi in data['kpis']:
-                kpi_date = parse_sync_date(kpi.get('date'))
-                if not kpi_date:
-                    continue
-                row = ERPDeliveryKPI(
-                    date=kpi_date,
-                    count=int(kpi.get('count', 0)),
-                    branch=kpi.get('branch'),
-                )
-                db.session.add(row)
-
-        # 4. Sync worker heartbeat / status
-        if 'sync_status' in data and isinstance(data['sync_status'], dict):
-            upsert_sync_state(data['sync_status'])
-
-        db.session.commit()
-        return jsonify({'status': 'success', 'message': 'Data synced successfully'}), 200
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
 @main.route('/api/confirm_staged/<so_number>', methods=['POST'])
 def confirm_staged(so_number):
     """
     Locally confirm that a Sales Order has been staged/loaded onto the truck.
-    Updates ERPMirrorPick.staged_at and logs an AuditEvent.
-    Used in cloud mode where workers can't update ERP directly.
+    Persists the confirmation as an AuditEvent instead of mutating legacy
+    ERPMirrorPick cache rows.
     """
     so_number = so_number.strip()
     if not so_number:
         return jsonify({'error': 'SO number is required'}), 400
 
-    mirror = ERPMirrorPick.query.filter_by(so_number=so_number).first()
-    if not mirror:
-        return jsonify({'error': f'Order {so_number} not found in mirror'}), 404
+    erp = ERPService()
+    if not erp.get_so_header(so_number):
+        return jsonify({'error': f'Order {so_number} was not found'}), 404
 
     now = datetime.utcnow()
-    mirror.staged_at = now
-    mirror.local_pick_state = 'Staging Confirmed'
 
     audit = AuditEvent(
         event_type='staged_confirmed',
-        entity_type='erp_mirror_pick',
-        entity_id=mirror.id,
+        entity_type='sales_order',
         so_number=so_number,
         notes=request.json.get('notes') if request.is_json else None,
         occurred_at=now,
@@ -912,12 +746,11 @@ def debug_counts():
     try:
         erp = ERPService()
         raw_summary = erp.get_open_so_summary()
-        pick_count = ERPMirrorPick.query.count()
-        wo_count = ERPMirrorWorkOrder.query.count()
-        
+        open_work_orders = erp.get_open_work_orders()
+
         return jsonify({
-            'picks': pick_count,
-            'work_orders': wo_count,
+            'open_sales_orders': len(raw_summary),
+            'open_work_orders': len(open_work_orders),
             'erp_cloud_mode': erp.cloud_mode,
             'summary_length': len(raw_summary),
             'db_uri': str(db.engine.url).split('@')[1] if '@' in str(db.engine.url) else 'local',

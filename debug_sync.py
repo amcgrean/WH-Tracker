@@ -1,7 +1,7 @@
 import requests
 
 def debug_405():
-    url = "https://wh-tracker-omega.vercel.app/api/sync"
+    url = "https://wh-tracker-omega.vercel.app/api/sync/status"
     print(f"GET {url}")
     try:
         r = requests.get(url, timeout=10)

@@ -2,8 +2,8 @@ import csv
 import os
 from datetime import date, datetime, timedelta
 from functools import lru_cache
-from sqlalchemy import bindparam, create_engine, inspect, text
-from app.Models.models import ERPMirrorPick, ERPMirrorWorkOrder
+
+from sqlalchemy import bindparam, create_engine, func, inspect, text
 from app.runtime_settings import (
     build_sql_connection_strings,
     env_bool,
@@ -87,6 +87,12 @@ class ERPService:
         if "stock" in columns:
             return f"CASE WHEN COALESCE({alias}.stock, false) THEN 1 ELSE 0 END"
         return "0"
+
+    def _require_central_db_for_cloud_mode(self):
+        if self.cloud_mode and not self.central_db_mode:
+            raise RuntimeError(
+                "CENTRAL_DB_URL is required when CLOUD_MODE=True after the legacy mirror cutover."
+            )
         
     def get_connection(self):
         if pyodbc is None:
@@ -347,6 +353,24 @@ class ERPService:
                  states[so] = new_state
                  
         return states
+
+    def _get_latest_audit_event_map(self, event_type, so_numbers=None):
+        """Return the latest audit timestamp for each SO for a given event type."""
+        from app.Models.models import AuditEvent
+        from app.extensions import db
+
+        query = db.session.query(
+            AuditEvent.so_number,
+            func.max(AuditEvent.occurred_at).label('occurred_at'),
+        ).filter(
+            AuditEvent.event_type == event_type,
+            AuditEvent.so_number.isnot(None),
+        )
+        if so_numbers:
+            query = query.filter(AuditEvent.so_number.in_([str(so_number) for so_number in so_numbers]))
+
+        rows = query.group_by(AuditEvent.so_number).all()
+        return {str(row.so_number): row.occurred_at for row in rows}
         
     def _get_status_label(self, so_status, shipment_status, status_flag_delivery=None):
         """
@@ -408,15 +432,7 @@ class ERPService:
                 'handling_code': row['handling_code'],
             } for row in rows]
 
-        if self.cloud_mode:
-            wos = ERPMirrorWorkOrder.query.filter_by(so_number=barcode).all()
-            return [{
-                'wo_number': wo.wo_id,
-                'item_number': wo.item_number,
-                'description': wo.description,
-                'status': wo.status,
-                'handling_code': wo.department
-            } for wo in wos]
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -614,32 +630,7 @@ class ERPService:
                 pick['local_pick_state'] = local_states.get(pick['so_number'], 'Pick Printed')
             return picks
 
-        if self.cloud_mode:
-            picks = ERPMirrorPick.query.all()
-            return [{
-                'so_number': p.so_number,
-                'customer_name': p.customer_name,
-                'address': p.address,
-                'reference': p.reference,
-                'handling_code': p.handling_code,
-                'sequence': p.sequence,
-                'item_number': p.item_number,
-                'description': p.description,
-                'qty': p.qty,
-            'line_count': 1,
-            'so_status': p.so_status,
-            'shipment_status': p.shipment_status,
-            'system_id': p.system_id,
-            'expect_date': p.expect_date,
-            'local_pick_state': p.local_pick_state,
-            'ship_via': p.ship_via,
-            'driver': p.driver,
-            'route': p.route,
-            'printed_at': p.printed_at,
-            'staged_at': p.staged_at,
-            'delivered_at': p.delivered_at,
-            'status_flag_delivery': p.status_flag_delivery
-        } for p in picks]
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -812,35 +803,7 @@ class ERPService:
                 item['local_pick_state'] = local_states.get(item['so_number'], 'Pick Printed')
             return summary
 
-        if self.cloud_mode:
-            from sqlalchemy import func
-            from app.extensions import db
-            # Aggregate lines by SO and Handling Code
-            summary_query = db.session.query(
-                ERPMirrorPick.so_number,
-                ERPMirrorPick.customer_name,
-                ERPMirrorPick.address,
-                ERPMirrorPick.reference,
-                ERPMirrorPick.handling_code,
-                func.max(ERPMirrorPick.local_pick_state).label('local_pick_state'),
-                func.count(ERPMirrorPick.id).label('line_count')
-            ).group_by(
-                ERPMirrorPick.so_number,
-                ERPMirrorPick.customer_name,
-                ERPMirrorPick.address,
-                ERPMirrorPick.reference,
-                ERPMirrorPick.handling_code
-            ).all()
-            
-            return [{
-                'so_number': s.so_number,
-                'customer_name': s.customer_name,
-                'address': s.address,
-                'reference': s.reference,
-                'handling_code': s.handling_code,
-                'line_count': s.line_count,
-                'local_pick_state': s.local_pick_state  # Now aggregated correctly
-            } for s in summary_query]
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -951,19 +914,7 @@ class ERPService:
                 'line_count': int(row['line_count']) if row['line_count'] is not None else 0,
             } for row in rows]
 
-        if self.cloud_mode:
-            query = ERPMirrorPick.query
-            if so_numbers:
-                query = query.filter(ERPMirrorPick.so_number.in_(so_numbers))
-            picks = query.all()
-            return [{
-                'so_number': p.so_number,
-                'customer_name': p.customer_name,
-                'address': p.address,
-                'reference': p.reference,
-                'handling_code': p.handling_code,
-                'line_count': p.line_count
-            } for p in picks]
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -1066,6 +1017,10 @@ class ERPService:
             row = rows[0] if rows else None
             if not row:
                 return None
+            staged_events = self._get_latest_audit_event_map('staged_confirmed', [so_number])
+            staged_at = f"{row['loaded_date']} {row['loaded_time']}" if row['loaded_date'] else None
+            if not staged_at:
+                staged_at = staged_events.get(str(so_number))
             return {
                 'so_number': str(row['so_id']),
                 'customer_name': row['cust_name'] or 'Unknown',
@@ -1077,26 +1032,10 @@ class ERPService:
                 'route': row['route'],
                 'status_flag': row['status_flag_delivery'],
                 'printed_at': None,
-                'staged_at': f"{row['loaded_date']} {row['loaded_time']}" if row['loaded_date'] else None,
+                'staged_at': staged_at,
                 'delivered_at': row['ship_date'] if row['status_flag_delivery'] == 'D' else None,
             }
-        if self.cloud_mode:
-            p = ERPMirrorPick.query.filter_by(so_number=so_number).first()
-            if p:
-                return {
-                    'so_number': p.so_number,
-                    'customer_name': p.customer_name,
-                    'address': p.address,
-                    'reference': p.reference,
-                    'system_id': p.system_id,
-                    'ship_via': p.ship_via,
-                    'driver': p.driver,
-                    'route': p.route,
-                    'printed_at': p.printed_at,
-                    'staged_at': p.staged_at,
-                    'delivered_at': p.delivered_at
-                }
-            return None
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -1130,6 +1069,10 @@ class ERPService:
             
             header = None
             if row:
+                staged_events = self._get_latest_audit_event_map('staged_confirmed', [so_number])
+                staged_at = f"{row.loaded_date} {row.loaded_time}" if row.loaded_date else None
+                if not staged_at:
+                    staged_at = staged_events.get(str(so_number))
                 header = {
                     'so_number': str(row.so_id),
                     'customer_name': row.cust_name or 'Unknown',
@@ -1141,7 +1084,7 @@ class ERPService:
                     'route': row.route,
                     'status_flag': row.status_flag,
                     'printed_at': row.printed_at,
-                    'staged_at': f"{row.loaded_date} {row.loaded_time}" if row.loaded_date else None,
+                    'staged_at': staged_at,
                     'delivered_at': row.ship_date if row.status_flag == 'D' else None
                 }
             
@@ -1187,29 +1130,7 @@ class ERPService:
                 'handling_code': row['handling_code'],
                 'qty': row['qty_ordered'],
             } for row in rows]
-        if self.cloud_mode:
-            # First try to find individual pick lines
-            pick_lines = ERPMirrorPick.query.filter_by(so_number=so_number).order_by(ERPMirrorPick.sequence.asc()).all()
-            if pick_lines and any(p.item_number for p in pick_lines):
-                return [{
-                    'so_number': p.so_number,
-                    'sequence': p.sequence,
-                    'item_number': p.item_number,
-                    'description': p.description,
-                    'handling_code': p.handling_code,
-                    'qty': p.qty
-                } for p in pick_lines]
-
-            # Fallback to Work Orders
-            wos = ERPMirrorWorkOrder.query.filter_by(so_number=so_number).order_by(ERPMirrorWorkOrder.id.asc()).all()
-            return [{
-                'so_number': wo.so_number,
-                'sequence': i + 1,
-                'item_number': wo.item_number,
-                'description': wo.description,
-                'handling_code': wo.department,
-                'qty': wo.qty
-            } for i, wo in enumerate(wos)]
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -1359,81 +1280,7 @@ class ERPService:
                     obj["expected_date"] = obj["expected_date"].isoformat()
                 results.append(obj)
             return results
-        if self.cloud_mode:
-            query = ERPMirrorPick.query
-
-            if branches:
-                raw_branches = [item.strip().upper() for item in branches.split(",") if item.strip()]
-                expanded = []
-                for branch in raw_branches:
-                    if branch in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
-                        expanded.extend(["20GR", "25BW"])
-                    else:
-                        expanded.append(branch)
-                expanded = sorted(set(expanded))
-                if expanded:
-                    query = query.filter(ERPMirrorPick.system_id.in_(expanded))
-
-            if sale_types:
-                types = [item.strip() for item in sale_types.split(",") if item.strip()]
-                if types:
-                    query = query.filter(ERPMirrorPick.sale_type.in_(types))
-
-            if status_filter:
-                statuses = [item.strip().upper() for item in status_filter.split(",") if item.strip()]
-                if statuses:
-                    query = query.filter(ERPMirrorPick.so_status.in_(statuses))
-
-            if route_id:
-                query = query.filter(ERPMirrorPick.route == route_id)
-            if driver:
-                query = query.filter(ERPMirrorPick.driver == driver)
-
-            picks = query.all()
-            grouped = {}
-            for pick in picks:
-                key = str(pick.so_number)
-                if key not in grouped:
-                    doc_kind = 'credit' if str(pick.so_status or '').upper() == 'CM' else 'delivery'
-                    grouped[key] = {
-                        'id': int(pick.so_number) if str(pick.so_number).isdigit() else pick.so_number,
-                        'doc_kind': doc_kind,
-                        'expected_date': str(pick.expect_date or ''),
-                        'lat': pick.latitude,
-                        'lon': pick.longitude,
-                        'address': pick.address or '',
-                        'so_status': pick.so_status,
-                        'so_type': 'CM' if doc_kind == 'credit' else 'SO',
-                        'shipto_name': pick.customer_name or 'Unknown',
-                        'shipment_num': None,
-                        'route_id': pick.route or '',
-                        'driver': pick.driver or '',
-                        'branch': pick.system_id or '',
-                        'item_count': 0,
-                        'total_weight': None,
-                        'gps_status': pick.geocode_status or ('exact' if pick.latitude is not None and pick.longitude is not None else 'missing'),
-                        'gps_verified': str(pick.geocode_status or '').lower() == 'exact',
-                    }
-                grouped[key]['item_count'] += 1
-
-            rows = []
-            for row in grouped.values():
-                include_row = row['doc_kind'] == 'credit'
-                expected = row.get('expected_date') or ''
-                if expected:
-                    try:
-                        parsed = datetime.fromisoformat(str(expected)).date()
-                        include_row = include_row or (start <= parsed <= end)
-                    except Exception:
-                        pass
-                if include_row:
-                    rows.append(row)
-
-            if not include_no_gps:
-                rows = [row for row in rows if row.get('lat') is not None and row.get('lon') is not None]
-
-            rows.sort(key=lambda item: (str(item.get('expected_date') or ''), str(item.get('id'))))
-            return rows
+        self._require_central_db_for_cloud_mode()
 
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -1612,20 +1459,7 @@ class ERPService:
                 params,
             )
             return [dict(row) for row in rows]
-        if self.cloud_mode:
-            picks = ERPMirrorPick.query.filter_by(so_number=str(so_id)).order_by(ERPMirrorPick.sequence.asc()).all()
-            lines = [{
-                'so_id': so_id,
-                'shipment_num': shipment_num,
-                'line_no': pick.sequence,
-                'item_id': pick.item_number,
-                'item_description': pick.description,
-                'qty_ordered': pick.qty,
-                'qty_shipped': pick.qty,
-                'uom': '',
-                'weight': None,
-            } for pick in picks]
-            return lines[:limit]
+        self._require_central_db_for_cloud_mode()
 
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -1725,40 +1559,7 @@ class ERPService:
                 'driver': row['driver'],
                 'route': row['route'],
             } for row in rows]
-        if self.cloud_mode:
-            picks = ERPMirrorPick.query.all()
-            # Aggregate by SO number for delivery view
-            so_map = {}
-            for p in picks:
-                so_num = p.so_number
-                if so_num not in so_map:
-                    so_s = (p.so_status or '').upper()
-                    ship_s = (p.shipment_status or '').upper()
-                    deliv_s = (p.status_flag_delivery or '').upper()
-                    
-                    # Compute status label for Cloud Mode
-                    label = self._get_status_label(so_s, ship_s, deliv_s)
-
-                    so_map[so_num] = {
-                        'so_number': so_num,
-                        'customer_name': p.customer_name or 'Unknown',
-                        'address': p.address or 'No Address',
-                        'reference': p.reference,
-                        'handling_codes': [],
-                        'line_count': 0,
-                        'so_status': so_s,
-                        'shipment_status': ship_s,
-                        'status_label': label or 'OPEN'
-                    }
-                if p.handling_code and p.handling_code not in so_map[so_num]['handling_codes']:
-                    so_map[so_num]['handling_codes'].append(p.handling_code)
-                so_map[so_num]['line_count'] += p.line_count or 0
-
-            results = []
-            for so_num, data in so_map.items():
-                data['handling_codes'] = sorted(list(data['handling_codes']))
-                results.append(data)
-            return results
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -1829,16 +1630,28 @@ class ERPService:
                 "total_orders_today": int(row.get("total_orders_today") or 0),
             }
 
-        open_orders_count = ERPMirrorPick.query.filter(
-            ERPMirrorPick.so_status == 'O'
-        ).with_entities(ERPMirrorPick.so_number).distinct().count()
-        total_orders_today = ERPMirrorPick.query.filter(
-            ERPMirrorPick.expect_date == datetime.today().strftime('%Y-%m-%d')
-        ).with_entities(ERPMirrorPick.so_number).distinct().count()
-        return {
-            "open_orders_count": open_orders_count,
-            "total_orders_today": total_orders_today,
-        }
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            today = datetime.today().strftime('%Y-%m-%d')
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(DISTINCT CASE WHEN UPPER(COALESCE(so_status, '')) = 'O' THEN so_id END) AS open_orders_count,
+                    COUNT(DISTINCT CASE WHEN CAST(expect_date AS DATE) = ? THEN so_id END) AS total_orders_today
+                FROM so_header
+                """,
+                (today,),
+            )
+            row = cursor.fetchone()
+            return {
+                "open_orders_count": int(getattr(row, "open_orders_count", 0) or 0),
+                "total_orders_today": int(getattr(row, "total_orders_today", 0) or 0),
+            }
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_sales_rep_metrics(self, period_days=30):
         if self.central_db_mode:
@@ -1860,15 +1673,28 @@ class ERPService:
                 "monthly_goal_progress": 75,
             }
 
-        since = datetime.utcnow() - timedelta(days=period_days)
-        active_customers = db.session.query(func.count(distinct(ERPMirrorPick.customer_name))).filter(
-            ERPMirrorPick.synced_at >= since
-        ).scalar() or 0
-        return {
-            "active_customers": active_customers,
-            "open_orders_value": 125400,
-            "monthly_goal_progress": 75,
-        }
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            since = datetime.utcnow() - timedelta(days=period_days)
+            cursor.execute(
+                """
+                SELECT COUNT(DISTINCT CAST(cust_key AS VARCHAR(255))) AS active_customers
+                FROM so_header
+                WHERE COALESCE(expect_date, invoice_date, created_date) >= ?
+                """,
+                (since,),
+            )
+            row = cursor.fetchone()
+            return {
+                "active_customers": int(getattr(row, "active_customers", 0) or 0),
+                "open_orders_value": 125400,
+                "monthly_goal_progress": 75,
+            }
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_sales_order_status(self, q="", limit=100):
         if self.central_db_mode:
@@ -1911,13 +1737,63 @@ class ERPService:
             )
             return [dict(row) for row in rows]
 
-        query = ERPMirrorPick.query.filter(ERPMirrorPick.so_status == 'O')
-        if q:
-            query = query.filter(
-                ERPMirrorPick.so_number.ilike(f'%{q}%')
-                | ERPMirrorPick.customer_name.ilike(f'%{q}%')
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            params = []
+            search_clause = ""
+            if q:
+                like = f"%{q}%"
+                search_clause = """
+                  AND (
+                    CAST(soh.so_id AS VARCHAR(64)) LIKE ?
+                    OR COALESCE(c.cust_name, '') LIKE ?
+                    OR COALESCE(c.cust_code, '') LIKE ?
+                  )
+                """
+                params.extend([like, like, like])
+
+            cursor.execute(
+                f"""
+                SELECT TOP {int(limit)}
+                    CAST(soh.so_id AS VARCHAR(64)) AS so_number,
+                    MAX(c.cust_name) AS customer_name,
+                    MAX(c.cust_code) AS customer_code,
+                    MAX(soh.expect_date) AS expect_date,
+                    MAX(soh.reference) AS reference,
+                    MAX(soh.so_status) AS so_status,
+                    MAX(COALESCE(ib.handling_code, '')) AS handling_code
+                FROM so_header soh
+                LEFT JOIN cust c
+                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                LEFT JOIN so_detail sod
+                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                LEFT JOIN item_branch ib
+                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
+                WHERE UPPER(COALESCE(soh.so_status, '')) = 'O'
+                {search_clause}
+                GROUP BY soh.system_id, soh.so_id
+                ORDER BY MAX(soh.expect_date) DESC, soh.so_id DESC
+                """,
+                params,
             )
-        return query.order_by(desc(ERPMirrorPick.synced_at)).limit(limit).all()
+            rows = cursor.fetchall()
+            return [
+                {
+                    "so_number": str(row.so_number),
+                    "customer_name": row.customer_name,
+                    "customer_code": row.customer_code,
+                    "expect_date": row.expect_date,
+                    "reference": row.reference,
+                    "so_status": row.so_status,
+                    "handling_code": row.handling_code,
+                }
+                for row in rows
+            ]
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_sales_invoice_lookup(self, q="", date_from="", date_to="", limit=50):
         if self.central_db_mode:
@@ -1960,17 +1836,60 @@ class ERPService:
             )
             return [dict(row) for row in rows]
 
-        query = ERPMirrorPick.query.filter(ERPMirrorPick.so_status.in_(['I', 'C']))
-        if q:
-            query = query.filter(
-                ERPMirrorPick.so_number.ilike(f'%{q}%')
-                | ERPMirrorPick.customer_name.ilike(f'%{q}%')
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            clauses = ["UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"]
+            params = []
+            if q:
+                like = f"%{q}%"
+                clauses.append(
+                    "(CAST(soh.so_id AS VARCHAR(64)) LIKE ? OR COALESCE(c.cust_name, '') LIKE ? OR COALESCE(c.cust_code, '') LIKE ?)"
+                )
+                params.extend([like, like, like])
+            if date_from:
+                clauses.append("CAST(COALESCE(sh.invoice_date, soh.expect_date) AS DATE) >= ?")
+                params.append(date_from)
+            if date_to:
+                clauses.append("CAST(COALESCE(sh.invoice_date, soh.expect_date) AS DATE) <= ?")
+                params.append(date_to)
+
+            cursor.execute(
+                f"""
+                SELECT TOP {int(limit)}
+                    CAST(soh.so_id AS VARCHAR(64)) AS so_number,
+                    MAX(c.cust_name) AS customer_name,
+                    MAX(c.cust_code) AS customer_code,
+                    MAX(COALESCE(sh.invoice_date, soh.expect_date)) AS expect_date,
+                    MAX(soh.reference) AS reference,
+                    MAX(soh.so_status) AS so_status
+                FROM so_header soh
+                LEFT JOIN cust c
+                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                LEFT JOIN shipments_header sh
+                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                WHERE {" AND ".join(clauses)}
+                GROUP BY soh.system_id, soh.so_id
+                ORDER BY MAX(COALESCE(sh.invoice_date, soh.expect_date)) DESC, soh.so_id DESC
+                """,
+                params,
             )
-        if date_from:
-            query = query.filter(ERPMirrorPick.expect_date >= date_from)
-        if date_to:
-            query = query.filter(ERPMirrorPick.expect_date <= date_to)
-        return query.order_by(desc(ERPMirrorPick.synced_at)).limit(limit).all()
+            rows = cursor.fetchall()
+            return [
+                {
+                    "so_number": str(row.so_number),
+                    "customer_name": row.customer_name,
+                    "customer_code": row.customer_code,
+                    "expect_date": row.expect_date,
+                    "reference": row.reference,
+                    "so_status": row.so_status,
+                }
+                for row in rows
+            ]
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_sales_customer_orders(self, customer_number, q="", limit=None):
         if self.central_db_mode:
@@ -2013,19 +1932,60 @@ class ERPService:
             )
             return [dict(row) for row in rows]
 
-        history = ERPMirrorPick.query.filter(
-            ERPMirrorPick.customer_name.ilike(f'%{customer_number}%')
-            | (ERPMirrorPick.so_number.ilike(f'%{customer_number}%'))
-        )
-        if q:
-            history = history.filter(
-                ERPMirrorPick.so_number.ilike(f'%{q}%')
-                | ERPMirrorPick.item_number.ilike(f'%{q}%')
-                | ERPMirrorPick.description.ilike(f'%{q}%')
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            clauses = []
+            params = []
+            if customer_number:
+                customer_like = f"%{customer_number}%"
+                clauses.append(
+                    "(COALESCE(c.cust_code, '') LIKE ? OR COALESCE(c.cust_name, '') LIKE ? OR CAST(soh.so_id AS VARCHAR(64)) LIKE ?)"
+                )
+                params.extend([customer_like, customer_like, customer_like])
+            if q:
+                search_like = f"%{q}%"
+                clauses.append(
+                    "(CAST(soh.so_id AS VARCHAR(64)) LIKE ? OR COALESCE(soh.reference, '') LIKE ? OR COALESCE(c.cust_name, '') LIKE ? OR COALESCE(c.cust_code, '') LIKE ?)"
+                )
+                params.extend([search_like, search_like, search_like, search_like])
+
+            where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+            top_clause = f"TOP {int(limit)}" if limit else ""
+            cursor.execute(
+                f"""
+                SELECT {top_clause}
+                    CAST(soh.so_id AS VARCHAR(64)) AS so_number,
+                    MAX(c.cust_name) AS customer_name,
+                    MAX(c.cust_code) AS customer_code,
+                    MAX(soh.expect_date) AS expect_date,
+                    MAX(soh.reference) AS reference,
+                    MAX(soh.so_status) AS so_status
+                FROM so_header soh
+                LEFT JOIN cust c
+                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                {where_clause}
+                GROUP BY soh.system_id, soh.so_id
+                ORDER BY MAX(soh.expect_date) DESC, soh.so_id DESC
+                """,
+                params,
             )
-        if limit:
-            history = history.limit(limit)
-        return history.all()
+            rows = cursor.fetchall()
+            return [
+                {
+                    "so_number": str(row.so_number),
+                    "customer_name": row.customer_name,
+                    "customer_code": row.customer_code,
+                    "expect_date": row.expect_date,
+                    "reference": row.reference,
+                    "so_status": row.so_status,
+                }
+                for row in rows
+            ]
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_sales_products(self, q="", limit=50):
         if self.central_db_mode:
@@ -2058,17 +2018,43 @@ class ERPService:
             )
             return [dict(row) for row in rows]
 
-        query = ERPMirrorPick.query
-        if q:
-            query = query.filter(
-                ERPMirrorPick.item_number.ilike(f'%{q}%')
-                | ERPMirrorPick.description.ilike(f'%{q}%')
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            params = []
+            where_clause = ""
+            if q:
+                like = f"%{q}%"
+                where_clause = "WHERE (COALESCE(i.item, '') LIKE ? OR COALESCE(i.description, '') LIKE ?)"
+                params.extend([like, like])
+            cursor.execute(
+                f"""
+                SELECT TOP {int(limit)}
+                    i.item AS item_number,
+                    i.description,
+                    MAX(COALESCE(ib.qty_available, ib.qty_on_hand, 0)) AS quantity_on_hand
+                FROM item i
+                LEFT JOIN item_branch ib
+                    ON ib.item_ptr = i.item_ptr
+                {where_clause}
+                GROUP BY i.item, i.description
+                ORDER BY i.item
+                """,
+                params,
             )
-        return query.with_entities(
-            ERPMirrorPick.item_number,
-            ERPMirrorPick.description,
-            ERPMirrorPick.qty.label('quantity_on_hand')
-        ).distinct(ERPMirrorPick.item_number).limit(limit).all()
+            rows = cursor.fetchall()
+            return [
+                {
+                    "item_number": row.item_number,
+                    "description": row.description,
+                    "quantity_on_hand": row.quantity_on_hand,
+                }
+                for row in rows
+            ]
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_sales_reports(self, period_days=30):
         if self.central_db_mode:
@@ -2120,31 +2106,78 @@ class ERPService:
                 "status_breakdown": [dict(row) for row in status_breakdown],
             }
 
-        since = datetime.utcnow() - timedelta(days=period_days)
-        daily_orders = db.session.query(
-            ERPMirrorPick.expect_date,
-            func.count(distinct(ERPMirrorPick.so_number)).label('count'),
-        ).filter(
-            ERPMirrorPick.synced_at >= since,
-            ERPMirrorPick.expect_date.isnot(None),
-        ).group_by(ERPMirrorPick.expect_date).order_by(ERPMirrorPick.expect_date.asc()).all()
-        top_customers = db.session.query(
-            ERPMirrorPick.customer_name,
-            func.count(distinct(ERPMirrorPick.so_number)).label('order_count'),
-        ).filter(
-            ERPMirrorPick.synced_at >= since
-        ).group_by(ERPMirrorPick.customer_name).order_by(desc('order_count')).limit(15).all()
-        status_breakdown = db.session.query(
-            ERPMirrorPick.so_status,
-            func.count(distinct(ERPMirrorPick.so_number)).label('count'),
-        ).filter(
-            ERPMirrorPick.synced_at >= since
-        ).group_by(ERPMirrorPick.so_status).all()
-        return {
-            "daily_orders": daily_orders,
-            "top_customers": top_customers,
-            "status_breakdown": status_breakdown,
-        }
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            since = datetime.utcnow() - timedelta(days=period_days)
+
+            cursor.execute(
+                """
+                SELECT
+                    CAST(expect_date AS DATE) AS expect_date,
+                    COUNT(DISTINCT so_id) AS count
+                FROM so_header
+                WHERE COALESCE(expect_date, invoice_date, created_date) >= ?
+                  AND expect_date IS NOT NULL
+                GROUP BY CAST(expect_date AS DATE)
+                ORDER BY CAST(expect_date AS DATE)
+                """,
+                (since,),
+            )
+            daily_orders = [
+                {"expect_date": row.expect_date, "count": row.count}
+                for row in cursor.fetchall()
+            ]
+
+            cursor.execute(
+                """
+                SELECT TOP 15
+                    MAX(c.cust_name) AS customer_name,
+                    MAX(c.cust_code) AS customer_code,
+                    COUNT(DISTINCT soh.so_id) AS order_count
+                FROM so_header soh
+                LEFT JOIN cust c
+                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                WHERE COALESCE(soh.expect_date, soh.invoice_date, soh.created_date) >= ?
+                GROUP BY soh.cust_key
+                ORDER BY order_count DESC
+                """,
+                (since,),
+            )
+            top_customers = [
+                {
+                    "customer_name": row.customer_name,
+                    "customer_code": row.customer_code,
+                    "order_count": row.order_count,
+                }
+                for row in cursor.fetchall()
+            ]
+
+            cursor.execute(
+                """
+                SELECT
+                    so_status,
+                    COUNT(DISTINCT so_id) AS count
+                FROM so_header
+                WHERE COALESCE(expect_date, invoice_date, created_date) >= ?
+                GROUP BY so_status
+                ORDER BY count DESC
+                """,
+                (since,),
+            )
+            status_breakdown = [
+                {"so_status": row.so_status, "count": row.count}
+                for row in cursor.fetchall()
+            ]
+            return {
+                "daily_orders": daily_orders,
+                "top_customers": top_customers,
+                "status_breakdown": status_breakdown,
+            }
+        finally:
+            cursor.close()
+            conn.close()
 
     def get_open_work_orders(self):
         """
@@ -2192,32 +2225,7 @@ class ERPService:
                 'reference': row['reference'] or '',
             } for row in rows]
 
-        if self.cloud_mode:
-            wos = ERPMirrorWorkOrder.query.all()
-            
-            # Try to enrich with customer info from Picks if available
-            so_numbers = list(set([str(wo.so_number) for wo in wos]))
-            so_info = {}
-            if so_numbers:
-                picks = ERPMirrorPick.query.filter(ERPMirrorPick.so_number.in_(so_numbers)).all()
-                for p in picks:
-                    if p.so_number not in so_info:
-                        so_info[p.so_number] = {
-                            'customer_name': p.customer_name,
-                            'reference': p.reference
-                        }
-
-            return [{
-                'wo_id': wo.wo_id,
-                'so_number': wo.so_number,
-                'description': wo.description,
-                'item_number': wo.item_number,
-                'status': wo.status,
-                'qty': wo.qty,
-                'department': wo.department,
-                'customer_name': so_info.get(str(wo.so_number), {}).get('customer_name', 'Unknown'),
-                'reference': so_info.get(str(wo.so_number), {}).get('reference', '')
-            } for wo in wos]
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -2347,46 +2355,7 @@ class ERPService:
                 if delivery['status_label'] == 'PICKING':
                     delivery['status_label'] = local_states.get(delivery['so_number'], 'PICK PRINTED').upper()
             return deliveries
-        if self.cloud_mode:
-            # Fallback to picks mirror for now (could be enhanced with more fields if synced)
-            query = ERPMirrorPick.query
-            if branch_id:
-                query = query.filter(ERPMirrorPick.system_id.ilike(f"%{branch_id}%"))
-            picks = query.all()
-            
-            # Group by SO Number to avoid duplicates in cloud mode
-            grouped = {}
-            for p in picks:
-                if p.so_number not in grouped:
-                    # Determine status label in cloud mode based on synced flags
-                    so_s = (p.so_status or '').upper()
-                    ship_s = (p.shipment_status or '').upper()
-                    deliv_s = (p.status_flag_delivery or '').upper()
-                    
-                    label = self._get_status_label(so_s, ship_s, deliv_s)
-
-                    grouped[p.so_number] = {
-                        'so_number': p.so_number,
-                        'customer_name': p.customer_name or 'Unknown',
-                        'address': p.address or 'No Address',
-                        'reference': p.reference,
-                        'so_status': so_s,
-                    'shipment_status': ship_s,
-                    'status_label': label or 'OPEN',
-                    'system_id': p.system_id,
-                    'expect_date': p.expect_date,
-                    'invoice_date': None, # Date details not mirrored yet
-                    'local_pick_state': getattr(p, 'local_pick_state', 'Pick Printed'),  # Add default if missing
-                    'route': getattr(p, 'route', ''),
-                    'ship_via': getattr(p, 'ship_via', ''),
-                    'driver': getattr(p, 'driver', ''),
-                    'printed_at': getattr(p, 'printed_at', None),
-                    'staged_at': getattr(p, 'staged_at', None),
-                    'delivered_at': getattr(p, 'delivered_at', None),
-                    'status_flag_delivery': getattr(p, 'status_flag_delivery', None)
-                }
-            # Return as a list, sorted by SO number descending
-            return sorted(grouped.values(), key=lambda x: str(x['so_number']), reverse=True)
+        self._require_central_db_for_cloud_mode()
 
         try:
             conn = self.get_connection()
@@ -2581,9 +2550,7 @@ class ERPService:
 
     def get_delivery_kpis(self, branch_id=None):
         """
-        Fetches aggregated KPI data (7-day average, yesterday's total).
-        Local Mode: Queries ERP directly.
-        Cloud Mode: Queries ERPDeliveryKPI mirror table.
+        Fetches aggregated KPI data (7-day average, yesterday's total) from historical mirror stats.
         """
         if self.central_db_mode:
             stats = self.get_historical_delivery_stats(days=14, branch_id=branch_id)

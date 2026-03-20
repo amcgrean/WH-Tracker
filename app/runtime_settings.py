@@ -45,7 +45,7 @@ def get_database_url() -> str | None:
 
 
 def get_central_db_url() -> str | None:
-    return normalize_database_url(os.environ.get("CENTRAL_DB_URL"))
+    return normalize_database_url(os.environ.get("CENTRAL_DB_URL") or os.environ.get("DATABASE_URL"))
 
 
 def is_pooled_postgres_url(url: str | None) -> bool:
@@ -87,8 +87,6 @@ def get_sqlalchemy_engine_options(url: str | None, *, serverless_default: bool =
 
 def get_sync_settings() -> dict:
     return {
-        "api_url": os.environ.get("CLOUD_API_URL", "http://localhost:5000/erp-cloud-sync"),
-        "api_key": os.environ.get("SYNC_API_KEY", "dev-key"),
         "database_url": get_database_url(),
         "interval_seconds": max(3, env_int("SYNC_INTERVAL_SECONDS", 5)),
         "change_monitoring": env_bool("SYNC_CHANGE_MONITORING", True),

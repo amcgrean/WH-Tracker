@@ -33,11 +33,8 @@ Ensure Python 3.9+ is installed on your PC.
 Create or update the `.env` file in the root directory (`C:\Users\amcgrean\python\tracker\.env`) with the following:
 
 ```env
-# URL of your Vercel deployment
-CLOUD_API_URL=https://your-app-name.vercel.app/api/sync
-
-# Secret key that MUST match the one in your Vercel Environment Variables
-SYNC_API_KEY=Tr@ckerSync2024!
+# Mirror database target
+DATABASE_URL=postgresql://user:password@host:5432/postgres
 ```
 
 ---

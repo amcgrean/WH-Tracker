@@ -127,10 +127,10 @@ ORDER BY ib.handling_code, sod.sequence
 
 When running in cloud mode (`CLOUD_MODE=True`), pyodbc is unavailable.
 The delivery board falls back to the `ERPMirrorPick` SQLite table, which is
-populated via the `/api/sync` endpoint from the on-premise sync script.
+populated directly in the mirror database by the on-premise sync script.
 
 **Mirror table used:** `ERPMirrorPick`
-**Sync endpoint:** `POST /api/sync` (requires `X-API-KEY` header)
+**Sync target:** direct mirror database writes from the on-premise sync script
 
 ---
 
@@ -228,6 +228,5 @@ yet incorporated. These should be queried in SSMS to check for useful content:
 |---|---|---|
 | `SAMSARA_API_TOKEN` | Samsara API bearer token | Yes (for live GPS data) |
 | `CLOUD_MODE` | Set to `True` for serverless (disables pyodbc) | Optional |
-| `SYNC_API_KEY` | API key for ERP mirror sync endpoint | For cloud mode |
 | `DATABASE_URL` | Production database connection string | For production |
 | `SECRET_KEY` | Flask session secret | Yes |

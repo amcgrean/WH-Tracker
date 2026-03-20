@@ -6,7 +6,6 @@ import time
 from datetime import datetime, date
 from pathlib import Path
 
-import requests
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -21,8 +20,6 @@ class LocalSync:
         from app.Services.geocoding_service import GeocodingService
 
         self.settings = get_sync_settings()
-        self.api_url = self.settings["api_url"]
-        self.api_key = self.settings["api_key"]
         self.database_url = self.settings["database_url"]
         self.sync_interval = self.settings["interval_seconds"]
         self.change_monitoring = self.settings["change_monitoring"]
@@ -39,18 +36,22 @@ class LocalSync:
         self.last_payload_hash = None
         self.last_change_token = None
 
-        if self.database_url:
-            print(f"[{datetime.now()}] Direct SQL Mode Enabled. Connecting to mirror DB...")
-            try:
-                self.engine = create_engine(self.database_url)
-                self.Session = sessionmaker(bind=self.engine)
-                self.db_session = self.Session()
-                with self.engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                print(f"[{datetime.now()}] Mirror DB connection successful.")
-            except Exception as e:
-                print(f"[{datetime.now()}] Mirror DB connection failed: {e}")
-                self.db_session = None
+        if not self.database_url:
+            raise RuntimeError(
+                "DATABASE_URL is required for sync_erp.py. Legacy API sync mode has been retired."
+            )
+
+        print(f"[{datetime.now()}] Direct SQL Mode Enabled. Connecting to mirror DB...")
+        try:
+            self.engine = create_engine(self.database_url)
+            self.Session = sessionmaker(bind=self.engine)
+            self.db_session = self.Session()
+            with self.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"[{datetime.now()}] Mirror DB connection successful.")
+        except Exception as e:
+            print(f"[{datetime.now()}] Mirror DB connection failed: {e}")
+            raise
 
     def _parse_erp_datetime(self, date_str):
         if not date_str:
@@ -127,7 +128,7 @@ class LocalSync:
             "worker_name": self.worker_name,
             "worker_mode": self.worker_mode,
             "source_mode": "local_sql",
-            "target_mode": "direct_db" if self.db_session else "cloud_api",
+            "target_mode": "direct_db",
             "interval_seconds": self.sync_interval,
             "change_monitoring": self.change_monitoring,
             "status": status,
@@ -180,16 +181,10 @@ class LocalSync:
             state.last_error_at = now
         self.db_session.commit()
 
-    def _record_status_api(self, payload):
-        self._send_payload({"sync_status": payload}, reset=False)
-
     def record_status(self, payload):
         self._write_status_file(payload)
         try:
-            if self.db_session:
-                self._record_status_direct(payload)
-            else:
-                self._record_status_api(payload)
+            self._record_status_direct(payload)
         except Exception as e:
             print(f"[{datetime.now()}] Failed to persist sync status: {e}")
 
@@ -210,10 +205,7 @@ class LocalSync:
             return status
 
         try:
-            if self.db_session:
-                self.push_direct_to_db(data)
-            else:
-                self.push_via_api(data, sync_started_at=sync_started_at)
+            self.push_direct_to_db(data)
 
             status = self._status_payload(
                 status="success",
@@ -235,222 +227,18 @@ class LocalSync:
             raise
 
     def push_direct_to_db(self, data):
-        from app.Models.models import ERPDeliveryKPI, ERPMirrorPick, ERPMirrorWorkOrder
-
-        print(f"[{datetime.now()}] Starting direct mirror sync...")
+        # Legacy direct mirror tables are retired.
+        # sync_erp.py now only performs heartbeats and provides 'live' counts for the sync status dashboard.
+        
+        print(f"[{datetime.now()}] Heartbeat: Pushing status only (legacy mirror sync is retired).")
         try:
-            picks_data = data.get("picks", [])
-            if picks_data:
-                incoming_sos = list(set(str(p.get("so_number")) for p in picks_data))
-                existing_picks = {}
-                chunk_size = 900
-                for i in range(0, len(incoming_sos), chunk_size):
-                    chunk = incoming_sos[i:i + chunk_size]
-                    db_picks = self.db_session.query(ERPMirrorPick).filter(ERPMirrorPick.so_number.in_(chunk)).all()
-                    for p_obj in db_picks:
-                        existing_picks[(p_obj.so_number, p_obj.sequence)] = p_obj
-
-                seen_keys = set()
-
-                for p in picks_data:
-                    key = (str(p.get("so_number")), p.get("sequence"))
-                    seen_keys.add(key)
-                    address_text = p.get("address")
-
-                    if key in existing_picks:
-                        pick_obj = existing_picks[key]
-                        address_changed = pick_obj.address != address_text
-                        pick_obj.customer_name = p.get("customer_name")
-                        pick_obj.address = address_text
-                        pick_obj.reference = p.get("reference")
-                        pick_obj.handling_code = p.get("handling_code")
-                        pick_obj.item_number = p.get("item_number")
-                        pick_obj.description = p.get("description")
-                        pick_obj.qty = float(p.get("qty", 0))
-                        pick_obj.line_count = int(p.get("line_count", 0))
-                        pick_obj.so_status = p.get("so_status")
-                        pick_obj.shipment_status = p.get("shipment_status")
-                        pick_obj.status_flag_delivery = p.get("status_flag_delivery")
-                        pick_obj.system_id = p.get("system_id")
-                        pick_obj.expect_date = p.get("expect_date")
-                        pick_obj.sale_type = p.get("sale_type")
-                        pick_obj.ship_via = p.get("ship_via")
-                        pick_obj.driver = p.get("driver")
-                        pick_obj.route = p.get("route")
-                        pick_obj.synced_at = datetime.utcnow()
-
-                        if (not pick_obj.latitude or address_changed) and address_text:
-                            addr_parts = [x.strip() for x in address_text.split(",")]
-                            addr_line = addr_parts[0] if len(addr_parts) > 0 else address_text
-                            city_line = addr_parts[1] if len(addr_parts) > 1 else ""
-                            zip_line = p.get("zip", "")
-                            lat, lon, geocode_status = self.geocoder.geocode_address(addr_line, city_line, zip_line)
-                            if lat:
-                                pick_obj.latitude = lat
-                                pick_obj.longitude = lon
-                                pick_obj.geocode_status = geocode_status
-                            else:
-                                pick_obj.geocode_status = "failed"
-
-                        if p.get("printed_at") and not pick_obj.printed_at:
-                            pick_obj.printed_at = self._parse_erp_datetime(p.get("printed_at"))
-                        if p.get("staged_at") and not pick_obj.staged_at:
-                            pick_obj.staged_at = self._parse_erp_datetime(p.get("staged_at"))
-                        if p.get("delivered_at") and not pick_obj.delivered_at:
-                            pick_obj.delivered_at = self._parse_erp_datetime(p.get("delivered_at"))
-                    else:
-                        new_pick = ERPMirrorPick(
-                            so_number=key[0],
-                            sequence=key[1],
-                            customer_name=p.get("customer_name"),
-                            address=address_text,
-                            reference=p.get("reference"),
-                            handling_code=p.get("handling_code"),
-                            item_number=p.get("item_number"),
-                            description=p.get("description"),
-                            qty=float(p.get("qty", 0)),
-                            line_count=int(p.get("line_count", 0)),
-                            so_status=p.get("so_status"),
-                            shipment_status=p.get("shipment_status"),
-                            status_flag_delivery=p.get("status_flag_delivery"),
-                            system_id=p.get("system_id"),
-                            expect_date=p.get("expect_date"),
-                            sale_type=p.get("sale_type"),
-                            local_pick_state=p.get("local_pick_state", "Pick Printed"),
-                            ship_via=p.get("ship_via"),
-                            driver=p.get("driver"),
-                            route=p.get("route"),
-                            printed_at=self._parse_erp_datetime(p.get("printed_at")),
-                            staged_at=self._parse_erp_datetime(p.get("staged_at")),
-                            delivered_at=self._parse_erp_datetime(p.get("delivered_at")),
-                            synced_at=datetime.utcnow(),
-                        )
-
-                        if address_text:
-                            addr_parts = [x.strip() for x in address_text.split(",")]
-                            addr_line = addr_parts[0] if len(addr_parts) > 0 else address_text
-                            city_line = addr_parts[1] if len(addr_parts) > 1 else ""
-                            zip_line = p.get("zip", "")
-                            lat, lon, geocode_status = self.geocoder.geocode_address(addr_line, city_line, zip_line)
-                            if lat:
-                                new_pick.latitude = lat
-                                new_pick.longitude = lon
-                                new_pick.geocode_status = geocode_status
-                            else:
-                                new_pick.geocode_status = "failed"
-
-                        self.db_session.add(new_pick)
-
-                for key, obj in existing_picks.items():
-                    if key not in seen_keys:
-                        self.db_session.delete(obj)
-
-            wos_data = data.get("work_orders", [])
-            if wos_data:
-                incoming_wo_ids = list(set(str(wo.get("wo_id")) for wo in wos_data))
-                existing_wos = {}
-                chunk_size = 900
-                for i in range(0, len(incoming_wo_ids), chunk_size):
-                    chunk = incoming_wo_ids[i:i + chunk_size]
-                    db_wos = self.db_session.query(ERPMirrorWorkOrder).filter(ERPMirrorWorkOrder.wo_id.in_(chunk)).all()
-                    for wo_obj in db_wos:
-                        existing_wos[str(wo_obj.wo_id)] = wo_obj
-
-                seen_wo_ids = set()
-                for wo in wos_data:
-                    wo_id = str(wo.get("wo_id"))
-                    seen_wo_ids.add(wo_id)
-                    if wo_id in existing_wos:
-                        wo_obj = existing_wos[wo_id]
-                        wo_obj.description = wo.get("description")
-                        wo_obj.item_number = wo.get("item_number")
-                        wo_obj.status = wo.get("status")
-                        wo_obj.qty = float(wo.get("qty", 0))
-                        wo_obj.department = wo.get("department")
-                        wo_obj.synced_at = datetime.utcnow()
-                    else:
-                        new_wo = ERPMirrorWorkOrder(
-                            wo_id=wo_id,
-                            so_number=str(wo.get("so_number")),
-                            description=wo.get("description"),
-                            item_number=wo.get("item_number"),
-                            status=wo.get("status"),
-                            qty=float(wo.get("qty", 0)),
-                            department=wo.get("department"),
-                            synced_at=datetime.utcnow(),
-                        )
-                        self.db_session.add(new_wo)
-
-                for wo_id, obj in existing_wos.items():
-                    if wo_id not in seen_wo_ids:
-                        self.db_session.delete(obj)
-
-            kpis_data = data.get("kpis", [])
-            if kpis_data:
-                self.db_session.query(ERPDeliveryKPI).delete()
-                for kpi in kpis_data:
-                    kpi_date = self._coerce_date(kpi["date"])
-                    if not kpi_date:
-                        continue
-                    self.db_session.add(
-                        ERPDeliveryKPI(
-                            date=kpi_date,
-                            count=kpi["count"],
-                            branch=kpi["branch"],
-                        )
-                    )
-
+            # We don't write to ERPMirrorPick, ERPMirrorWorkOrder or ERPDeliveryKPI anymore.
+            # They are replaced by normalized mirror tables synced via separate processes.
             self.db_session.commit()
-            print(f"[{datetime.now()}] Direct mirror sync complete.")
+            print(f"[{datetime.now()}] Heartbeat recorded.")
         except Exception:
             self.db_session.rollback()
             raise
-
-    def push_via_api(self, data, sync_started_at):
-        chunk_size = 500
-
-        picks = data.get("picks", [])
-        for i in range(0, len(picks), chunk_size):
-            chunk = picks[i:i + chunk_size]
-            self._send_payload(
-                {
-                    "picks": chunk,
-                    "sync_started_at": sync_started_at,
-                    "complete": i + chunk_size >= len(picks),
-                },
-                reset=True,
-            )
-
-        work_orders = data.get("work_orders", [])
-        for i in range(0, len(work_orders), chunk_size):
-            chunk = work_orders[i:i + chunk_size]
-            self._send_payload(
-                {
-                    "work_orders": chunk,
-                    "sync_started_at": sync_started_at,
-                    "complete": i + chunk_size >= len(work_orders),
-                },
-                reset=True,
-            )
-
-        kpis = data.get("kpis", [])
-        if kpis:
-            self._send_payload(
-                {
-                    "kpis": kpis,
-                    "sync_started_at": sync_started_at,
-                    "complete": True,
-                },
-                reset=True,
-            )
-
-    def _send_payload(self, payload, reset=True):
-        headers = {"X-API-KEY": self.api_key}
-        params = {"reset": "true" if reset else "false"}
-        response = requests.post(self.api_url, json=payload, headers=headers, params=params, timeout=60)
-        if response.status_code != 200:
-            raise RuntimeError(f"API sync failed: {response.status_code} - {response.text[:200]}")
-        print(f"[{datetime.now()}] API sync payload accepted.")
 
     def run(self):
         print("Starting Local ERP Sync Service with change monitoring...")

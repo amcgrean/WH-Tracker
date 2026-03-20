@@ -127,7 +127,7 @@ Supervisor/work-order pages remain app-owned for assignment state, but their ERP
 
 Work-order queue creation now preserves the real sales order number from the selection step instead of writing placeholder SO values into local assignment records.
 
-The legacy `/erp-cloud-sync` endpoint remains in place only as a back-compat ingest path for the old mirror tables. It is no longer the intended primary read path when `CENTRAL_DB_URL` is configured.
+The legacy `/erp-cloud-sync` endpoint has been retired. Tracker now reads from the normalized mirror through `CENTRAL_DB_URL`, and the old API ingest path should not be used.
 
 ## Verification
 
@@ -182,7 +182,7 @@ Safe to keep:
 Not yet removed on purpose:
 
 - old `ERPMirrorPick` / `ERPMirrorWorkOrder` fallback code paths inside `ERPService`
-- legacy `/erp-cloud-sync` ingestion route
+- retired legacy `/erp-cloud-sync` ingestion route
 - AR/document sync activation
 
 Recommended next cleanup happens only after confirming no deployment still depends on the old ingest/fallback path.
