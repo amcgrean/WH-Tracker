@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{% endblock %} - Beisser Ops</title>
 
-    <!-- Premium Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
@@ -20,11 +19,11 @@
 
         #searchResultsContainer {
             position: absolute;
-            top: 100%;
+            top: calc(100% + 0.5rem);
             right: 0;
             z-index: 1060;
             background: #fff;
-            width: 350px;
+            width: min(350px, 92vw);
             border-radius: 12px;
             box-shadow: var(--shadow-md);
             max-height: 400px;
@@ -42,204 +41,127 @@
         .search-result-item:hover {
             background: #f1f3f5;
         }
-
-        .nav-category-header {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            font-weight: 800;
-            color: var(--beisser-green);
-            padding: 0.5rem 1.5rem;
-            letter-spacing: 0.05rem;
-        }
     </style>
 </head>
 
-<body>
-    {% block navbar %}
-    <nav class="navbar navbar-expand-lg navbar-light navbar-ops sticky-top">
-        <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center" href="/">
-                <i class="fas fa-cubes mr-2"></i> BEISSER <span class="font-weight-normal ml-1">OPS</span>
-            </a>
+<body class="app-shell-body">
+    <div class="app-shell">
+        <aside class="app-sidebar" id="appSidebar" aria-label="Primary navigation">
+            <div class="app-sidebar__header">
+                <a class="app-sidebar__brand" href="{{ url_for('main.work_center') }}">
+                    <span class="app-sidebar__brand-icon"><i class="fas fa-cubes"></i></span>
+                    <span>
+                        <span class="d-block">BEISSER OPS</span>
+                        <small class="text-muted d-block">Unified navigation</small>
+                    </span>
+                </a>
+                <button class="app-sidebar__close d-lg-none" type="button" id="sidebarCloseButton" aria-label="Close navigation">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
 
-            <button class="navbar-toggler border-0" type="button" data-toggle="collapse" data-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav mx-auto">
-                    {% block nav_items %}
-                    <!-- Operations Group -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
-                            <i class="fas fa-warehouse mr-1 small"></i> Operations
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-lg p-2">
-                            <div class="nav-category-header">Warehouse Boards</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.warehouse_board') }}">Dept Grouping
-                                View</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.board_orders') }}">Full Order
-                                View</a>
-                            <div class="dropdown-divider"></div>
-                            <div class="nav-category-header">Production</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.supervisor_work_orders') }}">Work
-                                Order Board</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.work_center') }}">Production
-                                Monitor</a>
-                        </div>
-                    </li>
-
-                    <!-- Delivery Group -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
-                            <i class="fas fa-truck mr-1 small"></i> Delivery
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-lg p-2">
-                            <div class="nav-category-header">Delivery Operations</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.delivery_board') }}">Delivery
-                                Board</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('dispatch.index') }}">Dispatch
-                                Console</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.delivery_map') }}">Fleet Map
-                                (TV)</a>
-                            <div class="dropdown-divider"></div>
-                            <div class="nav-category-header">Credits</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.credits_search') }}">
-                                <i class="fas fa-file-image mr-1 small"></i> RMA Credit Images</a>
-                        </div>
-                    </li>
-
-                    <!-- Performance Group -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
-                            <i class="fas fa-chart-line mr-1 small"></i> Performance
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-lg p-2">
-                            <a class="dropdown-item rounded" href="{{ url_for('main.supervisor_dashboard') }}">Live Team
-                                Status</a>
-                            <a class="dropdown-item rounded" href="{{ url_for('main.picker_stats') }}">Historical
-                                Stats</a>
-                        </div>
-                    </li>
-
-                    <!-- Sales Group -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
-                            <i class="fas fa-handshake mr-1 small"></i> Sales
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-lg p-2" style="min-width:240px;">
-                            <div class="nav-category-header">Sales Tools</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.hub') }}">
-                                <i class="fas fa-th-large mr-1 small text-primary"></i> Sales Hub
-                            </a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.order_status') }}">
-                                <i class="fas fa-bolt mr-1 small text-warning"></i> Quick Order Status
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <div class="nav-category-header">Customer</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.order_history') }}">
-                                <i class="fas fa-history mr-1 small text-success"></i> Order History
-                            </a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.invoice_lookup') }}">
-                                <i class="fas fa-file-invoice-dollar mr-1 small text-info"></i> Invoice Lookup
-                            </a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.awards') }}">
-                                <i class="fas fa-trophy mr-1 small text-warning"></i> Awards &amp; Loyalty
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <div class="nav-category-header">Analytics</div>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.rep_dashboard') }}">
-                                <i class="fas fa-tachometer-alt mr-1 small text-danger"></i> Rep Dashboard
-                            </a>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.reports') }}">
-                                <i class="fas fa-chart-area mr-1 small text-info"></i> Reports &amp; Analytics
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item rounded" href="{{ url_for('sales.products') }}">
-                                <i class="fas fa-tags mr-1 small" style="color:#6f42c1;"></i> Product Pricing
-                            </a>
-                        </div>
-                    </li>
-
-                    <!-- Admin Group -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
-                            <i class="fas fa-cog mr-1 small"></i> Admin
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-lg p-2">
-                            <a class="dropdown-item rounded" href="{{ url_for('main.admin') }}">User & Role
-                                Management</a>
-                            <a class="dropdown-item rounded" href="#">Local Logic Config</a>
-                            <a class="dropdown-item rounded" href="#">ERP Sync Settings</a>
-                        </div>
-                    </li>
-                    {% endblock %}
-                </ul>
-
-                <!-- Global Search -->
-                {% block search_nav %}
-                <div class="search-wrapper ml-auto">
-                    <div class="input-group">
-                        <div class="input-group-prepend">
-                            <span class="input-group-text bg-white border-right-0 rounded-left"
-                                style="border-radius: 10px 0 0 10px;">
-                                <i class="fas fa-search text-muted"></i>
-                            </span>
-                        </div>
-                        <input type="text" id="searchInput" class="form-control border-left-0"
-                            placeholder="SO # or Name..." style="border-radius: 0 10px 10px 0; width: 250px;">
+            <div class="app-sidebar__content">
+                {% for section in nav_sections %}
+                <section class="nav-section">
+                    <div class="nav-section__header">
+                        <span class="nav-section__icon"><i class="{{ section["icon"] }}"></i></span>
+                        <span>{{ section["label"] }}</span>
                     </div>
-                    <div id="searchResultsContainer"></div>
+                    <div class="nav-section__items">
+                        {% for item in section["items"] %}
+                        <a href="{{ item["href"] }}" class="nav-link-card{% if item["is_active"] %} active{% endif %}">
+                            <span class="nav-link-card__icon"><i class="{{ item["icon"] }}"></i></span>
+                            <span class="nav-link-card__content">
+                                <span class="nav-link-card__label">{{ item["label"] }}</span>
+                                <small class="nav-link-card__description">{{ item["description"] }}</small>
+                            </span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endfor %}
+            </div>
+        </aside>
+
+        <div class="app-sidebar-overlay" id="appSidebarOverlay"></div>
+
+        <div class="app-main-shell">
+            {% block navbar %}
+            <header class="app-topbar navbar-ops sticky-top">
+                <div class="d-flex align-items-center justify-content-between flex-wrap w-100">
+                    <div class="d-flex align-items-center mr-3 mb-2 mb-md-0">
+                        <button class="app-nav-toggle mr-3" type="button" id="sidebarToggleButton" aria-label="Open navigation" aria-controls="appSidebar" aria-expanded="false">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <div>
+                            <a class="navbar-brand d-flex align-items-center mb-0" href="{{ url_for('main.work_center') }}">
+                                <i class="fas fa-cubes mr-2"></i> BEISSER <span class="font-weight-normal ml-1">OPS</span>
+                            </a>
+                            <small class="text-muted d-block topbar-subtitle">Role-ready sidebar navigation across the app.</small>
+                        </div>
+                    </div>
+
+                    {% block search_nav %}
+                    <div class="search-wrapper ml-auto mb-2 mb-md-0">
+                        <div class="input-group app-search-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text bg-white border-right-0 rounded-left">
+                                    <i class="fas fa-search text-muted"></i>
+                                </span>
+                            </div>
+                            <input type="text" id="searchInput" class="form-control border-left-0"
+                                placeholder="SO # or Name...">
+                        </div>
+                        <div id="searchResultsContainer"></div>
+                    </div>
+                    {% endblock %}
                 </div>
-                {% endblock %}
-            </div>
-        </div>
-    </nav>
-    {% endblock %}
+            </header>
+            {% endblock %}
 
-    <!-- Flash messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="container-fluid px-4 pt-3">
-          {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else 'success') }} alert-dismissible fade show" role="alert">
-              {{ message }}
-              <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-              </button>
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                <div class="container-fluid px-4 pt-3">
+                  {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else 'success') }} alert-dismissible fade show" role="alert">
+                      {{ message }}
+                      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                      </button>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endwith %}
 
-    <div class="main-content min-vh-100">
-        {% block content %}{% endblock %}
+            <main class="main-content min-vh-100">
+                {% block content %}{% endblock %}
+            </main>
+
+            <footer class="footer-ops">
+                <div class="container text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-cubes fa-2x text-white mb-2"></i>
+                        <h5 class="text-white font-weight-bold">BEISSER LUMBER OPERATIONS</h5>
+                        <p class="small">Efficiency through technology. Ready for every pick.</p>
+                    </div>
+                    <div class="d-flex justify-content-center flex-wrap mb-4">
+                        <a href="{{ url_for('main.work_center') }}" class="footer-link mx-3 small mb-2">Home</a>
+                        <a href="{{ url_for('main.warehouse_board') }}" class="footer-link mx-3 small mb-2">Warehouse</a>
+                        <a href="{{ url_for('main.sales_delivery_tracker') }}" class="footer-link mx-3 small mb-2">Delivery</a>
+                        <a href="{{ url_for('sales.hub') }}" class="footer-link mx-3 small mb-2">Sales</a>
+                        <a href="{{ url_for('main.admin') }}" class="footer-link mx-3 small mb-2">Admin</a>
+                    </div>
+                    <p class="small text-muted mb-0">&copy; 2026 Beisser Lumber Co. | <span class="text-white-50">v2.1.0-Emerald</span>
+                        {% if config.SQLALCHEMY_DATABASE_URI and 'sqlite' not in config.SQLALCHEMY_DATABASE_URI %}
+                        <span class="badge badge-success ml-2" style="opacity: 0.6;">Mirror Mode</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </footer>
+        </div>
     </div>
 
-    <footer class="footer-ops">
-        <div class="container text-center">
-            <div class="mb-4">
-                <i class="fas fa-cubes fa-2x text-white mb-2"></i>
-                <h5 class="text-white font-weight-bold">BEISSER LUMBER OPERATIONS</h5>
-                <p class="small">Efficiency through technology. Ready for every pick.</p>
-            </div>
-            <div class="d-flex justify-content-center mb-4">
-                <a href="/" class="footer-link mx-3 small">Scanner</a>
-                <a href="{{ url_for('main.warehouse_board') }}" class="footer-link mx-3 small">Boards</a>
-                <a href="{{ url_for('main.picker_stats') }}" class="footer-link mx-3 small">Metrics</a>
-                <a href="{{ url_for('main.admin') }}" class="footer-link mx-3 small">Admin</a>
-            </div>
-            <p class="small text-muted mb-0">&copy; 2026 Beisser Lumber Co. | <span
-                    class="text-white-50">v2.1.0-Emerald</span>
-                {% if config.SQLALCHEMY_DATABASE_URI and 'sqlite' not in config.SQLALCHEMY_DATABASE_URI %}
-                <span class="badge badge-success ml-2" style="opacity: 0.6;">Mirror Mode</span>
-                {% endif %}
-            </p>
-        </div>
-    </footer>
-
-    <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
@@ -258,26 +180,29 @@
                         if (data.length === 0) {
                             $results.append('<div class="search-result-item text-muted small">No matches found</div>');
                         } else {
-                            data.forEach(item => {
+                            data.forEach((item) => {
                                 $results.append(`
-                                    <div class="search-result-item" onclick="window.location='/warehouse/detail/${item.barcode}'">
-                                        <div class="font-weight-bold text-dark">#${item.barcode}</div>
-                                        <div class="small text-muted">${item.name || 'Unknown'} - ${item.completed_time || 'Active'}</div>
+                                    <div class="search-result-item" onclick="window.location='${item.url}'">
+                                        <div class="font-weight-bold">${item.title}</div>
+                                        <small class="text-muted">${item.subtitle || ''}</small>
                                     </div>
                                 `);
                             });
                         }
                     });
                 } else {
-                    $results.hide();
+                    $results.hide().empty();
                 }
             });
 
-            $(document).on('click', function (e) {
-                if (!$(e.target).closest('.search-wrapper').length) $results.hide();
+            $(document).on('click', function (event) {
+                if (!$(event.target).closest('.search-wrapper').length) {
+                    $results.hide();
+                }
             });
         });
     </script>
+
     {% block scripts %}{% endblock %}
 </body>
 
