@@ -1840,7 +1840,7 @@ class ERPService:
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
-                    AND cs.seq_num = soh.shipto_seq_num
+                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
                 {where_clause}
@@ -2137,7 +2137,7 @@ class ERPService:
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
-                    AND cs.seq_num = soh.shipto_seq_num
+                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
                 {where_clause}
