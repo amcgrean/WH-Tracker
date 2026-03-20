@@ -70,6 +70,25 @@
         </div>
     </div>
 
+    {% if searched %}
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small text-muted">
+            Showing {{ history|length }} result{{ 's' if history|length != 1 else '' }}
+            {% if page > 1 %} &mdash; page {{ page }}{% endif %}
+        </span>
+        <div class="btn-group btn-group-sm">
+            {% if page > 1 %}
+            <a href="{{ url_for('sales.order_history', customer_number=customer_number, q=q, date_from=date_from, date_to=date_to, status=status, page=page-1) }}"
+               class="btn btn-outline-secondary">&laquo; Previous</a>
+            {% endif %}
+            {% if has_next %}
+            <a href="{{ url_for('sales.order_history', customer_number=customer_number, q=q, date_from=date_from, date_to=date_to, status=status, page=page+1) }}"
+               class="btn btn-outline-secondary">Next &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="card border-0 shadow-sm">
         <div class="table-responsive">
             <table class="table table-hover mb-0">
@@ -80,13 +99,14 @@
                         <th>Expected Date</th>
                         <th>Status</th>
                         <th class="text-right">Reference</th>
+                        <th class="d-none d-md-table-cell text-muted small">Last Synced</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if not searched %}
                     <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">
+                        <td colspan="7" class="text-center py-5 text-muted">
                             <i class="fas fa-filter fa-2x d-block mb-2" style="opacity:0.2;"></i>
                             Use the filters above to search order history.
                         </td>
@@ -104,6 +124,7 @@
                             </span>
                         </td>
                         <td class="text-right small text-muted">{{ order.reference }}</td>
+                        <td class="d-none d-md-table-cell small text-muted">{{ order.synced_at_display }}</td>
                         <td class="text-right">
                             <a href="{{ url_for('main.pick_detail', so_number=order.so_number) }}"
                                 class="btn btn-xs btn-outline-secondary">View</a>
@@ -111,7 +132,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">No orders found. Try adjusting your filters.</td>
+                        <td colspan="7" class="text-center py-5 text-muted">No orders found. Try adjusting your filters.</td>
                     </tr>
                     {% endfor %}
                     {% endif %}
@@ -119,5 +140,20 @@
             </table>
         </div>
     </div>
+
+    {% if searched and (page > 1 or has_next) %}
+    <div class="d-flex justify-content-end mt-2">
+        <div class="btn-group btn-group-sm">
+            {% if page > 1 %}
+            <a href="{{ url_for('sales.order_history', customer_number=customer_number, q=q, date_from=date_from, date_to=date_to, status=status, page=page-1) }}"
+               class="btn btn-outline-secondary">&laquo; Previous</a>
+            {% endif %}
+            {% if has_next %}
+            <a href="{{ url_for('sales.order_history', customer_number=customer_number, q=q, date_from=date_from, date_to=date_to, status=status, page=page+1) }}"
+               class="btn btn-outline-secondary">Next &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
