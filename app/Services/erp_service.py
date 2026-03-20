@@ -28,6 +28,26 @@ class ERPService:
 
         print(f"ERPService Init: CLOUD_MODE={self.cloud_mode}, CENTRAL_DB_MODE={self.central_db_mode}")
         self._gps_cache = None
+        # Simple TTL cache for expensive sales queries: {key: (ts, data)}
+        self._sales_cache: dict = {}
+
+    # ------------------------------------------------------------------
+    # Sales query cache helpers (per-instance, TTL in seconds)
+    # ------------------------------------------------------------------
+    _SALES_CACHE_TTL = 60  # seconds
+
+    def _cache_get(self, key: str):
+        """Return cached value or None if missing / expired."""
+        import time
+        entry = self._sales_cache.get(key)
+        if entry and (time.time() - entry[0]) < self._SALES_CACHE_TTL:
+            return entry[1]
+        return None
+
+    def _cache_set(self, key: str, value):
+        import time
+        self._sales_cache[key] = (time.time(), value)
+        return value
 
     @staticmethod
     @lru_cache(maxsize=1)
@@ -1643,6 +1663,13 @@ class ERPService:
             return []
 
     def get_sales_hub_metrics(self):
+        cached = self._cache_get('hub_metrics')
+        if cached is not None:
+            return cached
+        result = self._get_sales_hub_metrics_inner()
+        return self._cache_set('hub_metrics', result)
+
+    def _get_sales_hub_metrics_inner(self):
         if self.central_db_mode:
             today = date.today().isoformat()
             rows = self._mirror_query(
@@ -1727,6 +1754,18 @@ class ERPService:
             conn.close()
 
     def get_sales_order_status(self, q="", limit=100):
+        # Cache unfiltered list for 60 s; skip cache for searches
+        cache_key = f'order_status_{limit}' if not q else None
+        if cache_key:
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+        result = self._get_sales_order_status_inner(q=q, limit=limit)
+        if cache_key:
+            self._cache_set(cache_key, result)
+        return result
+
+    def _get_sales_order_status_inner(self, q="", limit=100):
         if self.central_db_mode:
             params = {"limit": limit}
             search_clause = ""
@@ -1946,6 +1985,18 @@ class ERPService:
             conn.close()
 
     def get_sales_customer_orders(self, customer_number, q="", limit=None):
+        # Cache per-customer full order lists for up to 60 s (skip cache when q filtering)
+        cache_key = f'cust_orders_{customer_number}_{limit}' if not q else None
+        if cache_key:
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+        result = self._get_sales_customer_orders_inner(customer_number=customer_number, q=q, limit=limit)
+        if cache_key:
+            self._cache_set(cache_key, result)
+        return result
+
+    def _get_sales_customer_orders_inner(self, customer_number, q="", limit=None):
         if self.central_db_mode:
             params = {}
             clauses = []

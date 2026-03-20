@@ -14,7 +14,7 @@
         document.getElementById('confirmBtn').addEventListener('click', function() {
             // Perform action on confirm, e.g., sending an AJAX request or redirecting
             // For demonstration, we'll just redirect back
-            window.location.href = "{{ url_for('index') }}";
+            window.location.href = "{{ url_for('main.index') }}";
         });
     </script>
 {% endblock %}

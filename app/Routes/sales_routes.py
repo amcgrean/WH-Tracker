@@ -232,3 +232,40 @@ def order_history(customer_number):
     q = request.args.get('q', '').strip()
     history = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, q=q, limit=None if customer_number else 200)]
     return render_template('sales/order_history.html', history=history, customer_number=customer_number, q=q)
+
+
+@sales.route('/customer/<customer_number>')
+def customer_shortcut(customer_number):
+    """Short URL alias for customer profile — used by hub search form and external links."""
+    return redirect(url_for('sales.customer_profile', customer_number=customer_number))
+
+
+@sales.route('/api/orders')
+def api_orders():
+    """JSON endpoint for order status — supports AJAX filtering without full page reload."""
+    q = request.args.get('q', '').strip()
+    status = request.args.get('status', '').strip()
+    limit = min(int(request.args.get('limit', 100)), 500)
+    orders = [_normalize_order_row(r) for r in erp.get_sales_order_status(q=q, limit=limit)]
+    return __import__('flask').jsonify(orders)
+
+
+@sales.route('/api/customers/search')
+def api_customer_search():
+    """JSON endpoint for customer type-ahead search used by the global search box."""
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return __import__('flask').jsonify([])
+    rows = erp.get_sales_customer_orders('', q=q, limit=8)
+    seen = {}
+    results = []
+    for r in rows:
+        key = _value(r, 'customer_code') or _value(r, 'customer_name') or ''
+        if key and key not in seen:
+            seen[key] = True
+            results.append({
+                'title': _value(r, 'customer_name') or key,
+                'subtitle': f"Customer # {key}",
+                'url': url_for('sales.customer_profile', customer_number=key),
+            })
+    return __import__('flask').jsonify(results)
