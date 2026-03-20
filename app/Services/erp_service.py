@@ -1767,6 +1767,13 @@ class ERPService:
 
     def _get_sales_order_status_inner(self, q="", limit=100):
         if self.central_db_mode:
+            sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
+            if "line_no" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count"
+            elif "sequence" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT CAST(sod.sequence AS TEXT)) AS line_count"
+            else:
+                line_count_expr = "COUNT(sod.*) AS line_count"
             params = {"limit": limit}
             search_clause = ""
             if q:
@@ -1793,7 +1800,7 @@ class ERPService:
                     MAX(COALESCE(ib.handling_code, '')) AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
-                    COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count
+                    {line_count_expr}
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
@@ -1998,6 +2005,13 @@ class ERPService:
 
     def _get_sales_customer_orders_inner(self, customer_number, q="", limit=None):
         if self.central_db_mode:
+            sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
+            if "line_no" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count"
+            elif "sequence" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT CAST(sod.sequence AS TEXT)) AS line_count"
+            else:
+                line_count_expr = "COUNT(sod.*) AS line_count"
             params = {}
             clauses = []
             if customer_number:
@@ -2030,7 +2044,7 @@ class ERPService:
                     MAX(COALESCE(ib.handling_code, '')) AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
-                    COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count
+                    {line_count_expr}
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
