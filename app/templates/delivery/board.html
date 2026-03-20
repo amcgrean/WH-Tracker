@@ -1,251 +1,263 @@
 {% extends "base.html" %}
 {% block title %}Delivery Board{% endblock %}
 {% block content %}
-<div class="container-fluid py-4 px-4">
+<div class="container-fluid py-4 px-lg-5">
 
     <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 animate-fade-in">
         <div>
-            <h2 class="mb-0"><i class="fas fa-truck mr-2"></i>Delivery Board</h2>
-            <p class="text-muted mb-0">Real-time delivery operations &amp; KPIs</p>
+            <h1 class="display-4 font-weight-bold mb-0 text-gradient">Delivery Board</h1>
+            <p class="text-muted lead mb-0">Real-time logistics, fleet telemetry & shipment orchestration</p>
         </div>
-        <div class="d-flex align-items-center">
-            <span class="badge badge-pill badge-success mr-2 p-2" id="liveIndicator">
-                <i class="fas fa-circle mr-1" style="font-size:0.5rem;"></i> LIVE
+        <div class="d-flex align-items-center mt-3 mt-md-0">
+            <span class="badge badge-pill badge-glass mr-3 p-2 d-flex align-items-center" id="liveIndicator">
+                <span class="pulse-dot mr-2"></span> LIVE DATA
             </span>
-            <a href="{{ url_for('main.delivery_map') }}" class="btn btn-ops-primary">
-                <i class="fas fa-map-marked-alt mr-1"></i> Fleet Map
+            <a href="{{ url_for('main.delivery_map') }}" class="btn btn-ops-primary px-4 py-3 shadow-lg">
+                <i class="fas fa-map-location-dot mr-2"></i> Interactive Fleet Map
             </a>
         </div>
     </div>
 
     <!-- KPI Row -->
-    <div class="row mb-4">
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card card-ops h-100 kpi-card" onclick="filterDeliveries('pending')" style="cursor: pointer;">
-                <div class="card-body text-center">
-                    <div class="text-muted small text-uppercase font-weight-bold mb-1">Open Deliveries</div>
-                    <div class="display-4 font-weight-bold" style="color: var(--beisser-green);" id="kpiOpenDeliveries">
-                        {{ open_delivery_count }}
+    <div class="row mb-5 animate-fade-in delay-1">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="glass-card h-100 p-4 border-0 hover-lift active-filter" onclick="filterDeliveries('pending', this)" style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="bg-primary-light p-3 rounded-lg" style="background: rgba(0, 69, 38, 0.1);">
+                        <i class="fas fa-clock text-primary fa-lg"></i>
                     </div>
-                    <div class="small text-muted">Scheduled today</div>
+                    <span class="text-muted small font-weight-bold">PENDING</span>
                 </div>
+                <div class="h1 font-weight-extrabold mb-1" style="color: var(--beisser-green);" id="kpiOpenDeliveries">
+                    {{ open_delivery_count }}
+                </div>
+                <div class="small text-muted font-weight-medium">Shipments Ready</div>
             </div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card card-ops h-100 kpi-card" onclick="filterDeliveries('in_transit')" style="cursor: pointer;">
-                <div class="card-body text-center">
-                    <div class="text-muted small text-uppercase font-weight-bold mb-1">In Transit</div>
-                    <div class="display-4 font-weight-bold text-info" id="kpiInTransit">
-                        {{ in_transit_count }}
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="glass-card h-100 p-4 border-0 hover-lift" onclick="filterDeliveries('in_transit', this)" style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="bg-info-light p-3 rounded-lg" style="background: rgba(23, 162, 184, 0.1);">
+                        <i class="fas fa-truck-fast text-info fa-lg"></i>
                     </div>
-                    <div class="small text-muted">Trucks on the road</div>
+                    <span class="text-muted small font-weight-bold">TRANSIT</span>
                 </div>
+                <div class="h1 font-weight-extrabold text-info mb-1" id="kpiInTransit">
+                    {{ in_transit_count }}
+                </div>
+                <div class="small text-muted font-weight-medium">Vehicles En Route</div>
             </div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card card-ops h-100 kpi-card" onclick="filterDeliveries('delivered')" style="cursor: pointer;">
-                <div class="card-body text-center">
-                    <div class="text-muted small text-uppercase font-weight-bold mb-1">Completed Today</div>
-                    <div class="display-4 font-weight-bold text-success" id="kpiCompleted">
-                        {{ completed_count }}
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="glass-card h-100 p-4 border-0 hover-lift" onclick="filterDeliveries('delivered', this)" style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="bg-success-light p-3 rounded-lg" style="background: rgba(40, 167, 69, 0.1);">
+                        <i class="fas fa-check-double text-success fa-lg"></i>
                     </div>
-                    <div class="small text-muted">Delivered &amp; confirmed</div>
+                    <span class="text-muted small font-weight-bold">COMPLETED</span>
                 </div>
+                <div class="h1 font-weight-extrabold text-success mb-1" id="kpiCompleted">
+                    {{ completed_count }}
+                </div>
+                <div class="small text-muted font-weight-medium">Deliveries Confirmed</div>
             </div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card card-ops h-100">
-                <div class="card-body text-center">
-                    <div class="text-muted small text-uppercase font-weight-bold mb-1">Active Trucks</div>
-                    <div class="display-4 font-weight-bold text-warning" id="kpiActiveTrucks">
-                        {{ active_trucks }}
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="glass-card h-100 p-4 border-0" style="background: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(197, 160, 89, 0.1) 100%);">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="bg-warning-light p-3 rounded-lg" style="background: rgba(197, 160, 89, 0.1);">
+                        <i class="fas fa-satellite text-warning fa-lg"></i>
                     </div>
-                    <div class="small text-muted">
-                        <a href="{{ url_for('main.delivery_map') }}" class="text-decoration-none">View on map &rarr;</a>
-                    </div>
+                    <span class="text-muted small font-weight-bold">ACTIVE FLEET</span>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Fleet Status Quick-View -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card card-ops">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-satellite-dish mr-2"></i> Fleet Status (Samsara)</span>
-                    <small class="text-white-50">Auto-refreshes every 60s</small>
+                <div class="h1 font-weight-extrabold text-warning mb-1" id="kpiActiveTrucks">
+                    {{ active_trucks }}
                 </div>
-                <div class="card-body p-0">
-                    <table class="table table-ops mb-0">
-                        <thead>
-                            <tr>
-                                <th>Vehicle</th>
-                                <th>Location</th>
-                                <th>Speed</th>
-                                <th>Status</th>
-                                <th>Last Updated</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for loc in vehicle_locations %}
-                            <tr>
-                                <td class="font-weight-bold">
-                                    <a href="{{ url_for('main.delivery_map', truck=loc.name) }}" class="text-white">
-                                        {{ loc.name }} <i class="fas fa-external-link-alt ml-1 small opacity-50"></i>
-                                    </a>
-                                </td>
-                                <td>{{ loc.address or 'GPS: %.4f, %.4f'|format(loc.latitude, loc.longitude) }}</td>
-                                <td>
-                                    {% if loc.speed_mph > 0 %}
-                                    <span class="text-info font-weight-bold">{{ loc.speed_mph }} mph</span>
-                                    {% else %}
-                                    <span class="text-muted">Stopped</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if loc.speed_mph > 0 %}
-                                    <span class="badge badge-pill badge-info">In Transit</span>
-                                    {% else %}
-                                    <span class="badge badge-pill badge-secondary">Idle</span>
-                                    {% endif %}
-                                </td>
-                                <td class="small text-muted">{{ loc.time[:19] if loc.time else 'N/A' }}</td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center text-muted py-4">
-                                    <i class="fas fa-plug mr-2"></i> No vehicle data available. Check Samsara
-                                    connection.
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                <div class="small text-muted font-weight-medium">Samsara Units Online</div>
             </div>
         </div>
     </div>
 
-    <!-- Open Deliveries Table -->
     <div class="row">
-        <div class="col-12">
-            <div class="card card-ops">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-clipboard-list mr-2"></i> Open Deliveries</span>
-                    <span class="badge badge-light">{{ deliveries|length }} orders</span>
+        <!-- Fleet Status Quick-View -->
+        <div class="col-12 mb-5 animate-fade-in delay-2">
+            <div class="glass-card border-0">
+                <div class="card-header-ops d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 font-weight-bold"><i class="fas fa-signal-stream mr-3 opacity-75"></i>Live Fleet Telemetry</h5>
+                    <div class="d-flex align-items-center">
+                        <span class="small opacity-75 font-weight-bold mr-3">REFRESHING IN 60S</span>
+                        <div class="spinner-grow spinner-grow-sm text-light opacity-50" role="status"></div>
+                    </div>
                 </div>
-                <div class="card-body p-0">
-                    <table class="table table-ops mb-0">
-                        <thead>
-                            <tr>
-                                <th>SO #</th>
-                                <th>Customer</th>
-                                <th>Address</th>
-                                <th>Reference</th>
-                                <th>Items</th>
-                                <th>Status</th>
-                                <th>Truck / Info</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for d in deliveries %}
-                            <tr class="delivery-row" data-status="{{ d.get('status', 'pending') }}">
-                                <td>
-                                    <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}"
-                                        class="font-weight-bold" style="color: var(--beisser-green);">
-                                        #{{ d.so_number }}
-                                    </a>
-                                    {% if d.system_id %}
-                                    <br><span class="badge badge-primary px-1 py-0"
-                                        style="font-size: 0.65rem; background-color: var(--beisser-secondary);">{{
-                                        d.system_id }}</span>
-                                    {% endif %}
-                                </td>
-                                <td class="font-weight-bold">{{ d.customer_name }}</td>
-                                <td>{{ d.address }}</td>
-                                <td class="small">{{ d.reference or '-' }}</td>
-                                <td><span class="badge badge-pill badge-light">{{ d.line_count }} lines</span></td>
-                                <td>
-                                    {% if d.get('status') == 'in_transit' %}
-                                    <a href="{{ url_for('main.delivery_map', truck=d.get('assigned_truck', '')) }}"
-                                        class="badge badge-pill badge-info text-decoration-none hover-shadow">
-                                        In Transit <i class="fas fa-map-marker-alt ml-1"></i>
-                                    </a>
-                                    {% elif d.get('status') == 'delivered' %}
-                                    <span class="badge badge-pill badge-success">Delivered</span>
-                                    {% elif d.get('status') == 'loading' %}
-                                    <span class="badge badge-pill badge-warning">Loading</span>
-                                    {% else %}
-                                    <span class="badge badge-pill badge-secondary">Pending</span>
-                                    {% endif %}
-                                </td>
-                                <td class="small">
-                                    <div class="font-weight-bold">{{ d.get('assigned_truck', 'Unassigned') }}</div>
-                                    {% if d.ship_via or d.route %}
-                                    <div class="text-white-50 mt-1">
-                                        {% if d.ship_via %}{{ d.ship_via }}{% endif %}
-                                        {% if d.route %}{% if d.ship_via %} • {% endif %}{{ d.route }}{% endif %}
-                                    </div>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
-                                    No open deliveries found.
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <div class="p-0">
+                    <div class="table-ops-wrapper">
+                        <table class="table table-ops mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Asset Name</th>
+                                    <th>Current Physical Address</th>
+                                    <th class="text-center">Speed</th>
+                                    <th class="text-center">Operation</th>
+                                    <th>Telemetry Age</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for loc in vehicle_locations %}
+                                <tr class="bg-transparent">
+                                    <td class="font-weight-bold">
+                                        <a href="{{ url_for('main.delivery_map', truck=loc.name) }}" class="text-dark d-flex align-items-center">
+                                            <span class="bg-primary text-white p-2 rounded mr-3" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;">TR</span>
+                                            {{ loc.name }}
+                                        </a>
+                                    </td>
+                                    <td class="text-muted small">{{ loc.address or 'Locating via satellite...' }}</td>
+                                    <td class="text-center">
+                                        {% if loc.speed_mph > 0 %}
+                                        <span class="badge badge-info p-2" style="border-radius: 8px;">{{ loc.speed_mph }} MPH</span>
+                                        {% else %}
+                                        <span class="text-muted opacity-50 italic">Stationary</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if loc.speed_mph > 0 %}
+                                        <span class="text-info font-weight-bold"><i class="fas fa-truck-arrow-right mr-1"></i> IN TRANSIT</span>
+                                        {% else %}
+                                        <span class="text-muted font-weight-bold"><i class="fas fa-parking mr-1"></i> IDLE</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="small text-muted font-italic">{{ loc.time[11:19] if loc.time else 'N/A' }} UTC</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted italic">
+                                        <i class="fas fa-satellite-dish fa-3x mb-3 opacity-25"></i><br>
+                                        Synchronizing with Samsara API...
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Open Deliveries -->
+        <div class="col-12 animate-fade-in delay-3">
+            <div class="glass-card border-0">
+                <div class="card-header-ops d-flex justify-content-between align-items-center" style="background: var(--dark-charcoal);">
+                    <h5 class="mb-0 font-weight-bold"><i class="fas fa-list-check mr-3 opacity-75"></i>Shipment Dispatch Manifest</h5>
+                    <span class="badge badge-glass px-3 py-2">{{ deliveries|length }} Active Orders</span>
+                </div>
+                <div class="p-0">
+                    <div class="table-ops-wrapper">
+                        <table class="table table-ops mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Order Reference</th>
+                                    <th>Consignee</th>
+                                    <th>Drop-off Point</th>
+                                    <th class="text-center">Payload</th>
+                                    <th class="text-center">Logistics Status</th>
+                                    <th>Allocated Resource</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in deliveries %}
+                                <tr class="delivery-row" data-status="{{ d.get('status', 'pending') }}">
+                                    <td>
+                                        <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}" class="h5 font-weight-bold mb-0 d-block" style="color: var(--beisser-green);">
+                                            #{{ d.so_number }}
+                                        </a>
+                                        {% if d.system_id %}
+                                        <span class="small font-weight-bold text-muted letter-spacing-1">EXT: {{ d.system_id }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="font-weight-bold text-dark">{{ d.customer_name }}</div>
+                                        <div class="small text-muted italic">{{ d.reference or 'No Job Ref' }}</div>
+                                    </td>
+                                    <td class="text-muted small">
+                                        <i class="fas fa-map-location text-primary opacity-50 mr-1"></i> {{ d.address }}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge badge-light p-2" style="border-radius: 8px;">{{ d.line_count }} ITEMS</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if d.get('status') == 'in_transit' %}
+                                        <a href="{{ url_for('main.delivery_map', truck=d.get('assigned_truck', '')) }}" class="btn btn-ops-primary btn-sm px-3 shadow-none">
+                                            IN TRANSIT <i class="fas fa-location-crosshairs ml-1"></i>
+                                        </a>
+                                        {% elif d.get('status') == 'delivered' %}
+                                        <span class="badge badge-success px-3 py-2" style="border-radius: 20px;">DELIVERED</span>
+                                        {% elif d.get('status') == 'loading' %}
+                                        <span class="badge badge-warning px-3 py-2" style="border-radius: 20px;">LOADING</span>
+                                        {% else %}
+                                        <span class="badge badge-light px-3 py-2 text-muted" style="border-radius: 20px; border: 1px solid rgba(0,0,0,0.05);">PENDING</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="font-weight-bold text-primary">{{ d.get('assigned_truck', 'AWAITING DISPATCH') }}</div>
+                                        <div class="small text-muted">{{ d.ship_via or 'Direct Delivery' }}</div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted opacity-50 italic">
+                                        All shipments dispatched. Manifest clear.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background: #28a745;
+        border-radius: 50%;
+        box-shadow: 0 0 0 rgba(40, 167, 69, 0.4);
+        animation: pulse-green 2s infinite;
+    }
+    @keyframes pulse-green {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(40, 167, 69, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+    }
+    .badge-glass {
+        background: rgba(255,255,255,0.2);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .hover-lift { transition: all 0.3s ease; }
+    .hover-lift:hover { transform: translateY(-8px); box-shadow: 0 15px 35px rgba(0,0,0,0.1) !important; }
+    .active-filter { border: 2px solid var(--beisser-green) !important; }
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Auto-refresh page every 60 seconds
-    const refreshTimer = setTimeout(function () {
-        window.location.reload();
-    }, 60000);
+    const refreshTimer = setTimeout(() => window.location.reload(), 60000);
 
-    function filterDeliveries(status) {
+    function filterDeliveries(status, el) {
         const rows = document.querySelectorAll('.delivery-row');
-        let count = 0;
         rows.forEach(row => {
-            if (status === 'all' || row.dataset.status === status) {
-                row.style.display = '';
-                count++;
-            } else {
-                row.style.display = 'none';
-            }
+            row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
         });
 
-        // Visual feedback on KPI cards
-        document.querySelectorAll('.kpi-card').forEach(card => card.classList.remove('border-primary'));
-        if (status !== 'all') {
-            const selectedCard = event.currentTarget;
-            selectedCard.classList.add('border-primary');
-        }
+        document.querySelectorAll('.glass-card').forEach(card => card.classList.remove('active-filter'));
+        if (el) el.classList.add('active-filter');
     }
 </script>
-<style>
-    .kpi-card:hover {
-        transform: translateY(-5px);
-        transition: transform 0.2s;
-    }
-
-    .hover-shadow:hover {
-        box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
-    }
-
-    .opacity-50 {
-        opacity: 0.5;
-    }
-</style>
-{% endblock %}
+{% endblock %}

@@ -1,253 +1,269 @@
 {% extends "base.html" %}
-{% block title %}Delivery Detail - SO #{{ so_number }}{% endblock %}
-{% block content %}
-<div class="container-fluid py-4 px-4">
+{% block title %}Manifest - SO #{{ so_number }}{% endblock %}
 
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb bg-transparent p-0">
-            <li class="breadcrumb-item"><a href="{{ url_for('main.delivery_board') }}">Delivery Board</a></li>
-            <li class="breadcrumb-item active">SO #{{ so_number }}</li>
-        </ol>
-    </nav>
+{% block content %}
+<div class="container-fluid py-4 px-lg-5">
+
+    <!-- Breadcrumb & Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 animate-fade-in">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb bg-transparent p-0 mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.delivery_board') }}" class="text-primary font-weight-bold">Delivery Board</a></li>
+                <li class="breadcrumb-item active text-muted">SO #{{ so_number }}</li>
+            </ol>
+        </nav>
+        <button class="btn btn-ops-primary btn-sm px-3" onclick="window.print()">
+            <i class="fas fa-print mr-1"></i> Print Manifest
+        </button>
+    </div>
 
     {% if header %}
-    <!-- SO Header -->
-    <div class="row mb-4">
+    <!-- Header & Resource Allocation -->
+    <div class="row mb-5 animate-fade-in delay-1">
         <div class="col-lg-8">
-            <div class="card card-ops">
-                <div class="card-header">
-                    <i class="fas fa-file-invoice mr-2"></i> Sales Order #{{ so_number }}
+            <div class="glass-card h-100 p-4 border-0">
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div>
+                        <span class="badge badge-primary px-3 py-2 mb-2" style="background: var(--beisser-green); border-radius: 8px;">SALES ORDER</span>
+                        <h2 class="display-4 font-weight-bold mb-0 text-dark">#{{ so_number }}</h2>
+                    </div>
+                    {% if header.system_id %}
+                    <div class="text-right">
+                        <div class="small text-muted font-weight-bold text-uppercase">Internal ID</div>
+                        <div class="h5 font-weight-bold text-primary">{{ header.system_id }}</div>
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="small text-muted text-uppercase font-weight-bold">Customer</div>
-                                <div class="h5 font-weight-bold mb-0">{{ header.customer_name }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <div class="small text-muted text-uppercase font-weight-bold">Delivery Address</div>
-                                <div>{{ header.address }}</div>
-                            </div>
+                
+                <div class="row">
+                    <div class="col-md-6 border-right">
+                        <div class="mb-4">
+                            <label class="small text-muted font-weight-bold text-uppercase letter-spacing-1 d-block mb-1">Consignee</label>
+                            <div class="h5 font-weight-bold text-dark mb-0">{{ header.customer_name }}</div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="small text-muted text-uppercase font-weight-bold">Reference / PO</div>
-                                <div>{{ header.reference or 'N/A' }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <div class="small text-muted text-uppercase font-weight-bold">Delivery Status</div>
-                                {% set status_label = 'Pending' %}
-                                {% if header.status_flag == 'D' %}{% set status_label = 'Delivered' %}
-                                {% elif header.status_flag == 'E' %}{% set status_label = 'En Route' %}
-                                {% elif header.status_flag == 'L' %}{% set status_label = 'Loaded' %}
-                                {% elif header.status_flag == 'S' %}{% set status_label = 'Staged' %}
-                                {% endif %}
-                                <span class="badge badge-pill badge-info p-2 px-3">{{ status_label }}</span>
-                                {% if header.system_id %}
-                                <span class="badge badge-pill badge-secondary p-2 px-3 ml-1">{{ header.system_id
-                                    }}</span>
-                                {% endif %}
-                            </div>
+                        <div class="mb-0">
+                            <label class="small text-muted font-weight-bold text-uppercase letter-spacing-1 d-block mb-1">Destination</label>
+                            <div class="text-dark font-weight-medium">{{ header.address }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 pl-md-4">
+                        <div class="mb-4">
+                            <label class="small text-muted font-weight-bold text-uppercase letter-spacing-1 d-block mb-1">Purchase Order / Ref</label>
+                            <div class="text-dark font-weight-bold">{{ header.reference or '---' }}</div>
+                        </div>
+                        <div class="mb-0">
+                            <label class="small text-muted font-weight-bold text-uppercase letter-spacing-1 d-block mb-1">Current Logistical State</label>
+                            {% set status_label = 'Pending' %}
+                            {% set status_class = 'badge-secondary' %}
+                            {% if header.status_flag == 'D' %}{% set status_label = 'Delivered' %}{% set status_class = 'badge-success' %}
+                            {% elif header.status_flag == 'E' %}{% set status_label = 'En Route' %}{% set status_class = 'badge-info' %}
+                            {% elif header.status_flag == 'L' %}{% set status_label = 'Loaded' %}{% set status_class = 'badge-warning' %}
+                            {% elif header.status_flag == 'S' %}{% set status_label = 'Staged' %}{% set status_class = 'badge-primary' %}
+                            {% endif %}
+                            <span class="badge {{ status_class }} px-3 py-2" style="border-radius: 20px; font-weight: 700;">
+                                <i class="fas fa-circle mr-2 opacity-50" style="font-size: 0.6rem;"></i> {{ status_label|upper }}
+                            </span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-lg-4">
-            <div class="card card-ops h-100">
-                <div class="card-body text-center d-flex flex-column justify-content-center">
-                    <div class="text-muted small text-uppercase font-weight-bold mb-2">Assigned Truck</div>
-                    {% if header.driver %}
-                    <div class="h3 font-weight-bold mb-3" style="color: var(--beisser-green);">
-                        <i class="fas fa-truck mr-2"></i> {{ header.driver }}
-                    </div>
-                    {% if header.status_flag == 'E' %}
-                    <a href="{{ url_for('main.delivery_map', truck=header.driver) }}"
-                        class="btn btn-ops-primary btn-sm mb-2">
-                        <i class="fas fa-map-marker-alt mr-1"></i> Track Live Location
-                    </a>
-                    {% endif %}
-                    <div class="text-muted small">
-                        {% if header.ship_via %}{{ header.ship_via }}{% endif %}
-                        {% if header.route %}<br>Route: {{ header.route }}{% endif %}
-                    </div>
-                    {% else %}
-                    <div class="h3 text-muted mb-3">
-                        <i class="fas fa-truck-loading mr-2"></i> Not Yet Assigned
-                    </div>
-                    <div class="text-muted small">
-                        Truck assignment and GPS tracking will appear here once the delivery is dispatched.
-                    </div>
-                    {% endif %}
+            <div class="glass-card h-100 p-4 border-0 text-center d-flex flex-column justify-content-center" 
+                 style="background: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(197, 160, 89, 0.1) 100%);">
+                <div class="small text-muted font-weight-bold text-uppercase mb-4 letter-spacing-2">Primary Logistics Asset</div>
+                {% if header.driver %}
+                <div class="bg-white rounded-circle shadow-sm mx-auto mb-4 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                    <i class="fas fa-truck-moving text-primary fa-2x"></i>
                 </div>
+                <div class="h3 font-weight-bold text-dark mb-1">{{ header.driver }}</div>
+                <div class="text-muted small font-weight-bold mb-4">{{ header.ship_via or 'Direct route' }} • {{ header.route or 'Main' }}</div>
+                
+                {% if header.status_flag == 'E' %}
+                <a href="{{ url_for('main.delivery_map', truck=header.driver) }}" class="btn btn-ops-primary w-100 py-3 shadow-lg">
+                    <i class="fas fa-location-crosshairs mr-2"></i> Track Live Position
+                </a>
+                {% endif %}
+                {% else %}
+                <div class="opacity-25 mb-4">
+                    <i class="fas fa-truck-ramp-box fa-4x"></i>
+                </div>
+                <div class="h4 font-weight-bold text-muted mb-2">Awaiting Allocation</div>
+                <p class="small text-muted px-4">Tracking telemetry will initialize once a vehicle resource is committed to this manifest.</p>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Audit History Timeline -->
-    <div class="row mb-4">
+    <!-- Orchestration Timeline -->
+    <div class="row mb-5 animate-fade-in delay-2">
         <div class="col-12">
-            <div class="card card-ops">
-                <div class="card-header">
-                    <i class="fas fa-history mr-2"></i> Ticket Audit History
-                </div>
-                <div class="card-body">
-                    <div class="timeline">
-                        <!-- Printed -->
-                        <div class="timeline-item {% if header.printed_at %}active{% endif %}">
-                            <div class="timeline-icon"><i class="fas fa-print"></i></div>
-                            <div class="timeline-content">
-                                <div class="font-weight-bold">Pick Ticket Printed</div>
-                                <div class="small text-muted">{{ header.printed_at or 'Pending' }}</div>
-                            </div>
-                        </div>
-                        <!-- Started Picking -->
-                        <div class="timeline-item {% if header.picking_started_at %}active{% endif %}">
-                            <div class="timeline-icon"><i class="fas fa-running"></i></div>
-                            <div class="timeline-content">
-                                <div class="font-weight-bold">Picking Started</div>
-                                <div class="small text-muted">{{ header.picking_started_at or 'Pending' }}</div>
-                            </div>
-                        </div>
-                        <!-- Completed Picking -->
-                        <div class="timeline-item {% if header.picking_completed_at %}active{% endif %}">
-                            <div class="timeline-icon"><i class="fas fa-clipboard-check"></i></div>
-                            <div class="timeline-content">
-                                <div class="font-weight-bold">Picking Completed</div>
-                                <div class="small text-muted">{{ header.picking_completed_at or 'Pending' }}</div>
-                            </div>
-                        </div>
-                        <!-- Staged / Loaded -->
-                        <div class="timeline-item {% if header.staged_at %}active{% endif %}">
-                            <div class="timeline-icon"><i class="fas fa-pallet"></i></div>
-                            <div class="timeline-content">
-                                <div class="font-weight-bold">Staged / Loaded</div>
-                                <div class="small text-muted">{{ header.staged_at or 'Pending' }}</div>
-                            </div>
-                        </div>
-                        <!-- Out for Delivery -->
-                        <div class="timeline-item {% if header.status_flag in ['E', 'D'] %}active{% endif %}">
-                            <div class="timeline-icon"><i class="fas fa-truck"></i></div>
-                            <div class="timeline-content">
-                                <div class="font-weight-bold">Out for Delivery</div>
-                                <div class="small text-muted">{% if header.status_flag in ['E', 'D'] %}In Transit{% else
-                                    %}Pending{% endif %}</div>
-                            </div>
-                        </div>
-                        <!-- Delivered -->
-                        <div class="timeline-item {% if header.status_flag == 'D' %}active{% endif %}">
-                            <div class="timeline-icon"><i class="fas fa-check-double"></i></div>
-                            <div class="timeline-content">
-                                <div class="font-weight-bold">Delivered</div>
-                                <div class="small text-muted">{{ header.delivered_at or 'Pending' }}</div>
-                            </div>
-                        </div>
+            <div class="glass-card p-4 border-0">
+                <h5 class="font-weight-bold mb-5"><i class="fas fa-route mr-3 text-primary"></i>Operation Lifecycle</h5>
+                
+                <div class="timeline-container">
+                    <div class="timeline-step {% if header.printed_at %}complete{% endif %}">
+                        <div class="step-icon"><i class="fas fa-print"></i></div>
+                        <div class="step-label">Printed</div>
+                        <div class="step-time">{{ header.printed_at[11:16] if header.printed_at else '--:--' }}</div>
+                    </div>
+                    <div class="timeline-step {% if header.picking_started_at %}complete{% endif %}">
+                        <div class="step-icon"><i class="fas fa-box-open"></i></div>
+                        <div class="step-label">Picking</div>
+                        <div class="step-time">{{ header.picking_started_at[11:16] if header.picking_started_at else '--:--' }}</div>
+                    </div>
+                    <div class="timeline-step {% if header.picking_completed_at %}complete{% endif %}">
+                        <div class="step-icon"><i class="fas fa-clipboard-check"></i></div>
+                        <div class="step-label">Packed</div>
+                        <div class="step-time">{{ header.picking_completed_at[11:16] if header.picking_completed_at else '--:--' }}</div>
+                    </div>
+                    <div class="timeline-step {% if header.staged_at %}complete{% endif %}">
+                        <div class="step-icon"><i class="fas fa-pallet"></i></div>
+                        <div class="step-label">Staged</div>
+                        <div class="step-time">{{ header.staged_at[11:16] if header.staged_at else '--:--' }}</div>
+                    </div>
+                    <div class="timeline-step {% if header.status_flag in ['E', 'D'] %}complete{% else %}active{% endif %}">
+                        <div class="step-icon"><i class="fas fa-truck"></i></div>
+                        <div class="step-label">Transit</div>
+                        <div class="step-time">{% if header.status_flag in ['E', 'D'] %}Active{% else %}--:--{% endif %}</div>
+                    </div>
+                    <div class="timeline-step {% if header.status_flag == 'D' %}complete{% endif %}">
+                        <div class="step-icon"><i class="fas fa-house-chimney-check"></i></div>
+                        <div class="step-label">Delivered</div>
+                        <div class="step-time">{{ header.delivered_at[11:16] if header.delivered_at else '--:--' }}</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     {% else %}
-    <div class="alert alert-warning">
-        <i class="fas fa-exclamation-triangle mr-2"></i> Could not load header data for SO #{{ so_number }}.
+    <div class="glass-card p-5 text-center animate-fade-in">
+        <i class="fas fa-triangle-exclamation text-warning fa-3x mb-4"></i>
+        <h3 class="font-weight-bold">System Sync in Progress</h3>
+        <p class="text-muted">The header data for SO #{{ so_number }} is currently being indexed from Agility.</p>
     </div>
     {% endif %}
 
-    <!-- Line Items -->
-    <div class="card card-ops">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-boxes mr-2"></i> Line Items</span>
-            <span class="badge badge-light">{{ items|length }} items</span>
+    <!-- Payload manifest -->
+    <div class="glass-card border-0 animate-fade-in delay-3">
+        <div class="card-header-ops d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 font-weight-bold"><i class="fas fa-boxes-stacked mr-3 opacity-75"></i>Shipment Payload Data</h5>
+            <span class="badge badge-glass px-3 py-2">{{ items|length }} Distinct Items</span>
         </div>
-        <div class="card-body p-0">
-            <table class="table table-ops mb-0">
-                <thead>
-                    <tr>
-                        <th>Seq</th>
-                        <th>Item #</th>
-                        <th>Description</th>
-                        <th>Handling Code</th>
-                        <th>Qty</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr>
-                        <td>{{ item.sequence }}</td>
-                        <td class="font-weight-bold">{{ item.item_number }}</td>
-                        <td>{{ item.description }}</td>
-                        <td><span class="badge badge-pill badge-light">{{ item.handling_code }}</span></td>
-                        <td>{{ item.qty }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
-                            No line items found.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="p-0">
+            <div class="table-ops-wrapper">
+                <table class="table table-ops mb-0">
+                    <thead>
+                        <tr>
+                            <th class="pl-4">Sequence</th>
+                            <th>Global SKU</th>
+                            <th>Item Description</th>
+                            <th class="text-center">Handling Group</th>
+                            <th class="text-right pr-4">Quantity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr class="bg-transparent">
+                            <td class="pl-4 font-weight-bold text-muted">{{ item.sequence }}</td>
+                            <td class="font-weight-bold" style="color: var(--beisser-green-light);">{{ item.item_number }}</td>
+                            <td class="text-dark">{{ item.description }}</td>
+                            <td class="text-center">
+                                <span class="badge badge-light px-3 py-2" style="border-radius: 8px; border: 1px solid rgba(0,0,0,0.03);">{{ item.handling_code }}</span>
+                            </td>
+                            <td class="text-right pr-4 h5 font-weight-extrabold mb-0">{{ item.qty|int }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted opacity-50 italic">Manifest payload is empty.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-
 </div>
+
 <style>
-    .timeline {
-        position: relative;
+    .timeline-container {
         display: flex;
         justify-content: space-between;
-        margin-top: 1rem;
-        padding-bottom: 2rem;
+        position: relative;
+        padding: 20px 0;
     }
-
-    .timeline::before {
+    .timeline-container::before {
         content: '';
         position: absolute;
-        top: 20px;
-        left: 5%;
-        right: 5%;
+        top: 50px;
+        left: 50px;
+        right: 50px;
         height: 2px;
-        background: #333;
+        background: rgba(0,0,0,0.05);
+        z-index: 0;
+    }
+    .timeline-step {
+        width: 100px;
+        text-align: center;
+        position: relative;
         z-index: 1;
     }
-
-    .timeline-item {
-        position: relative;
-        z-index: 2;
-        width: 14%;
-        text-align: center;
-    }
-
-    .timeline-icon {
-        width: 40px;
-        height: 40px;
+    .step-icon {
+        width: 60px;
+        height: 60px;
+        background: #fff;
+        border: 2px solid rgba(0,0,0,0.05);
         border-radius: 50%;
-        background: #222;
-        border: 2px solid #444;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 10px;
-        color: #666;
-        transition: 0.3s;
+        margin: 0 auto 15px;
+        font-size: 1.25rem;
+        color: #ddd;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
-
-    .timeline-item.active .timeline-icon {
+    .timeline-step.complete .step-icon {
         background: var(--beisser-green);
-        border-color: #fff;
+        border-color: var(--beisser-green);
         color: #fff;
-        box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        box-shadow: 0 4px 15px rgba(0, 69, 38, 0.2);
     }
-
-    .timeline-item.active .timeline-content {
-        color: #fff;
+    .timeline-step.active .step-icon {
+        border-color: var(--beisser-green);
+        color: var(--beisser-green);
+        animation: pulse-step 2s infinite;
     }
-
-    .timeline-content {
+    .step-label {
         font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #bbb;
+    }
+    .timeline-step.complete .step-label { color: var(--dark-charcoal); }
+    .step-time {
+        font-size: 0.7rem;
+        color: #ddd;
+        font-weight: 600;
+    }
+    .timeline-step.complete .step-time { color: var(--beisser-green); }
+
+    @keyframes pulse-step {
+        0% { box-shadow: 0 0 0 0 rgba(0, 69, 38, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(0, 69, 38, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(0, 69, 38, 0); }
+    }
+    .badge-glass {
+        background: rgba(255,255,255,0.2);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: #fff;
+        font-weight: 700;
+    }
+    @media print {
+        .navbar-ops, .breadcrumb, .btn-ops-primary, .card-header-ops span:last-child { display: none !important; }
+        .glass-card { border: 1px solid #ddd !important; box-shadow: none !important; backdrop-filter: none !important; background: #fff !important; }
+        body { background: #fff !important; }
     }
 </style>
-{% endblock %}
+{% endblock %}
