@@ -335,7 +335,11 @@
                     <i class="fas fa-satellite-dish mr-2"></i> Fleet Tracker
                     <span class="branch-badge">{{ current_branch }}</span>
                 </div>
+                {% if gps_error %}
+                <div class="map-subtitle text-warning"><i class="fas fa-exclamation-triangle mr-1"></i> Error loading GPS — {{ gps_error }}</div>
+                {% else %}
                 <div class="map-subtitle">Live vehicle positions via Samsara GPS</div>
+                {% endif %}
                 <div class="branch-selector">
                     <a href="{{ url_for('main.delivery_map') }}"
                         class="branch-btn {{ 'active' if branch_code == 'all' else '' }}">All Locations</a>
@@ -367,6 +371,18 @@
         <!-- Bottom Truck Panel -->
         <div class="truck-panel">
             <div class="truck-cards" id="truckCards">
+                {% if gps_error %}
+                <div class="truck-card stopped" style="min-width:260px;">
+                    <div class="truck-name"><i class="fas fa-exclamation-triangle mr-1 text-warning"></i> GPS Unavailable</div>
+                    <div class="truck-loc">Error loading GPS data from Samsara.</div>
+                    <div class="truck-speed speed-stopped">{{ gps_error }}</div>
+                </div>
+                {% elif not locations %}
+                <div class="truck-card stopped" style="min-width:220px;">
+                    <div class="truck-name"><i class="fas fa-map-marker-alt mr-1"></i> No Vehicles</div>
+                    <div class="truck-loc">No vehicles found for this filter.</div>
+                </div>
+                {% else %}
                 {% for loc in locations %}
                 <div class="truck-card {{ 'moving' if loc.speed_mph > 0 else 'stopped' }}" data-lat="{{ loc.latitude }}"
                     data-lng="{{ loc.longitude }}" onclick="panToTruck({{ loc.latitude }}, {{ loc.longitude }})">
@@ -383,6 +399,7 @@
                     </div>
                 </div>
                 {% endfor %}
+                {% endif %}
             </div>
         </div>
     </div>
@@ -492,6 +509,35 @@
         }
         setInterval(updateClock, 1000);
         updateClock();
+
+        // Auto-refresh GPS locations every 30s using the JSON API
+        const branchCode = "{{ branch_code }}";
+        function refreshLocations() {
+            const apiUrl = branchCode && branchCode !== 'all'
+                ? `/api/delivery/locations/${branchCode}`
+                : '/api/delivery/locations';
+            fetch(apiUrl)
+                .then(r => r.json())
+                .then(data => {
+                    const subtitle = document.querySelector('.map-subtitle');
+                    if (data.error) {
+                        if (subtitle) subtitle.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Error loading GPS — ' + data.error;
+                        return;
+                    }
+                    const locs = data.locations || [];
+                    const moving = locs.filter(l => l.speed_mph > 0).length;
+                    const stopped = locs.length - moving;
+                    document.getElementById('movingCount').innerText = moving;
+                    document.getElementById('stoppedCount').innerText = stopped;
+                    document.getElementById('totalVehicles').innerText = locs.length;
+                    if (subtitle) subtitle.innerHTML = 'Live vehicle positions via Samsara GPS &mdash; updated ' + new Date().toLocaleTimeString();
+                })
+                .catch(() => {
+                    const subtitle = document.querySelector('.map-subtitle');
+                    if (subtitle) subtitle.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Error loading GPS — connection failed';
+                });
+        }
+        setInterval(refreshLocations, 30000);
     </script>
 </body>
 

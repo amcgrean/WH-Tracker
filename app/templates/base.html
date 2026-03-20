@@ -60,6 +60,21 @@
                 </button>
             </div>
 
+            <!-- Sidebar nav filter -->
+            <div class="app-sidebar__search px-3 pt-2 pb-1">
+                <div class="input-group input-group-sm">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text bg-transparent border-right-0" style="border-color:rgba(255,255,255,0.15);">
+                            <i class="fas fa-search" style="color:rgba(255,255,255,0.5);font-size:0.75rem;"></i>
+                        </span>
+                    </div>
+                    <input type="text" id="sidebarNavFilter" class="form-control border-left-0"
+                        placeholder="Filter menus…"
+                        style="background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;"
+                        autocomplete="off">
+                </div>
+            </div>
+
             <div class="app-sidebar__content">
                 {% for section in nav_sections %}
                 <section class="nav-section">
@@ -199,6 +214,28 @@
                 if (!$(event.target).closest('.search-wrapper').length) {
                     $results.hide();
                 }
+            });
+
+            // Sidebar nav filter
+            const $navFilter = $('#sidebarNavFilter');
+            $navFilter.on('input', function () {
+                const term = $(this).val().toLowerCase().trim();
+                if (!term) {
+                    $('.nav-section').show();
+                    $('.nav-link-card').show();
+                    return;
+                }
+                $('.nav-section').each(function () {
+                    let anyVisible = false;
+                    $(this).find('.nav-link-card').each(function () {
+                        const label = $(this).find('.nav-link-card__label').text().toLowerCase();
+                        const desc = $(this).find('.nav-link-card__description').text().toLowerCase();
+                        const match = label.includes(term) || desc.includes(term);
+                        $(this).toggle(match);
+                        if (match) anyVisible = true;
+                    });
+                    $(this).toggle(anyVisible);
+                });
             });
         });
     </script>

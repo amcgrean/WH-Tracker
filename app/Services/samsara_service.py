@@ -28,6 +28,16 @@ class SamsaraService:
         if not self.api_token:
             print("SamsaraService: No API token configured. Falling back to MOCK data.")
             return None
+        try:
+            url = f"{self.BASE_URL}{endpoint}"
+            resp = requests.get(url, headers=self.headers, params=params, timeout=10)
+            if resp.status_code != 200:
+                print(f"Samsara API HTTP Error: {resp.status_code} - {resp.text}")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            print(f"Samsara API Exception for {endpoint}: {exc}")
+            return None
 
     def _dispatch_branch_aliases(self):
         raw = (os.environ.get('SAMSARA_BRANCH_TAGS_JSON') or '').strip()
@@ -210,19 +220,6 @@ class SamsaraService:
                 'error': 'unexpected_error',
                 'detail': str(exc),
             }
-        try:
-            url = f"{self.BASE_URL}{endpoint}"
-            print(f"Samsara API Request: {url} with params {params}")
-            resp = requests.get(url, headers=self.headers, params=params, timeout=10)
-            
-            if resp.status_code != 200:
-                print(f"Samsara API HTTP Error: {resp.status_code} - {resp.text}")
-            
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            print(f"Samsara API Exception: {e}")
-            return None
 
     def get_tags(self):
         """
