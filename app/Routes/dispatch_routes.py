@@ -9,6 +9,7 @@ from app.Services.samsara_service import SamsaraService
 dispatch = Blueprint("dispatch", __name__, url_prefix="/dispatch")
 dispatch_service = DispatchService()
 erp_service = ERPService()
+samsara_service = SamsaraService()
 
 
 def _add_business_days(start_date: date, days: int) -> date:
@@ -119,6 +120,5 @@ def manifest():
 def live_vehicles():
     branch = request.args.get("branch")
     limit = request.args.get("limit", type=int)
-    samsara = SamsaraService()
-    payload = samsara.get_dispatch_vehicle_payload(branch=branch, limit=limit)
+    payload = samsara_service.get_dispatch_vehicle_payload(branch=branch, limit=limit)
     return jsonify(payload)

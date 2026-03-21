@@ -240,6 +240,82 @@ class LocalSync:
             self.db_session.rollback()
             raise
 
+    def geocode_pending_shiptos(self, batch_size=10):
+        """Geocode erp_mirror_cust_shipto records that have no lat/lon yet.
+
+        Uses Nominatim (OpenStreetMap) — free, no API key required.
+        Nominatim requires ≤1 req/sec; we sleep 1.1s between calls.
+        Processes `batch_size` records per invocation so we don't block the loop.
+        """
+        import requests as _req
+
+        try:
+            rows = self.db_session.execute(
+                text(
+                    "SELECT id, address_1, city, state, zip "
+                    "FROM erp_mirror_cust_shipto "
+                    "WHERE lat IS NULL AND (address_1 IS NOT NULL OR city IS NOT NULL) "
+                    "LIMIT :n"
+                ),
+                {"n": batch_size},
+            ).fetchall()
+        except Exception as exc:
+            print(f"[{datetime.now()}] geocode_pending_shiptos: query failed: {exc}")
+            return
+
+        if not rows:
+            return
+
+        print(f"[{datetime.now()}] Geocoding {len(rows)} pending ship-to records...")
+        updated = 0
+        for row in rows:
+            parts = [p for p in [row.address_1, row.city, row.state, row.zip] if p and str(p).strip()]
+            if not parts:
+                continue
+            query = ", ".join(str(p).strip() for p in parts)
+            try:
+                resp = _req.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": query, "format": "json", "limit": 1},
+                    headers={"User-Agent": "WH-Tracker/1.0 (dispatch geocoder)"},
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                results = resp.json()
+                if results:
+                    lat = float(results[0]["lat"])
+                    lon = float(results[0]["lon"])
+                    self.db_session.execute(
+                        text(
+                            "UPDATE erp_mirror_cust_shipto "
+                            "SET lat=:lat, lon=:lon, geocoded_at=:ts, geocode_source='nominatim' "
+                            "WHERE id=:id"
+                        ),
+                        {"lat": lat, "lon": lon, "ts": datetime.utcnow(), "id": row.id},
+                    )
+                    updated += 1
+                else:
+                    # Mark as attempted so we don't retry in a tight loop
+                    self.db_session.execute(
+                        text(
+                            "UPDATE erp_mirror_cust_shipto "
+                            "SET geocoded_at=:ts, geocode_source='nominatim_no_result' "
+                            "WHERE id=:id"
+                        ),
+                        {"ts": datetime.utcnow(), "id": row.id},
+                    )
+            except Exception as exc:
+                print(f"[{datetime.now()}] Nominatim error for id={row.id} ({query!r}): {exc}")
+
+            time.sleep(1.1)  # Nominatim rate limit: 1 req/sec
+
+        try:
+            self.db_session.commit()
+            print(f"[{datetime.now()}] Geocoded {updated}/{len(rows)} ship-to records.")
+        except Exception as exc:
+            self.db_session.rollback()
+            print(f"[{datetime.now()}] geocode_pending_shiptos: commit failed: {exc}")
+
     def run(self):
         print("Starting Local ERP Sync Service with change monitoring...")
         while True:
@@ -247,6 +323,7 @@ class LocalSync:
             try:
                 data = self.fetch_local_data()
                 self.push_to_cloud(data)
+                self.geocode_pending_shiptos(batch_size=10)
             except Exception as e:
                 error_payload = self._status_payload(
                     status="error",
