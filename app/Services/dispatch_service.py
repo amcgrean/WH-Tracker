@@ -223,7 +223,8 @@ class DispatchService:
             " OR "
             " (UPPER(hdr.[type]) <> 'CM' AND COALESCE(sh.expect_date, hdr.expect_date) BETWEEN ? AND ?)"
             ")",
-            "hdr.so_status <> 'I'",
+            "UPPER(hdr.so_status) NOT IN ('I','C','X','CAN','CANCEL','CANCELED','CN','VOID')",
+            "UPPER(COALESCE(hdr.sale_type,'')) NOT IN ('DIRECT','WILLCALL','HOLD')",
         ]
         params: List[Any] = [start, end]
 

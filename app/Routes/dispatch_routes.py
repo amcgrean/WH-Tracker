@@ -11,6 +11,17 @@ dispatch_service = DispatchService()
 erp_service = ERPService()
 
 
+def _add_business_days(start_date: date, days: int) -> date:
+    result = start_date
+    sign = 1 if days >= 0 else -1
+    remaining = abs(days)
+    while remaining > 0:
+        result += timedelta(days=sign)
+        if result.weekday() < 5:  # Mon-Fri
+            remaining -= 1
+    return result
+
+
 def _parse_iso_date(value: str, fallback: date) -> date:
     try:
         return datetime.fromisoformat(value).date()
@@ -42,11 +53,10 @@ def branches():
 @dispatch.get("/api/stops")
 def stops():
     today = date.today()
-    start = _parse_iso_date(request.args.get("start", today.isoformat()), today)
-    end = _parse_iso_date(
-        request.args.get("end", (today + timedelta(days=3)).isoformat()),
-        today + timedelta(days=3),
-    )
+    default_start = _add_business_days(today, -7)
+    default_end = _add_business_days(today, 1)
+    start = _parse_iso_date(request.args.get("start", default_start.isoformat()), default_start)
+    end = _parse_iso_date(request.args.get("end", default_end.isoformat()), default_end)
     statuses = request.args.get("status")
     branch = request.args.get("branch")
     sale_types = request.args.get("sale_types")

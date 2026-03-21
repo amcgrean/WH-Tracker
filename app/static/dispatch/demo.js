@@ -324,10 +324,21 @@ function loadSettings() {
 
   const today = new Date();
   const toISO = (value) => value.toISOString().slice(0, 10);
-  startEl.value = startEl.value || toISO(today);
-  const plus3 = new Date(today);
-  plus3.setDate(today.getDate() + 3);
-  endEl.value = endEl.value || toISO(plus3);
+
+  function addBusinessDays(dt, days) {
+    const result = new Date(dt);
+    const sign = days < 0 ? -1 : 1;
+    let remaining = Math.abs(days);
+    while (remaining > 0) {
+      result.setDate(result.getDate() + sign);
+      const dow = result.getDay();
+      if (dow !== 0 && dow !== 6) remaining--;
+    }
+    return result;
+  }
+
+  startEl.value = startEl.value || toISO(addBusinessDays(today, -7));
+  endEl.value = endEl.value || toISO(addBusinessDays(today, 1));
 
   const savedWidth = localStorage.getItem('dispatch_sidebar_px');
   if (savedWidth) app.style.gridTemplateColumns = `${savedWidth}px 6px 1fr`;
