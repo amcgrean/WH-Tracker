@@ -80,6 +80,8 @@ class SamsaraService:
             return 15
 
     def _dispatch_fetch_locations(self, limit=200):
+        if not self.api_token:
+            raise ValueError("SAMSARA_API_TOKEN is not configured")
         ttl = max(5, self._dispatch_ttl())
         now = time.time()
         if self._dispatch_cache['data'] is not None and now - self._dispatch_cache['ts'] < ttl:
@@ -202,6 +204,14 @@ class SamsaraService:
                 'count': len(vehicles),
                 'fetched_at': datetime.utcnow().isoformat() + 'Z',
                 'source': 'samsara',
+            }
+        except ValueError as exc:
+            # Missing API token — return the same shape as the no-token early return above
+            return {
+                'vehicles': [],
+                'count': 0,
+                'fetched_at': datetime.utcnow().isoformat() + 'Z',
+                'warning': str(exc),
             }
         except requests.HTTPError as exc:
             return {

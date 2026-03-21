@@ -11,5 +11,11 @@
             "src": "/(.*)",
             "dest": "api/index.py"
         }
+    ],
+    "crons": [
+        {
+            "path": "/api/geocode-pending",
+            "schedule": "0 * * * *"
+        }
     ]
 }

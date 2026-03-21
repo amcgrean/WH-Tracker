@@ -1272,12 +1272,13 @@ class ERPService:
                     soh.so_id AS id,
                     CASE WHEN UPPER(COALESCE(soh.sale_type, '')) = 'CM' THEN 'credit' ELSE 'delivery' END AS doc_kind,
                     COALESCE(sh.expect_date, soh.expect_date) AS expected_date,
-                    NULL AS lat,
-                    NULL AS lon,
+                    cs.lat,
+                    cs.lon,
                     NULL AS address,
                     soh.so_status,
                     CASE WHEN UPPER(COALESCE(soh.sale_type, '')) = 'CM' THEN 'CM' ELSE 'SO' END AS so_type,
                     cs.shipto_name,
+                    CONCAT_WS(' ', cs.address_1, cs.city, cs.state, cs.zip) AS shipto_address,
                     c.cust_code AS customer_code,
                     CAST(soh.shipto_seq_num AS TEXT) AS ship_to_number,
                     sh.shipment_num,
@@ -1298,6 +1299,7 @@ class ERPService:
                 expanding={"branches", "sale_types", "statuses"},
             )
 
+            # CSV fallback for any stops still missing DB-geocoded coordinates
             gps_map = self._load_dispatch_gps_map()
             so_ids = [row["id"] for row in rows if row.get("id") is not None]
             aggregates = self._aggregate_dispatch_details(so_ids) if so_ids else {}
@@ -1305,14 +1307,25 @@ class ERPService:
             results = []
             for row in rows:
                 obj = dict(row)
-                customer = (obj.get("customer_code") or "").strip()
-                ship_to = (obj.get("ship_to_number") or "").strip()
-                hit = gps_map.get((customer, ship_to))
-                if hit and hit.get("lat") is not None and hit.get("lon") is not None:
-                    obj["lat"] = hit["lat"]
-                    obj["lon"] = hit["lon"]
-                    if not obj.get("address"):
-                        obj["address"] = hit.get("address")
+                # Coerce Decimal lat/lon from DB to float
+                if obj.get("lat") is not None:
+                    obj["lat"] = float(obj["lat"])
+                if obj.get("lon") is not None:
+                    obj["lon"] = float(obj["lon"])
+                # Use shipto_address from DB if no address yet
+                if not obj.get("address") and obj.get("shipto_address"):
+                    obj["address"] = obj["shipto_address"]
+                obj.pop("shipto_address", None)
+                # CSV fallback only when DB has no coordinates yet
+                if obj.get("lat") is None or obj.get("lon") is None:
+                    customer = (obj.get("customer_code") or "").strip()
+                    ship_to = (obj.get("ship_to_number") or "").strip()
+                    hit = gps_map.get((customer, ship_to))
+                    if hit and hit.get("lat") is not None and hit.get("lon") is not None:
+                        obj["lat"] = hit["lat"]
+                        obj["lon"] = hit["lon"]
+                        if not obj.get("address"):
+                            obj["address"] = hit.get("address")
                 if not include_no_gps and (obj.get("lat") is None or obj.get("lon") is None):
                     continue
                 info = aggregates.get((obj.get("id"), obj.get("shipment_num"))) or aggregates.get((obj.get("id"), None))
