@@ -1236,7 +1236,8 @@ class ERPService:
                 " OR "
                 " (UPPER(COALESCE(soh.sale_type, '')) <> 'CM' AND COALESCE(sh.expect_date, soh.expect_date) BETWEEN :start_date AND :end_date)"
                 ")",
-                "soh.so_status <> 'I'",
+                "UPPER(COALESCE(soh.so_status,'')) NOT IN ('I','C','X','CAN','CANCEL','CANCELED','CN','VOID')",
+                "UPPER(COALESCE(soh.sale_type,'')) NOT IN ('DIRECT','WILLCALL','HOLD')",
             ]
             params = {"start_date": start, "end_date": end}
 
@@ -1335,7 +1336,8 @@ class ERPService:
                 " OR "
                 " (UPPER(hdr.[type]) <> 'CM' AND COALESCE(sh.expect_date, hdr.expect_date) BETWEEN ? AND ?)"
                 ")",
-                "hdr.so_status <> 'I'",
+                "UPPER(hdr.so_status) NOT IN ('I','C','X','CAN','CANCEL','CANCELED','CN','VOID')",
+                "UPPER(COALESCE(hdr.sale_type,'')) NOT IN ('DIRECT','WILLCALL','HOLD')",
             ]
             params = [start, end]
 
