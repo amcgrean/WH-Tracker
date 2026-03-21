@@ -9,9 +9,8 @@
         <a href="?period=ytd" class="btn btn-secondary">Year to Date</a>
     </div>
     <form id="dateFilterForm" action="" method="get" style="display:inline;">
-        <input type="date" name="start_date" value="{{ start_date }}" class="form-control-sm">
-        <input type="date" name="end_date" value="{{ end_date }}" class="form-control-sm">
-        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        <label class="mr-1">Pick Date From <input type="date" name="start_date" value="{{ start_date }}" class="form-control-sm"></label>
+        <label class="mr-1">Pick Date To <input type="date" name="end_date" value="{{ end_date }}" class="form-control-sm"></label>
         <button type="submit" class="btn btn-primary btn-sm">Apply</button>
     </form>
     <br><br>
