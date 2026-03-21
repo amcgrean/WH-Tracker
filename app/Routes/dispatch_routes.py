@@ -72,7 +72,7 @@ def stops():
             status_filter=statuses,
             route_id=route_id,
             driver=driver,
-            include_no_gps=debug_mode,
+            include_no_gps=True,
             branches=branch,
         )
     except Exception:
@@ -83,7 +83,7 @@ def stops():
             status_filter=statuses,
             route_id=route_id,
             driver=driver,
-            include_no_gps=debug_mode,
+            include_no_gps=True,
             branches=branch,
         )
     return jsonify(rows)
