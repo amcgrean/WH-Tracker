@@ -138,7 +138,7 @@ function loadSettings() {
     const query = searchEl.value.trim().toLowerCase();
     if (!query) return rows;
     return rows.filter((row) => {
-      const fields = [row.id, row.shipto_name, row.address, row.route_id, row.driver, row.branch].map((value) => (value || '').toString().toLowerCase());
+      const fields = [row.id, row.shipto_name, row.customer_name, row.address, row.route_id, row.driver, row.branch].map((value) => (value || '').toString().toLowerCase());
       return fields.some((field) => field.includes(query));
     });
   }
@@ -203,7 +203,7 @@ function loadSettings() {
       const marker = isCredit
         ? L.circleMarker([row.lat, row.lon], { radius: gpsVerified ? 9 : 8, weight: 2, color, fill: false, dashArray: gpsVerified ? null : '5 4', opacity: gpsVerified ? 1 : 0.75 })
         : L.circleMarker([row.lat, row.lon], { radius: gpsVerified ? 9 : 8, weight: 2, color: gpsVerified ? '#ffffff' : '#334155', fillColor: color, fillOpacity: gpsVerified ? 0.85 : 0.55, dashArray: gpsVerified ? null : '5 4', opacity: gpsVerified ? 1 : 0.82 });
-      marker.bindPopup(`<div><div><strong>${row.id}</strong> <span>${row.doc_kind ?? row.type ?? ''}</span></div><div>${row.shipto_name ?? ''}</div><div>Expected: ${row.expected_date ?? ''}</div><div>Status: ${row.so_status ?? ''} • Branch: ${row.branch ?? ''} • Route: ${row.route_id ?? ''}</div><div>Shipment #: ${row.shipment_num ?? ''} • Driver: ${row.driver ?? ''}</div><div>GPS: ${gpsLabel}</div></div>`).addTo(layerGroup);
+      marker.bindPopup(`<div><div><strong>${row.id}</strong> <span>${row.doc_kind ?? row.type ?? ''}</span></div><div>${row.shipto_name || row.customer_name || ''}</div><div>Expected: ${row.expected_date ?? ''}</div><div>Status: ${row.so_status ?? ''} • Branch: ${row.branch ?? ''} • Route: ${row.route_id ?? ''}</div><div>Shipment #: ${row.shipment_num ?? ''} • Driver: ${row.driver ?? ''}</div><div>GPS: ${gpsLabel}</div></div>`).addTo(layerGroup);
       marker.on('click', async () => {
         toggleSelectionById(row.id);
         try { await showDetailsForRow(row); } catch (_error) {}
@@ -216,7 +216,7 @@ function loadSettings() {
   async function showDetailsForRow(row) {
     const { gpsLabel } = gpsMeta(row);
     detailTitle.textContent = `Order ${row.id}`;
-    detailSubtitle.textContent = [row.shipto_name, row.address].filter(Boolean).join(' • ');
+    detailSubtitle.textContent = [row.shipto_name || row.customer_name, row.address].filter(Boolean).join(' • ');
     detailMeta.innerHTML = [
       row.doc_kind ? `<span class="pill-meta">${String(row.doc_kind).toUpperCase()}</span>` : '',
       row.so_status ? `<span class="pill-meta">Status ${row.so_status}</span>` : '',
@@ -254,7 +254,7 @@ function loadSettings() {
       tr.dataset.id = row.id;
       tr.classList.toggle('selected', selection.has(row.id));
       if (!gpsVerified) tr.style.opacity = '0.88';
-      tr.innerHTML = `<td style="white-space:nowrap;"><button class="btn-primary" data-act="details" aria-label="View details">Details</button><input type="checkbox" ${selection.has(row.id) ? 'checked' : ''} aria-label="select row" style="margin-left:6px;"></td><td>${row.id ?? ''}</td><td>${row.doc_kind ?? row.type ?? ''}</td><td>${row.shipto_name ?? ''}</td><td>${row.address ?? ''}${gpsVerified ? '' : ' <span class="muted">(GPS unverified)</span>'}</td><td>${row.expected_date ?? ''}</td><td>${row.so_status ?? ''}</td><td>${row.branch ?? ''}</td><td>${row.route_id ?? ''}</td><td>${row.shipment_num ?? ''}</td>`;
+      tr.innerHTML = `<td style="white-space:nowrap;"><button class="btn-primary" data-act="details" aria-label="View details">Details</button><input type="checkbox" ${selection.has(row.id) ? 'checked' : ''} aria-label="select row" style="margin-left:6px;"></td><td>${row.id ?? ''}</td><td>${row.doc_kind ?? row.type ?? ''}</td><td>${row.shipto_name || row.customer_name || ''}</td><td>${row.address ?? ''}${gpsVerified ? '' : ' <span class="muted">(GPS unverified)</span>'}</td><td>${row.expected_date ?? ''}</td><td>${row.so_status ?? ''}</td><td>${row.branch ?? ''}</td><td>${row.route_id ?? ''}</td><td>${row.shipment_num ?? ''}</td>`;
       tr.querySelector('button[data-act="details"]').addEventListener('click', async (event) => {
         event.stopPropagation();
         try { await showDetailsForRow(row); } catch (error) { alert(`Failed to load order details: ${error.message}`); }

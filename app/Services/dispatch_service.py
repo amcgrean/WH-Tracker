@@ -272,7 +272,9 @@ class DispatchService:
                 CAST(NULL AS nvarchar(200)) AS address,
                 hdr.so_status,
                 hdr.[type] AS so_type,
-                st.shipto_name,
+                COALESCE(st.shipto_name, cust.cust_name) AS shipto_name,
+                CONCAT_WS(' ', st.address_1, st.city, st.state, st.zip) AS shipto_address,
+                cust.cust_name AS customer_name,
                 cust.cust_code AS CustomerCode,
                 CAST(hdr.shipto_seq_num AS nvarchar(32)) AS ShipToNumber,
                 sh.shipment_num AS shipment_num,
@@ -287,7 +289,7 @@ class DispatchService:
         )
         SELECT
             id, doc_kind, expected_date, lat, lon, address,
-            so_status, so_type, shipto_name,
+            so_status, so_type, shipto_name, shipto_address, customer_name,
             shipment_num, route_id, driver, branch,
             CustomerCode, ShipToNumber
         FROM Stops
@@ -311,6 +313,10 @@ class DispatchService:
 
         gps_map = self._load_gps_map()
         for obj in results:
+            if not obj.get("shipto_name") and obj.get("customer_name"):
+                obj["shipto_name"] = obj["customer_name"]
+            if not obj.get("address") and obj.get("shipto_address"):
+                obj["address"] = obj["shipto_address"]
             customer = (obj.get("CustomerCode") or "").strip()
             ship_to = (obj.get("ShipToNumber") or "").strip()
             hit = gps_map.get((customer, ship_to))
@@ -326,6 +332,7 @@ class DispatchService:
         for obj in results:
             obj.pop("CustomerCode", None)
             obj.pop("ShipToNumber", None)
+            obj.pop("shipto_address", None)
 
         try:
             so_ids = [item.get("id") for item in results if item.get("id") is not None]
