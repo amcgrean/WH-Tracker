@@ -1277,8 +1277,9 @@ class ERPService:
                     NULL AS address,
                     soh.so_status,
                     CASE WHEN UPPER(COALESCE(soh.sale_type, '')) = 'CM' THEN 'CM' ELSE 'SO' END AS so_type,
-                    cs.shipto_name,
+                    COALESCE(cs.shipto_name, c.cust_name) AS shipto_name,
                     CONCAT_WS(' ', cs.address_1, cs.city, cs.state, cs.zip) AS shipto_address,
+                    c.cust_name AS customer_name,
                     c.cust_code AS customer_code,
                     CAST(soh.shipto_seq_num AS TEXT) AS ship_to_number,
                     sh.shipment_num,
@@ -1312,7 +1313,9 @@ class ERPService:
                     obj["lat"] = float(obj["lat"])
                 if obj.get("lon") is not None:
                     obj["lon"] = float(obj["lon"])
-                # Use shipto_address from DB if no address yet
+                # Use DB ship-to/customer values even when GPS is still unresolved
+                if not obj.get("shipto_name") and obj.get("customer_name"):
+                    obj["shipto_name"] = obj["customer_name"]
                 if not obj.get("address") and obj.get("shipto_address"):
                     obj["address"] = obj["shipto_address"]
                 obj.pop("shipto_address", None)
