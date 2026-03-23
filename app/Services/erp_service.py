@@ -1277,8 +1277,9 @@ class ERPService:
                     NULL AS address,
                     soh.so_status,
                     CASE WHEN UPPER(COALESCE(soh.sale_type, '')) = 'CM' THEN 'CM' ELSE 'SO' END AS so_type,
-                    cs.shipto_name,
+                    COALESCE(cs.shipto_name, c.cust_name) AS shipto_name,
                     CONCAT_WS(' ', cs.address_1, cs.city, cs.state, cs.zip) AS shipto_address,
+                    c.cust_name AS customer_name,
                     c.cust_code AS customer_code,
                     CAST(soh.shipto_seq_num AS TEXT) AS ship_to_number,
                     sh.shipment_num,
@@ -1312,7 +1313,9 @@ class ERPService:
                     obj["lat"] = float(obj["lat"])
                 if obj.get("lon") is not None:
                     obj["lon"] = float(obj["lon"])
-                # Use shipto_address from DB if no address yet
+                # Use DB ship-to/customer values even when GPS is still unresolved
+                if not obj.get("shipto_name") and obj.get("customer_name"):
+                    obj["shipto_name"] = obj["customer_name"]
                 if not obj.get("address") and obj.get("shipto_address"):
                     obj["address"] = obj["shipto_address"]
                 obj.pop("shipto_address", None)
@@ -1398,7 +1401,9 @@ class ERPService:
                     CAST(NULL AS nvarchar(200)) AS address,
                     hdr.so_status,
                     hdr.[type] AS so_type,
-                    st.shipto_name,
+                    COALESCE(st.shipto_name, cust.cust_name) AS shipto_name,
+                    CONCAT_WS(' ', st.address_1, st.city, st.state, st.zip) AS shipto_address,
+                    cust.cust_name AS customer_name,
                     cust.cust_code AS CustomerCode,
                     CAST(hdr.shipto_seq_num AS nvarchar(32)) AS ShipToNumber,
                     sh.shipment_num AS shipment_num,
@@ -1406,14 +1411,17 @@ class ERPService:
                     COALESCE(sh.driver, hdr.driver) AS driver,
                     hdr.system_id AS branch
                 FROM SO_HEADER hdr
-                LEFT JOIN CUST_SHIPTO st ON st.cust_shipto_guid = hdr.cust_shipto_guid
-                LEFT JOIN SHIPMENTS_HEADER sh ON sh.so_id = hdr.so_id
-                LEFT JOIN CUST cust ON cust.cust_key = hdr.cust_key
+                LEFT JOIN CUST_SHIPTO st
+                    ON hdr.system_id = st.system_id
+                    AND CAST(st.cust_key AS nvarchar(64)) = CAST(hdr.cust_key AS nvarchar(64))
+                    AND CAST(st.seq_num AS nvarchar(32)) = CAST(hdr.shipto_seq_num AS nvarchar(32))
+                LEFT JOIN SHIPMENTS_HEADER sh ON sh.so_id = hdr.so_id AND sh.system_id = hdr.system_id
+                LEFT JOIN CUST cust ON cust.system_id = hdr.system_id AND cust.cust_key = hdr.cust_key
                 WHERE {" AND ".join(filters)}
             )
             SELECT
                 id, doc_kind, expected_date, lat, lon, address,
-                so_status, so_type, shipto_name,
+                so_status, so_type, shipto_name, shipto_address, customer_name,
                 shipment_num, route_id, driver, branch,
                 CustomerCode, ShipToNumber
             FROM Stops
@@ -1436,6 +1444,10 @@ class ERPService:
 
         gps_map = self._load_dispatch_gps_map()
         for obj in results:
+            if not obj.get("shipto_name") and obj.get("customer_name"):
+                obj["shipto_name"] = obj["customer_name"]
+            if not obj.get("address") and obj.get("shipto_address"):
+                obj["address"] = obj["shipto_address"]
             customer = (obj.get("CustomerCode") or "").strip()
             ship_to = (obj.get("ShipToNumber") or "").strip()
             hit = gps_map.get((customer, ship_to))
@@ -1453,6 +1465,7 @@ class ERPService:
         for obj in results:
             obj.pop('CustomerCode', None)
             obj.pop('ShipToNumber', None)
+            obj.pop('shipto_address', None)
 
         if not include_no_gps:
             results = [item for item in results if item.get('lat') is not None and item.get('lon') is not None]
