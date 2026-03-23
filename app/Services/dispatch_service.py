@@ -282,9 +282,12 @@ class DispatchService:
                 COALESCE(sh.driver, hdr.driver) AS driver,
                 hdr.system_id AS branch
             FROM SO_HEADER hdr
-            LEFT JOIN CUST_SHIPTO st ON st.cust_shipto_guid = hdr.cust_shipto_guid
-            LEFT JOIN SHIPMENTS_HEADER sh ON sh.so_id = hdr.so_id
-            LEFT JOIN CUST cust ON cust.cust_key = hdr.cust_key
+            LEFT JOIN CUST_SHIPTO st
+                ON hdr.system_id = st.system_id
+                AND CAST(st.cust_key AS nvarchar(64)) = CAST(hdr.cust_key AS nvarchar(64))
+                AND CAST(st.seq_num AS nvarchar(32)) = CAST(hdr.shipto_seq_num AS nvarchar(32))
+            LEFT JOIN SHIPMENTS_HEADER sh ON sh.so_id = hdr.so_id AND sh.system_id = hdr.system_id
+            LEFT JOIN CUST cust ON cust.system_id = hdr.system_id AND cust.cust_key = hdr.cust_key
             WHERE {" AND ".join(filters)}
         )
         SELECT
