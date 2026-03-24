@@ -1,6 +1,21 @@
 # Central Agility Mirror + ToolBx Cutover
 
-Last updated: 2026-03-19
+Last updated: 2026-03-24
+
+## 2026-03-24 Cloud-Only Runtime Contract (WH-Tracker)
+
+WH-Tracker now operates as a cloud database app by default:
+
+- `DATABASE_URL` is the required primary connection.
+- ERP-backed reads come from normalized mirror tables in that cloud Postgres database.
+- Tracker-owned workflow data (`pick`, `pickster`, `pick_assignments`, `audit_events`, work-order assignment state, notes, uploads metadata) is written by WH-Tracker to the same cloud Postgres database.
+- Direct SQL Server access is now a break-glass fallback only (`ENABLE_LEGACY_ERP_FALLBACK=true`) and is disabled by default.
+
+Dispatch and delivery GPS behavior is now mirror-driven:
+
+- WH-Tracker consumes `erp_mirror_cust_shipto.lat` / `lon` / `geocode_source`.
+- In-app geocoding endpoint `/api/geocode-pending` is deprecated and returns HTTP `410`.
+- Geocoding responsibility is upstream in `beisser-api` mirror sync.
 
 ## Ownership
 

@@ -1,4 +1,3 @@
-import hmac
 import os
 import json
 from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort, current_app
@@ -777,96 +776,11 @@ def api_sync_status():
 
 @main.route('/api/geocode-pending', methods=['POST'])
 def api_geocode_pending():
-    """Vercel cron-compatible endpoint: geocode erp_mirror_cust_shipto rows missing lat/lon.
-
-    Secured by CRON_SECRET env var. Vercel sends this in the Authorization header as
-    'Bearer <secret>' when configured in vercel.json crons.
-    """
-    import requests as _req
-
-    secret = os.environ.get('CRON_SECRET', '')
-    if secret:
-        auth = request.headers.get('Authorization', '')
-        if not hmac.compare_digest(auth, f'Bearer {secret}'):
-            return jsonify({'error': 'unauthorized'}), 401
-
-    batch_size = min(int(request.args.get('batch', 20)), 50)
-
-    try:
-        rows = db.session.execute(
-            text(
-                "SELECT id, address_1, city, state, zip "
-                "FROM erp_mirror_cust_shipto "
-                "WHERE lat IS NULL AND geocoded_at IS NULL "
-                "AND (address_1 IS NOT NULL OR city IS NOT NULL) "
-                "LIMIT :n"
-            ),
-            {"n": batch_size},
-        ).fetchall()
-    except Exception as exc:
-        return jsonify({'error': 'db_query_failed', 'detail': str(exc)}), 500
-
-    if not rows:
-        return jsonify({'geocoded': 0, 'skipped': 0, 'pending': 0})
-
-    import time as _time
-    geocoded = 0
-    skipped = 0
-    for row in rows:
-        parts = [p for p in [row.address_1, row.city, row.state, row.zip] if p and str(p).strip()]
-        if not parts:
-            skipped += 1
-            continue
-        query = ", ".join(str(p).strip() for p in parts)
-        try:
-            resp = _req.get(
-                "https://nominatim.openstreetmap.org/search",
-                params={"q": query, "format": "json", "limit": 1},
-                headers={"User-Agent": "WH-Tracker/1.0 (dispatch geocoder)"},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            results = resp.json()
-            if results:
-                lat = float(results[0]["lat"])
-                lon = float(results[0]["lon"])
-                db.session.execute(
-                    text(
-                        "UPDATE erp_mirror_cust_shipto "
-                        "SET lat=:lat, lon=:lon, geocoded_at=:ts, geocode_source='nominatim' "
-                        "WHERE id=:id"
-                    ),
-                    {"lat": lat, "lon": lon, "ts": datetime.utcnow(), "id": row.id},
-                )
-                geocoded += 1
-            else:
-                db.session.execute(
-                    text(
-                        "UPDATE erp_mirror_cust_shipto "
-                        "SET geocoded_at=:ts, geocode_source='nominatim_no_result' "
-                        "WHERE id=:id"
-                    ),
-                    {"ts": datetime.utcnow(), "id": row.id},
-                )
-                skipped += 1
-        except Exception:
-            skipped += 1
-        _time.sleep(1.1)  # Nominatim rate limit: 1 req/sec
-
-    try:
-        db.session.commit()
-    except Exception as exc:
-        db.session.rollback()
-        return jsonify({'error': 'commit_failed', 'detail': str(exc)}), 500
-
-    try:
-        pending = db.session.execute(
-            text("SELECT COUNT(*) FROM erp_mirror_cust_shipto WHERE lat IS NULL AND geocoded_at IS NULL")
-        ).scalar()
-    except Exception:
-        pending = None
-
-    return jsonify({'geocoded': geocoded, 'skipped': skipped, 'pending': pending})
+    """Deprecated: geocoding now occurs in beisser-api mirror sync, not WH-Tracker."""
+    return jsonify({
+        'error': 'deprecated',
+        'message': 'Ship-to geocoding is managed upstream by beisser-api; WH-Tracker now consumes mirror lat/lon only.',
+    }), 410
 
 
 @main.route('/debug/counts')

@@ -20,13 +20,19 @@ except (ImportError, OSError):
 class ERPService:
     def __init__(self):
         self.sql_settings = get_sql_server_settings()
-        self.cloud_mode = env_bool('CLOUD_MODE', False)
+        self.cloud_mode = env_bool('CLOUD_MODE', True)
+        self.allow_legacy_erp_fallback = env_bool('ENABLE_LEGACY_ERP_FALLBACK', False)
 
-        # Central DB Mode: Active if CENTRAL_DB_URL is set in config/env
+        # Central DB Mode: Active if CENTRAL_DB_URL (or DATABASE_URL fallback) is set.
         central_url = get_central_db_url() or ''
         self.central_db_mode = bool(central_url)
 
-        print(f"ERPService Init: CLOUD_MODE={self.cloud_mode}, CENTRAL_DB_MODE={self.central_db_mode}")
+        print(
+            "ERPService Init: "
+            f"CLOUD_MODE={self.cloud_mode}, "
+            f"CENTRAL_DB_MODE={self.central_db_mode}, "
+            f"LEGACY_ERP_FALLBACK={self.allow_legacy_erp_fallback}"
+        )
         self._gps_cache = None
         # Simple TTL cache for expensive sales queries: {key: (ts, data)}
         self._sales_cache: dict = {}
@@ -133,12 +139,17 @@ class ERPService:
         return "0"
 
     def _require_central_db_for_cloud_mode(self):
-        if self.cloud_mode and not self.central_db_mode:
+        if not self.central_db_mode:
             raise RuntimeError(
-                "CENTRAL_DB_URL is required when CLOUD_MODE=True after the legacy mirror cutover."
+                "DATABASE_URL/CENTRAL_DB_URL is required for ERP mirror reads."
             )
         
     def get_connection(self):
+        if not self.allow_legacy_erp_fallback:
+            raise RuntimeError(
+                "Legacy ERP SQL Server fallback is disabled. "
+                "Set ENABLE_LEGACY_ERP_FALLBACK=true only for temporary troubleshooting."
+            )
         if pyodbc is None:
             raise RuntimeError("pyodbc is not installed. Set CLOUD_MODE=True for serverless deployments.")
         last_error = None
@@ -1300,8 +1311,6 @@ class ERPService:
                 expanding={"branches", "sale_types", "statuses"},
             )
 
-            # CSV fallback for any stops still missing DB-geocoded coordinates
-            gps_map = self._load_dispatch_gps_map()
             so_ids = [row["id"] for row in rows if row.get("id") is not None]
             aggregates = self._aggregate_dispatch_details(so_ids) if so_ids else {}
 
@@ -1319,16 +1328,6 @@ class ERPService:
                 if not obj.get("address") and obj.get("shipto_address"):
                     obj["address"] = obj["shipto_address"]
                 obj.pop("shipto_address", None)
-                # CSV fallback only when DB has no coordinates yet
-                if obj.get("lat") is None or obj.get("lon") is None:
-                    customer = (obj.get("customer_code") or "").strip()
-                    ship_to = (obj.get("ship_to_number") or "").strip()
-                    hit = gps_map.get((customer, ship_to))
-                    if hit and hit.get("lat") is not None and hit.get("lon") is not None:
-                        obj["lat"] = hit["lat"]
-                        obj["lon"] = hit["lon"]
-                        if not obj.get("address"):
-                            obj["address"] = hit.get("address")
                 if not include_no_gps and (obj.get("lat") is None or obj.get("lon") is None):
                     continue
                 info = aggregates.get((obj.get("id"), obj.get("shipment_num"))) or aggregates.get((obj.get("id"), None))

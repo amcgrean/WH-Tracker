@@ -41,7 +41,8 @@ def health():
         {
             "ok": True,
             "time_utc": datetime.utcnow().isoformat() + "Z",
-            "using_db": dispatch_service.using_db(),
+            "using_cloud_mirror": True,
+            "legacy_erp_fallback_enabled": erp_service.allow_legacy_erp_fallback,
         }
     )
 
@@ -65,28 +66,16 @@ def stops():
     driver = request.args.get("driver")
     debug_mode = request.args.get("debug", "").lower() in ("1", "true", "yes", "y")
 
-    try:
-        rows = erp_service.get_dispatch_stops(
-            start=start,
-            end=end,
-            sale_types=sale_types,
-            status_filter=statuses,
-            route_id=route_id,
-            driver=driver,
-            include_no_gps=True,
-            branches=branch,
-        )
-    except Exception:
-        rows = dispatch_service.get_stops(
-            start=start,
-            end=end,
-            sale_types=sale_types,
-            status_filter=statuses,
-            route_id=route_id,
-            driver=driver,
-            include_no_gps=True,
-            branches=branch,
-        )
+    rows = erp_service.get_dispatch_stops(
+        start=start,
+        end=end,
+        sale_types=sale_types,
+        status_filter=statuses,
+        route_id=route_id,
+        driver=driver,
+        include_no_gps=True,
+        branches=branch,
+    )
     return jsonify(rows)
 
 
@@ -94,10 +83,7 @@ def stops():
 def shipment_lines(so_id: int):
     shipment_num = request.args.get("shipment_num")
     shipment_value = int(shipment_num) if shipment_num not in (None, "", "null") else None
-    try:
-        lines = erp_service.get_dispatch_shipment_lines(so_id, shipment_value, limit=200)
-    except Exception:
-        lines = dispatch_service.get_shipment_lines(so_id, shipment_value, limit=200)
+    lines = erp_service.get_dispatch_shipment_lines(so_id, shipment_value, limit=200)
     return jsonify(lines)
 
 
