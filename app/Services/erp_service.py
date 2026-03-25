@@ -139,9 +139,10 @@ class ERPService:
         return "0"
 
     def _require_central_db_for_cloud_mode(self):
-        if not self.central_db_mode:
+        if not self.central_db_mode and not self.allow_legacy_erp_fallback:
             raise RuntimeError(
-                "DATABASE_URL/CENTRAL_DB_URL is required for ERP mirror reads."
+                "DATABASE_URL/CENTRAL_DB_URL is required for ERP mirror reads "
+                "unless ENABLE_LEGACY_ERP_FALLBACK=true is explicitly enabled."
             )
         
     def get_connection(self):
@@ -538,22 +539,11 @@ class ERPService:
                  pass
 
             conn.close()
-            
-            if not results:
-                 # Keep mock data alive for standard testing if DB returns nothing
-                 return [
-                    {'wo_number': f'WO-{barcode}-001', 'item_number': '874125', 'description': 'Interior Door - Oak (Mock)', 'handling_code': 'HC-A'},
-                    {'wo_number': f'WO-{barcode}-002', 'item_number': '874128', 'description': 'Exterior Frame - Pine (Mock)', 'handling_code': 'HC-B'},
-                ]
-            
             return results
 
         except Exception as e:
             print(f"ERP Connection Error: {e}")
-            # Fallback for dev/demo if connection fails
-            return [
-                {'wo_number': f'WO-{barcode}-ERR', 'item_number': 'ERROR', 'description': f'Connection Failed: {e}', 'handling_code': 'ERR'}
-            ]
+            return []
 
     def get_open_picks(self):
         """
@@ -2766,16 +2756,17 @@ class ERPService:
                 WHERE soh.so_status != 'C'
                   {branch_filter}
                   AND (
-                    (soh.expect_date = '{today}')
-                    OR (sh.ship_date = '{today}')
-                    OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
-                    OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = '{today}' OR soh.expect_date < '{today}')) -- Show backlog too but avoid future ones
+                    (soh.expect_date = ?)
+                    OR (sh.ship_date = ?)
+                    OR (soh.so_status = 'I' AND sh.invoice_date = ?)
+                    OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = ? OR soh.expect_date < ?)) -- Show backlog too but avoid future ones
                   )
                   AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.so_id) DESC
             """
-            
+
+            query_params.extend([today, today, today, today, today])
             cursor.execute(query, query_params)
             rows = cursor.fetchall()
             
@@ -2788,7 +2779,6 @@ class ERPService:
                     'reference': row.reference,
                     'so_status': row.so_status,
                     'shipment_status': row.shipment_status,
-                    'status_label': row.status_label,
                     'invoice_date': row.invoice_date,
                     'system_id': row.system_id,
                     'expect_date': str(row.expect_date) if row.expect_date else '',
