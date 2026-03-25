@@ -262,7 +262,8 @@ class ERPService:
                 SELECT
                     {", ".join(select_parts)}
                 FROM erp_mirror_shipments_detail
-                WHERE so_id IN :so_ids
+                WHERE is_deleted = false
+                  AND so_id IN :so_ids
                 """,
                 {"so_ids": [str(so_id) for so_id in so_ids]},
                 expanding={"so_ids"},
@@ -474,7 +475,8 @@ class ERPService:
                         OR CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
                     )
                    AND ib.system_id = COALESCE(wh.branch_code, sod.system_id)
-                WHERE CAST(wh.source_id AS TEXT) = :barcode
+                WHERE wh.is_deleted = false
+                  AND CAST(wh.source_id AS TEXT) = :barcode
                   AND UPPER(COALESCE(wh.source, '')) = 'SO'
                 ORDER BY wh.wo_id
                 """,
@@ -631,7 +633,8 @@ class ERPService:
                 LEFT JOIN pick_rollup ph
                     ON ph.system_id = soh.system_id
                    AND ph.so_id = CAST(soh.so_id AS TEXT)
-                WHERE soh.so_status != 'C'
+                WHERE soh.is_deleted = false
+                  AND soh.so_status != 'C'
                   AND (
                     (soh.so_status IN ('K', 'P', 'S'))
                     OR (soh.so_status = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
@@ -827,7 +830,8 @@ class ERPService:
                     ON cs.system_id = soh.system_id
                    AND cs.cust_key = soh.cust_key
                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
-                WHERE UPPER(COALESCE(soh.so_status, '')) = 'K'
+                WHERE soh.is_deleted = false
+                  AND UPPER(COALESCE(soh.so_status, '')) = 'K'
                   AND COALESCE({backorder_expr}, 0) = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 ORDER BY ib.handling_code, soh.so_id
@@ -944,7 +948,7 @@ class ERPService:
                     ON cs.system_id = soh.system_id
                    AND cs.cust_key = soh.cust_key
                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
-                WHERE {' AND '.join(filters)}
+                WHERE soh.is_deleted = false AND {' AND '.join(filters)}
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 """,
                 params,
@@ -964,7 +968,7 @@ class ERPService:
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
-            
+
             base_query = """
                 SELECT 
                     soh.so_id,
@@ -1053,7 +1057,8 @@ class ERPService:
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
-                WHERE CAST(soh.so_id AS TEXT) = :so_number
+                WHERE soh.is_deleted = false
+                  AND CAST(soh.so_id AS TEXT) = :so_number
                 ORDER BY sh.ship_date DESC NULLS LAST, sh.invoice_date DESC NULLS LAST
                 LIMIT 1
                 """,
@@ -1161,7 +1166,8 @@ class ERPService:
                     ON CAST(i.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
-                WHERE CAST(soh.so_id AS TEXT) = :so_number
+                WHERE soh.is_deleted = false
+                  AND CAST(soh.so_id AS TEXT) = :so_number
                   AND COALESCE(""" + backorder_expr + """, 0) = 0
                 ORDER BY ib.handling_code NULLS LAST, sod.sequence
                 """,
@@ -1232,6 +1238,7 @@ class ERPService:
     ):
         if self.central_db_mode:
             filters = [
+                "soh.is_deleted = false",
                 "("
                 " (UPPER(COALESCE(soh.sale_type, '')) = 'CM' AND UPPER(COALESCE(soh.so_status, '')) NOT IN ('I','C','X','CAN','CANCEL','CANCELED','CN','VOID'))"
                 " OR "
@@ -1513,7 +1520,7 @@ class ERPService:
                     NULL AS uom,
                     {weight_expr}
                 FROM erp_mirror_shipments_detail
-                WHERE {where}
+                WHERE is_deleted = false AND {where}
                 ORDER BY line_no
                 LIMIT :limit
                 """,
@@ -1609,7 +1616,8 @@ class ERPService:
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
-                WHERE UPPER(COALESCE(soh.so_status, '')) = 'K'
+                WHERE soh.is_deleted = false
+                  AND UPPER(COALESCE(soh.so_status, '')) = 'K'
                   AND COALESCE({backorder_expr}, 0) = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, soh.system_id
                 ORDER BY soh.so_id
@@ -1753,8 +1761,9 @@ class ERPService:
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
-                WHERE COALESCE(soh.expect_date, soh.source_updated_at, soh.synced_at) >= :since
-                AND UPPER(COALESCE(soh.so_status, '')) = 'O'
+                WHERE soh.is_deleted = false
+                  AND COALESCE(soh.expect_date, soh.source_updated_at, soh.synced_at) >= :since
+                  AND UPPER(COALESCE(soh.so_status, '')) = 'O'
                 """,
                 {"since": since},
             )
@@ -2271,14 +2280,12 @@ class ERPService:
         if self.central_db_mode:
             qty_expr = self._mirror_item_branch_qty_expr("ib")
             params = {"limit": limit}
-            search_clause = ""
+            search_filter = ""
             if q:
                 params["q"] = f"%{q}%"
-                search_clause = """
-                WHERE (
-                    COALESCE(i.item, '') ILIKE :q
-                    OR COALESCE(i.description, '') ILIKE :q
-                )
+                search_filter = """
+                  AND (COALESCE(i.item, '') ILIKE :q
+                       OR COALESCE(i.description, '') ILIKE :q)
                 """
             rows = self._mirror_query(
                 f"""
@@ -2289,7 +2296,8 @@ class ERPService:
                 FROM erp_mirror_item i
                 LEFT JOIN erp_mirror_item_branch ib
                     ON CAST(ib.item_ptr AS TEXT) = CAST(i.item_ptr AS TEXT)
-                {search_clause}
+                WHERE i.is_deleted = false
+                {search_filter}
                 GROUP BY i.item, i.description
                 ORDER BY i.item
                 LIMIT :limit
@@ -2560,7 +2568,8 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id
                    AND c.cust_key = soh.cust_key
-                WHERE UPPER(COALESCE(wh.wo_status, '')) NOT IN ('COMPLETED', 'CANCELED', 'C')
+                WHERE wh.is_deleted = false
+                  AND UPPER(COALESCE(wh.wo_status, '')) NOT IN ('COMPLETED', 'CANCELED', 'C')
                 ORDER BY wh.wo_id DESC
                 """
             )
@@ -2666,7 +2675,8 @@ class ERPService:
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
-                WHERE soh.so_status != 'C'
+                WHERE soh.is_deleted = false
+                  AND soh.so_status != 'C'
                   {branch_filter}
                   AND (
                     (CAST(soh.expect_date AS DATE) = :today)
@@ -2828,7 +2838,8 @@ class ERPService:
                 JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id
                    AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
-                WHERE CAST(sh.ship_date AS DATE) >= CURRENT_DATE - (:days * INTERVAL '1 day')
+                WHERE soh.is_deleted = false
+                  AND CAST(sh.ship_date AS DATE) >= CURRENT_DATE - (:days * INTERVAL '1 day')
                   AND CAST(sh.ship_date AS DATE) < CURRENT_DATE
                   AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
                   {branch_filter}
@@ -2925,40 +2936,29 @@ class ERPService:
                 'yesterday': yesterday_total,
             }
 
-        if self.cloud_mode:
-            from app.Models.models import ERPDeliveryKPI
-            from sqlalchemy import func
+        # Legacy ERPDeliveryKPI table has been retired.
+        # Fall through to historical stats calculation for all modes.
+        stats = self.get_historical_delivery_stats(days=14, branch_id=branch_id)
+        if not stats:
+            return {'avg_7d': 0, 'yesterday': 0}
 
-            query = ERPDeliveryKPI.query
-            if branch_id:
-                query = query.filter_by(branch=branch_id)
-            else:
-                query = query.filter_by(branch='all')
-            
-            kpis = query.order_by(ERPDeliveryKPI.date.desc()).limit(14).all()
-            if not kpis:
-                return {'avg_7d': 0, 'yesterday': 0}
-            
-            yesterday_total = kpis[0].count if kpis else 0
-            # Avg of last 7 points
-            last_7 = kpis[:7]
-            avg_7d = sum(k.count for k in last_7) / len(last_7) if last_7 else 0
-            
-            return {
-                'avg_7d': round(avg_7d, 1),
-                'yesterday': yesterday_total
-            }
-        else:
-            # Local: Fetch raw and summarize
-            stats = self.get_historical_delivery_stats(days=14, branch_id=branch_id)
-            if not stats:
-                return {'avg_7d': 0, 'yesterday': 0}
-            
-            yesterday_total = stats[0]['count'] if stats else 0
-            last_7 = stats[:7]
-            avg_7d = sum(s['count'] for s in last_7) / len(last_7) if last_7 else 0
-            
-            return {
-                'avg_7d': round(avg_7d, 1),
-                'yesterday': yesterday_total
-            }
+        stats_by_date = {}
+        for row in stats:
+            try:
+                stats_by_date[str(row.get('date'))] = int(row.get('count') or 0)
+            except Exception:
+                continue
+
+        yesterday = date.today() - timedelta(days=1)
+        yesterday_total = stats_by_date.get(yesterday.isoformat(), 0)
+
+        last_7 = []
+        for offset in range(1, 8):
+            day_key = (date.today() - timedelta(days=offset)).isoformat()
+            last_7.append(stats_by_date.get(day_key, 0))
+
+        avg_7d = sum(last_7) / len(last_7) if last_7 else 0
+        return {
+            'avg_7d': round(avg_7d, 1),
+            'yesterday': yesterday_total,
+        }

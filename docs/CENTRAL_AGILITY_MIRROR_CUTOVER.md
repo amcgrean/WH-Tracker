@@ -1,6 +1,6 @@
 # Central Agility Mirror + ToolBx Cutover
 
-Last updated: 2026-03-24
+Last updated: 2026-03-25
 
 ## 2026-03-24 Cloud-Only Runtime Contract (WH-Tracker)
 
@@ -194,13 +194,18 @@ Safe to keep:
 - work-order and supervisor local assignment state
 - legacy fallback branches while non-central deployments still exist
 
+Completed (2026-03-25):
+
+- `ERPMirrorPick` / `ERPMirrorWorkOrder` / `ERPDeliveryKPI` legacy cache models and tables fully retired
+- `central_db.py` (flat table models: `customers`, `sales_orders`, `sales_order_lines`, `inventory`, `dispatch_orders`) deleted — was never imported
+- All `ERPService` mirror queries now include `WHERE is_deleted = false` soft-delete filter
+- Legacy debug/migration scripts referencing old flat tables removed
+- `get_delivery_kpis` no longer references `ERPDeliveryKPI`; uses normalized shipment stats
+
 Not yet removed on purpose:
 
-- old `ERPMirrorPick` / `ERPMirrorWorkOrder` fallback code paths inside `ERPService`
-- retired legacy `/erp-cloud-sync` ingestion route
-- AR/document sync activation
-
-Recommended next cleanup happens only after confirming no deployment still depends on the old ingest/fallback path.
+- AR/document sync activation (paused for Supabase storage pressure)
+- Legacy SQL Server fallback branches (break-glass only, `ENABLE_LEGACY_ERP_FALLBACK=true`)
 
 ## ToolBx Cutover Notes
 

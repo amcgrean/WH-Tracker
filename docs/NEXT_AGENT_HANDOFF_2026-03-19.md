@@ -208,3 +208,14 @@ Local-only:
 ## One-Line Handoff
 
 Tracker now points locally at Supabase for both app DB and normalized mirror reads, the core Tracker-owned tables have been copied from Neon into Supabase, smoke checks still pass with `CENTRAL_DB_MODE=True`, but the app is not yet fully free of the old `ERPMirrorPick` / `ERPMirrorWorkOrder` cache tables, so the next agent should finish those code-path conversions before dropping the legacy tables.
+
+## 2026-03-25 Update: Legacy flat tables fully retired
+
+All remaining references to the old flat tables (`customers`, `sales_orders`, `sales_order_lines`, `inventory`, `dispatch_orders`) have been removed:
+
+- `app/Models/central_db.py` deleted (was never imported by production code)
+- `ERPDeliveryKPI` fallback in `get_delivery_kpis` replaced with normalized shipment stats
+- All `ERPService` mirror queries now filter `WHERE is_deleted = false`
+- Legacy debug scripts (`verify_db_v2.py`, `inspect_data.py`, `check_sync_data.py`, `add_columns_to_cloud.py`, `test_direct_status_push.py`, `migrate_db.py`, `update_cloud_db_v3.py`, `verify_db_sync.py`, `diagnose_sync_issue.py`) removed
+
+The canonical data source is now exclusively the `erp_mirror_*` tables synced by the Pi worker. See `docs/CENTRAL_AGILITY_MIRROR_CUTOVER.md` for the full table mapping.

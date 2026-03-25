@@ -705,8 +705,7 @@ def search_results():
 def confirm_staged(so_number):
     """
     Locally confirm that a Sales Order has been staged/loaded onto the truck.
-    Persists the confirmation as an AuditEvent instead of mutating legacy
-    ERPMirrorPick cache rows.
+    Persists the confirmation as an AuditEvent (app-owned table).
     """
     so_number = so_number.strip()
     if not so_number:
