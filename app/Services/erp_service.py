@@ -1806,19 +1806,19 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_order_status(self, q="", limit=100, branch=""):
-        # Cache unfiltered list for 60 s; skip cache for searches or branch filters
-        cache_key = f'order_status_{limit}' if not q and not branch else None
+    def get_sales_order_status(self, q="", limit=100, branch="", open_only=True):
+        # Cache unfiltered list for 60 s; skip cache for searches, branch filters, or all-status mode
+        cache_key = f'order_status_{limit}' if not q and not branch and open_only else None
         if cache_key:
             cached = self._cache_get(cache_key)
             if cached is not None:
                 return cached
-        result = self._get_sales_order_status_inner(q=q, limit=limit, branch=branch)
+        result = self._get_sales_order_status_inner(q=q, limit=limit, branch=branch, open_only=open_only)
         if cache_key:
             self._cache_set(cache_key, result)
         return result
 
-    def _get_sales_order_status_inner(self, q="", limit=100, branch=""):
+    def _get_sales_order_status_inner(self, q="", limit=100, branch="", open_only=True):
         if self.central_db_mode:
             sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
             if "line_no" in sod_columns:
@@ -1828,10 +1828,9 @@ class ERPService:
             else:
                 line_count_expr = "COUNT(sod.id) AS line_count"
             params = {"limit": limit}
-            clauses = [
-                "UPPER(COALESCE(soh.so_status, '')) = 'O'",
-                "soh.is_deleted = false",
-            ]
+            clauses = ["soh.is_deleted = false"]
+            if open_only:
+                clauses.append("UPPER(COALESCE(soh.so_status, '')) = 'O'")
             if q:
                 params["q"] = f"%{q}%"
                 clauses.append(
