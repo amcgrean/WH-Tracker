@@ -20,14 +20,40 @@ except (ImportError, OSError):
 class ERPService:
     def __init__(self):
         self.sql_settings = get_sql_server_settings()
-        self.cloud_mode = env_bool('CLOUD_MODE', False)
+        self.cloud_mode = env_bool('CLOUD_MODE', True)
+        self.allow_legacy_erp_fallback = env_bool('ENABLE_LEGACY_ERP_FALLBACK', False)
 
-        # Central DB Mode: Active if CENTRAL_DB_URL is set in config/env
+        # Central DB Mode: Active if CENTRAL_DB_URL (or DATABASE_URL fallback) is set.
         central_url = get_central_db_url() or ''
         self.central_db_mode = bool(central_url)
 
-        print(f"ERPService Init: CLOUD_MODE={self.cloud_mode}, CENTRAL_DB_MODE={self.central_db_mode}")
+        print(
+            "ERPService Init: "
+            f"CLOUD_MODE={self.cloud_mode}, "
+            f"CENTRAL_DB_MODE={self.central_db_mode}, "
+            f"LEGACY_ERP_FALLBACK={self.allow_legacy_erp_fallback}"
+        )
         self._gps_cache = None
+        # Simple TTL cache for expensive sales queries: {key: (ts, data)}
+        self._sales_cache: dict = {}
+
+    # ------------------------------------------------------------------
+    # Sales query cache helpers (per-instance, TTL in seconds)
+    # ------------------------------------------------------------------
+    _SALES_CACHE_TTL = 60  # seconds
+
+    def _cache_get(self, key: str):
+        """Return cached value or None if missing / expired."""
+        import time
+        entry = self._sales_cache.get(key)
+        if entry and (time.time() - entry[0]) < self._SALES_CACHE_TTL:
+            return entry[1]
+        return None
+
+    def _cache_set(self, key: str, value):
+        import time
+        self._sales_cache[key] = (time.time(), value)
+        return value
 
     @staticmethod
     @lru_cache(maxsize=1)
@@ -113,12 +139,18 @@ class ERPService:
         return "0"
 
     def _require_central_db_for_cloud_mode(self):
-        if self.cloud_mode and not self.central_db_mode:
+        if not self.central_db_mode and not self.allow_legacy_erp_fallback:
             raise RuntimeError(
-                "CENTRAL_DB_URL is required when CLOUD_MODE=True after the legacy mirror cutover."
+                "DATABASE_URL/CENTRAL_DB_URL is required for ERP mirror reads "
+                "unless ENABLE_LEGACY_ERP_FALLBACK=true is explicitly enabled."
             )
         
     def get_connection(self):
+        if not self.allow_legacy_erp_fallback:
+            raise RuntimeError(
+                "Legacy ERP SQL Server fallback is disabled. "
+                "Set ENABLE_LEGACY_ERP_FALLBACK=true only for temporary troubleshooting."
+            )
         if pyodbc is None:
             raise RuntimeError("pyodbc is not installed. Set CLOUD_MODE=True for serverless deployments.")
         last_error = None
@@ -507,22 +539,11 @@ class ERPService:
                  pass
 
             conn.close()
-            
-            if not results:
-                 # Keep mock data alive for standard testing if DB returns nothing
-                 return [
-                    {'wo_number': f'WO-{barcode}-001', 'item_number': '874125', 'description': 'Interior Door - Oak (Mock)', 'handling_code': 'HC-A'},
-                    {'wo_number': f'WO-{barcode}-002', 'item_number': '874128', 'description': 'Exterior Frame - Pine (Mock)', 'handling_code': 'HC-B'},
-                ]
-            
             return results
 
         except Exception as e:
             print(f"ERP Connection Error: {e}")
-            # Fallback for dev/demo if connection fails
-            return [
-                {'wo_number': f'WO-{barcode}-ERR', 'item_number': 'ERROR', 'description': f'Connection Failed: {e}', 'handling_code': 'ERR'}
-            ]
+            return []
 
     def get_open_picks(self):
         """
@@ -1216,7 +1237,8 @@ class ERPService:
                 " OR "
                 " (UPPER(COALESCE(soh.sale_type, '')) <> 'CM' AND COALESCE(sh.expect_date, soh.expect_date) BETWEEN :start_date AND :end_date)"
                 ")",
-                "soh.so_status <> 'I'",
+                "UPPER(COALESCE(soh.so_status,'')) NOT IN ('I','C','X','CAN','CANCEL','CANCELED','CN','VOID')",
+                "UPPER(COALESCE(soh.sale_type,'')) NOT IN ('DIRECT','WILLCALL','HOLD')",
             ]
             params = {"start_date": start, "end_date": end}
 
@@ -1251,12 +1273,14 @@ class ERPService:
                     soh.so_id AS id,
                     CASE WHEN UPPER(COALESCE(soh.sale_type, '')) = 'CM' THEN 'credit' ELSE 'delivery' END AS doc_kind,
                     COALESCE(sh.expect_date, soh.expect_date) AS expected_date,
-                    NULL AS lat,
-                    NULL AS lon,
+                    cs.lat,
+                    cs.lon,
                     NULL AS address,
                     soh.so_status,
                     CASE WHEN UPPER(COALESCE(soh.sale_type, '')) = 'CM' THEN 'CM' ELSE 'SO' END AS so_type,
-                    cs.shipto_name,
+                    COALESCE(cs.shipto_name, c.cust_name) AS shipto_name,
+                    CONCAT_WS(' ', cs.address_1, cs.city, cs.state, cs.zip) AS shipto_address,
+                    c.cust_name AS customer_name,
                     c.cust_code AS customer_code,
                     CAST(soh.shipto_seq_num AS TEXT) AS ship_to_number,
                     sh.shipment_num,
@@ -1277,21 +1301,23 @@ class ERPService:
                 expanding={"branches", "sale_types", "statuses"},
             )
 
-            gps_map = self._load_dispatch_gps_map()
             so_ids = [row["id"] for row in rows if row.get("id") is not None]
             aggregates = self._aggregate_dispatch_details(so_ids) if so_ids else {}
 
             results = []
             for row in rows:
                 obj = dict(row)
-                customer = (obj.get("customer_code") or "").strip()
-                ship_to = (obj.get("ship_to_number") or "").strip()
-                hit = gps_map.get((customer, ship_to))
-                if hit and hit.get("lat") is not None and hit.get("lon") is not None:
-                    obj["lat"] = hit["lat"]
-                    obj["lon"] = hit["lon"]
-                    if not obj.get("address"):
-                        obj["address"] = hit.get("address")
+                # Coerce Decimal lat/lon from DB to float
+                if obj.get("lat") is not None:
+                    obj["lat"] = float(obj["lat"])
+                if obj.get("lon") is not None:
+                    obj["lon"] = float(obj["lon"])
+                # Use DB ship-to/customer values even when GPS is still unresolved
+                if not obj.get("shipto_name") and obj.get("customer_name"):
+                    obj["shipto_name"] = obj["customer_name"]
+                if not obj.get("address") and obj.get("shipto_address"):
+                    obj["address"] = obj["shipto_address"]
+                obj.pop("shipto_address", None)
                 if not include_no_gps and (obj.get("lat") is None or obj.get("lon") is None):
                     continue
                 info = aggregates.get((obj.get("id"), obj.get("shipment_num"))) or aggregates.get((obj.get("id"), None))
@@ -1315,7 +1341,8 @@ class ERPService:
                 " OR "
                 " (UPPER(hdr.[type]) <> 'CM' AND COALESCE(sh.expect_date, hdr.expect_date) BETWEEN ? AND ?)"
                 ")",
-                "hdr.so_status <> 'I'",
+                "UPPER(hdr.so_status) NOT IN ('I','C','X','CAN','CANCEL','CANCELED','CN','VOID')",
+                "UPPER(COALESCE(hdr.sale_type,'')) NOT IN ('DIRECT','WILLCALL','HOLD')",
             ]
             params = [start, end]
 
@@ -1363,7 +1390,9 @@ class ERPService:
                     CAST(NULL AS nvarchar(200)) AS address,
                     hdr.so_status,
                     hdr.[type] AS so_type,
-                    st.shipto_name,
+                    COALESCE(st.shipto_name, cust.cust_name) AS shipto_name,
+                    CONCAT_WS(' ', st.address_1, st.city, st.state, st.zip) AS shipto_address,
+                    cust.cust_name AS customer_name,
                     cust.cust_code AS CustomerCode,
                     CAST(hdr.shipto_seq_num AS nvarchar(32)) AS ShipToNumber,
                     sh.shipment_num AS shipment_num,
@@ -1371,14 +1400,17 @@ class ERPService:
                     COALESCE(sh.driver, hdr.driver) AS driver,
                     hdr.system_id AS branch
                 FROM SO_HEADER hdr
-                LEFT JOIN CUST_SHIPTO st ON st.cust_shipto_guid = hdr.cust_shipto_guid
-                LEFT JOIN SHIPMENTS_HEADER sh ON sh.so_id = hdr.so_id
-                LEFT JOIN CUST cust ON cust.cust_key = hdr.cust_key
+                LEFT JOIN CUST_SHIPTO st
+                    ON hdr.system_id = st.system_id
+                    AND CAST(st.cust_key AS nvarchar(64)) = CAST(hdr.cust_key AS nvarchar(64))
+                    AND CAST(st.seq_num AS nvarchar(32)) = CAST(hdr.shipto_seq_num AS nvarchar(32))
+                LEFT JOIN SHIPMENTS_HEADER sh ON sh.so_id = hdr.so_id AND sh.system_id = hdr.system_id
+                LEFT JOIN CUST cust ON cust.system_id = hdr.system_id AND cust.cust_key = hdr.cust_key
                 WHERE {" AND ".join(filters)}
             )
             SELECT
                 id, doc_kind, expected_date, lat, lon, address,
-                so_status, so_type, shipto_name,
+                so_status, so_type, shipto_name, shipto_address, customer_name,
                 shipment_num, route_id, driver, branch,
                 CustomerCode, ShipToNumber
             FROM Stops
@@ -1401,6 +1433,10 @@ class ERPService:
 
         gps_map = self._load_dispatch_gps_map()
         for obj in results:
+            if not obj.get("shipto_name") and obj.get("customer_name"):
+                obj["shipto_name"] = obj["customer_name"]
+            if not obj.get("address") and obj.get("shipto_address"):
+                obj["address"] = obj["shipto_address"]
             customer = (obj.get("CustomerCode") or "").strip()
             ship_to = (obj.get("ShipToNumber") or "").strip()
             hit = gps_map.get((customer, ship_to))
@@ -1418,6 +1454,7 @@ class ERPService:
         for obj in results:
             obj.pop('CustomerCode', None)
             obj.pop('ShipToNumber', None)
+            obj.pop('shipto_address', None)
 
         if not include_no_gps:
             results = [item for item in results if item.get('lat') is not None and item.get('lon') is not None]
@@ -1643,6 +1680,13 @@ class ERPService:
             return []
 
     def get_sales_hub_metrics(self):
+        cached = self._cache_get('hub_metrics')
+        if cached is not None:
+            return cached
+        result = self._get_sales_hub_metrics_inner()
+        return self._cache_set('hub_metrics', result)
+
+    def _get_sales_hub_metrics_inner(self):
         if self.central_db_mode:
             today = date.today().isoformat()
             rows = self._mirror_query(
@@ -1651,6 +1695,7 @@ class ERPService:
                     COUNT(DISTINCT CASE WHEN UPPER(COALESCE(so_status, '')) = 'O' THEN so_id END) AS open_orders_count,
                     COUNT(DISTINCT CASE WHEN CAST(expect_date AS DATE) = :today THEN so_id END) AS total_orders_today
                 FROM erp_mirror_so_header
+                WHERE is_deleted = false
                 """,
                 {"today": today},
             )
@@ -1665,6 +1710,9 @@ class ERPService:
         cursor = conn.cursor()
         try:
             today = datetime.today().strftime('%Y-%m-%d')
+            # Note: SQL Server queries so_header directly (not the mirror tables), which does
+            # not have an is_deleted column. Soft-delete filtering is only applied on the
+            # PostgreSQL mirror tables (erp_mirror_so_header). This is intentional.
             cursor.execute(
                 """
                 SELECT
@@ -1684,23 +1732,39 @@ class ERPService:
             conn.close()
 
     def get_sales_rep_metrics(self, period_days=30):
+        cache_key = f'rep_metrics_{period_days}'
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+        result = self._get_sales_rep_metrics_inner(period_days=period_days)
+        self._cache_set(cache_key, result)
+        return result
+
+    def _get_sales_rep_metrics_inner(self, period_days=30):
         if self.central_db_mode:
             since = datetime.utcnow() - timedelta(days=period_days)
             rows = self._mirror_query(
                 """
-                SELECT COUNT(DISTINCT COALESCE(c.cust_key, soh.cust_key)) AS active_customers
+                SELECT
+                    COUNT(DISTINCT COALESCE(c.cust_key, soh.cust_key)) AS active_customers,
+                    COALESCE(SUM(sod.qty_ordered * sod.price), 0) AS open_orders_value
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                LEFT JOIN erp_mirror_so_detail sod
+                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
                 WHERE COALESCE(soh.expect_date, soh.source_updated_at, soh.synced_at) >= :since
+                AND UPPER(COALESCE(soh.so_status, '')) = 'O'
                 """,
                 {"since": since},
             )
             row = rows[0] if rows else {}
+            open_orders_value = float(row.get("open_orders_value") or 0)
+            monthly_goal_progress = min(int(open_orders_value / 200000 * 100), 100)
             return {
                 "active_customers": int(row.get("active_customers") or 0),
-                "open_orders_value": 125400,
-                "monthly_goal_progress": 75,
+                "open_orders_value": open_orders_value,
+                "monthly_goal_progress": monthly_goal_progress,
             }
 
         self._require_central_db_for_cloud_mode()
@@ -1710,39 +1774,72 @@ class ERPService:
             since = datetime.utcnow() - timedelta(days=period_days)
             cursor.execute(
                 """
-                SELECT COUNT(DISTINCT CAST(cust_key AS VARCHAR(255))) AS active_customers
-                FROM so_header
-                WHERE COALESCE(expect_date, invoice_date, created_date) >= ?
+                SELECT
+                    COUNT(DISTINCT CAST(soh.cust_key AS VARCHAR(255))) AS active_customers,
+                    COALESCE(SUM(sod.qty_ordered * sod.price), 0) AS open_orders_value
+                FROM so_header soh
+                LEFT JOIN so_detail sod
+                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                WHERE COALESCE(soh.expect_date, soh.invoice_date, soh.created_date) >= ?
+                AND UPPER(COALESCE(soh.so_status, '')) = 'O'
                 """,
                 (since,),
             )
             row = cursor.fetchone()
+            open_orders_value = float(getattr(row, "open_orders_value", 0) or 0)
+            monthly_goal_progress = min(int(open_orders_value / 200000 * 100), 100)
             return {
                 "active_customers": int(getattr(row, "active_customers", 0) or 0),
-                "open_orders_value": 125400,
-                "monthly_goal_progress": 75,
+                "open_orders_value": open_orders_value,
+                "monthly_goal_progress": monthly_goal_progress,
             }
         finally:
             cursor.close()
             conn.close()
 
-    def get_sales_order_status(self, q="", limit=100):
+    def get_sales_order_status(self, q="", limit=100, branch=""):
+        # Cache unfiltered list for 60 s; skip cache for searches or branch filters
+        cache_key = f'order_status_{limit}' if not q and not branch else None
+        if cache_key:
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+        result = self._get_sales_order_status_inner(q=q, limit=limit, branch=branch)
+        if cache_key:
+            self._cache_set(cache_key, result)
+        return result
+
+    def _get_sales_order_status_inner(self, q="", limit=100, branch=""):
         if self.central_db_mode:
+            sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
+            if "line_no" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT sod.line_no) AS line_count"
+            elif "sequence" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT sod.sequence) AS line_count"
+            else:
+                line_count_expr = "COUNT(sod.id) AS line_count"
             params = {"limit": limit}
-            search_clause = ""
+            clauses = [
+                "UPPER(COALESCE(soh.so_status, '')) = 'O'",
+                "soh.is_deleted = false",
+            ]
             if q:
                 params["q"] = f"%{q}%"
-                search_clause = """
-                  AND (
-                    CAST(soh.so_id AS TEXT) ILIKE :q
-                    OR COALESCE(c.cust_name, '') ILIKE :q
-                    OR COALESCE(c.cust_code, '') ILIKE :q
-                  )
-                """
+                clauses.append(
+                    "(soh.so_id::text ILIKE :q"
+                    " OR COALESCE(c.cust_name, '') ILIKE :q"
+                    " OR COALESCE(c.cust_code, '') ILIKE :q)"
+                )
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    params["branch_id"] = system_id
+                    clauses.append("soh.system_id = :branch_id")
+            where_clause = "WHERE " + " AND ".join(clauses)
             rows = self._mirror_query(
                 f"""
                 SELECT
-                    CAST(soh.so_id AS TEXT) AS so_number,
+                    soh.so_id::text AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
                     MAX(cs.address_1) AS address_1,
@@ -1751,21 +1848,19 @@ class ERPService:
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
                     MAX(soh.synced_at) AS synced_at,
-                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    '' AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
-                    COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count
+                    {line_count_expr}
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
+                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
-                LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
-                WHERE UPPER(COALESCE(soh.so_status, '')) = 'O'
-                {search_clause}
+                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.synced_at) DESC NULLS LAST, soh.so_id DESC
                 LIMIT :limit
@@ -1785,17 +1880,21 @@ class ERPService:
         cursor = conn.cursor()
         try:
             params = []
-            search_clause = ""
+            clauses = ["UPPER(COALESCE(soh.so_status, '')) = 'O'"]
             if q:
                 like = f"%{q}%"
-                search_clause = """
-                  AND (
-                    CAST(soh.so_id AS VARCHAR(64)) LIKE ?
-                    OR COALESCE(c.cust_name, '') LIKE ?
-                    OR COALESCE(c.cust_code, '') LIKE ?
-                  )
-                """
+                clauses.append(
+                    "(CAST(soh.so_id AS VARCHAR(64)) LIKE ?"
+                    " OR COALESCE(c.cust_name, '') LIKE ?"
+                    " OR COALESCE(c.cust_code, '') LIKE ?)"
+                )
                 params.extend([like, like, like])
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    clauses.append("soh.system_id = ?")
+                    params.append(system_id)
+            where_clause = "WHERE " + " AND ".join(clauses)
 
             cursor.execute(
                 f"""
@@ -1808,21 +1907,19 @@ class ERPService:
                     MAX(soh.expect_date) AS expect_date,
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
-                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    '' AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
-                    COUNT(DISTINCT sod.line_no) AS line_count
+                    COUNT(DISTINCT sod.sequence) AS line_count
                 FROM so_header soh
                 LEFT JOIN cust c
-                    ON soh.system_id = c.system_id AND CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                    ON soh.system_id = c.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN cust_shipto cs
-                    ON soh.system_id = cs.system_id AND CAST(cs.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64)) AND CAST(cs.seq_num AS VARCHAR(64)) = CAST(soh.shipto_seq_num AS VARCHAR(64))
+                    ON soh.system_id = cs.system_id AND cs.cust_key = soh.cust_key
+                    AND cs.seq_num = soh.shipto_seq_num
                 LEFT JOIN so_detail sod
                     ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
-                LEFT JOIN item_branch ib
-                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
-                WHERE UPPER(COALESCE(soh.so_status, '')) = 'O'
-                {search_clause}
+                {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC, soh.so_id DESC
                 """,
@@ -1838,7 +1935,7 @@ class ERPService:
                     "reference": row.reference,
                     "so_status": row.so_status,
                     "address": ", ".join(part for part in [row.address_1, row.city] if part),
-                    "handling_code": row.handling_code,
+                    "handling_code": "",
                     "sale_type": row.sale_type,
                     "ship_via": row.ship_via,
                     "line_count": row.line_count,
@@ -1849,16 +1946,20 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_invoice_lookup(self, q="", date_from="", date_to="", limit=50):
+    def get_sales_invoice_lookup(self, q="", date_from="", date_to="", status="", limit=50, branch=""):
         if self.central_db_mode:
             params = {"limit": limit}
-            clauses = [
-                "UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"
-            ]
+            if status and status.upper() in ('I', 'C'):
+                clauses = [f"UPPER(COALESCE(soh.so_status, '')) = '{status.upper()}'"]
+            else:
+                clauses = ["UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"]
+            clauses.append("soh.is_deleted = false")
             if q:
                 params["q"] = f"%{q}%"
                 clauses.append(
-                    "(CAST(soh.so_id AS TEXT) ILIKE :q OR COALESCE(c.cust_name, '') ILIKE :q OR COALESCE(c.cust_code, '') ILIKE :q)"
+                    "(soh.so_id::text ILIKE :q"
+                    " OR COALESCE(c.cust_name, '') ILIKE :q"
+                    " OR COALESCE(c.cust_code, '') ILIKE :q)"
                 )
             if date_from:
                 params["date_from"] = date_from
@@ -1866,11 +1967,16 @@ class ERPService:
             if date_to:
                 params["date_to"] = date_to
                 clauses.append("CAST(COALESCE(sh.invoice_date, soh.expect_date) AS DATE) <= :date_to")
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    params["branch_id"] = system_id
+                    clauses.append("soh.system_id = :branch_id")
 
             rows = self._mirror_query(
                 f"""
                 SELECT
-                    CAST(soh.so_id AS TEXT) AS so_number,
+                    soh.so_id::text AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
                     MAX(COALESCE(sh.invoice_date, soh.expect_date)) AS expect_date,
@@ -1880,7 +1986,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
+                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
                 WHERE {' AND '.join(clauses)}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(COALESCE(sh.invoice_date, soh.expect_date)) DESC NULLS LAST, soh.so_id DESC
@@ -1894,12 +2000,17 @@ class ERPService:
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
-            clauses = ["UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"]
+            if status and status.upper() in ('I', 'C'):
+                clauses = [f"UPPER(COALESCE(soh.so_status, '')) = '{status.upper()}'"]
+            else:
+                clauses = ["UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"]
             params = []
             if q:
                 like = f"%{q}%"
                 clauses.append(
-                    "(CAST(soh.so_id AS VARCHAR(64)) LIKE ? OR COALESCE(c.cust_name, '') LIKE ? OR COALESCE(c.cust_code, '') LIKE ?)"
+                    "(CAST(soh.so_id AS VARCHAR(64)) LIKE ?"
+                    " OR COALESCE(c.cust_name, '') LIKE ?"
+                    " OR COALESCE(c.cust_code, '') LIKE ?)"
                 )
                 params.extend([like, like, like])
             if date_from:
@@ -1908,6 +2019,11 @@ class ERPService:
             if date_to:
                 clauses.append("CAST(COALESCE(sh.invoice_date, soh.expect_date) AS DATE) <= ?")
                 params.append(date_to)
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    clauses.append("soh.system_id = ?")
+                    params.append(system_id)
 
             cursor.execute(
                 f"""
@@ -1920,7 +2036,7 @@ class ERPService:
                     MAX(soh.so_status) AS so_status
                 FROM so_header soh
                 LEFT JOIN cust c
-                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                    ON soh.system_id = c.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN shipments_header sh
                     ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
                 WHERE {" AND ".join(clauses)}
@@ -1945,29 +2061,77 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_customer_orders(self, customer_number, q="", limit=None):
+    def get_sales_customer_orders(self, customer_number, q="", limit=None, date_from="", date_to="", status="", branch="", page=1):
+        # Cache per-customer full order lists for up to 60 s (skip cache when filtering/paginating)
+        cache_key = f'cust_orders_{customer_number}_{limit}' if not (q or date_from or date_to or status or branch or page > 1) else None
+        if cache_key:
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+        result = self._get_sales_customer_orders_inner(
+            customer_number=customer_number, q=q, limit=limit,
+            date_from=date_from, date_to=date_to, status=status, branch=branch, page=page,
+        )
+        if cache_key:
+            self._cache_set(cache_key, result)
+        return result
+
+    def _get_sales_customer_orders_inner(self, customer_number, q="", limit=None, date_from="", date_to="", status="", branch="", page=1):
         if self.central_db_mode:
+            sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
+            if "line_no" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT sod.line_no) AS line_count"
+            elif "sequence" in sod_columns:
+                line_count_expr = "COUNT(DISTINCT sod.sequence) AS line_count"
+            else:
+                line_count_expr = "COUNT(sod.id) AS line_count"
             params = {}
-            clauses = []
+            clauses = ["soh.is_deleted = false"]
             if customer_number:
                 params["customer_number"] = f"%{customer_number}%"
                 clauses.append(
-                    "(COALESCE(c.cust_code, '') ILIKE :customer_number OR COALESCE(c.cust_name, '') ILIKE :customer_number OR CAST(soh.so_id AS TEXT) ILIKE :customer_number)"
+                    "(COALESCE(c.cust_code, '') ILIKE :customer_number"
+                    " OR COALESCE(c.cust_name, '') ILIKE :customer_number)"
                 )
             if q:
                 params["q"] = f"%{q}%"
                 clauses.append(
-                    "(CAST(soh.so_id AS TEXT) ILIKE :q OR COALESCE(soh.reference, '') ILIKE :q OR COALESCE(c.cust_name, '') ILIKE :q OR COALESCE(c.cust_code, '') ILIKE :q)"
+                    "(soh.so_id::text ILIKE :q"
+                    " OR COALESCE(soh.reference, '') ILIKE :q"
+                    " OR COALESCE(c.cust_name, '') ILIKE :q"
+                    " OR COALESCE(c.cust_code, '') ILIKE :q)"
                 )
-            limit_clause = "LIMIT :limit" if limit else ""
+            if date_from:
+                params["date_from"] = date_from
+                clauses.append("CAST(soh.expect_date AS DATE) >= :date_from")
+            if date_to:
+                params["date_to"] = date_to
+                clauses.append("CAST(soh.expect_date AS DATE) <= :date_to")
+            if status:
+                valid_statuses = [s.strip().upper() for s in status.split(',') if s.strip()]
+                if valid_statuses:
+                    placeholders = ', '.join(f"'{s}'" for s in valid_statuses if s.isalpha() and len(s) == 1)
+                    if placeholders:
+                        clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    params["branch_id"] = system_id
+                    clauses.append("soh.system_id = :branch_id")
+            page = max(1, page)
+            offset = (page - 1) * limit if limit else 0
             if limit:
                 params["limit"] = limit
-            where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+                params["offset"] = offset
+                limit_clause = "LIMIT :limit OFFSET :offset"
+            else:
+                limit_clause = ""
+            where_clause = "WHERE " + " AND ".join(clauses)
 
             rows = self._mirror_query(
                 f"""
                 SELECT
-                    CAST(soh.so_id AS TEXT) AS so_number,
+                    soh.so_id::text AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
                     MAX(cs.address_1) AS address_1,
@@ -1976,19 +2140,23 @@ class ERPService:
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
                     MAX(soh.synced_at) AS synced_at,
-                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    (SELECT MAX(ib.handling_code)
+                     FROM erp_mirror_so_detail sod
+                     JOIN erp_mirror_item_branch ib
+                         ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
+                     WHERE sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                    ) AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
-                    COUNT(DISTINCT CAST(sod.line_no AS TEXT)) AS line_count
+                    {line_count_expr}
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
+                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
-                LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
+                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC NULLS LAST, soh.so_id DESC
@@ -2013,21 +2181,44 @@ class ERPService:
             if customer_number:
                 customer_like = f"%{customer_number}%"
                 clauses.append(
-                    "(COALESCE(c.cust_code, '') LIKE ? OR COALESCE(c.cust_name, '') LIKE ? OR CAST(soh.so_id AS VARCHAR(64)) LIKE ?)"
+                    "(COALESCE(c.cust_code, '') LIKE ? OR COALESCE(c.cust_name, '') LIKE ?)"
                 )
-                params.extend([customer_like, customer_like, customer_like])
+                params.extend([customer_like, customer_like])
             if q:
                 search_like = f"%{q}%"
                 clauses.append(
-                    "(CAST(soh.so_id AS VARCHAR(64)) LIKE ? OR COALESCE(soh.reference, '') LIKE ? OR COALESCE(c.cust_name, '') LIKE ? OR COALESCE(c.cust_code, '') LIKE ?)"
+                    "(CAST(soh.so_id AS VARCHAR(64)) LIKE ?"
+                    " OR COALESCE(soh.reference, '') LIKE ?"
+                    " OR COALESCE(c.cust_name, '') LIKE ?"
+                    " OR COALESCE(c.cust_code, '') LIKE ?)"
                 )
                 params.extend([search_like, search_like, search_like, search_like])
+            if date_from:
+                clauses.append("CAST(soh.expect_date AS DATE) >= ?")
+                params.append(date_from)
+            if date_to:
+                clauses.append("CAST(soh.expect_date AS DATE) <= ?")
+                params.append(date_to)
+            if status:
+                valid_statuses = [s.strip().upper() for s in status.split(',') if s.strip() and s.strip().isalpha() and len(s.strip()) == 1]
+                if valid_statuses:
+                    placeholders = ', '.join(f"'{s}'" for s in valid_statuses)
+                    clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    clauses.append("soh.system_id = ?")
+                    params.append(system_id)
 
             where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-            top_clause = f"TOP {int(limit)}" if limit else ""
+            page = max(1, page)
+            offset = (page - 1) * limit if limit else 0
+            pagination_clause = f"OFFSET ? ROWS FETCH NEXT ? ROWS ONLY" if limit else ""
+            if limit:
+                params.extend([offset, int(limit)])
             cursor.execute(
                 f"""
-                SELECT {top_clause}
+                SELECT
                     CAST(soh.so_id AS VARCHAR(64)) AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
@@ -2036,22 +2227,22 @@ class ERPService:
                     MAX(soh.expect_date) AS expect_date,
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
-                    MAX(COALESCE(ib.handling_code, '')) AS handling_code,
+                    '' AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
-                    COUNT(DISTINCT sod.line_no) AS line_count
+                    COUNT(DISTINCT sod.sequence) AS line_count
                 FROM so_header soh
                 LEFT JOIN cust c
-                    ON soh.system_id = c.system_id AND CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                    ON soh.system_id = c.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN cust_shipto cs
-                    ON soh.system_id = cs.system_id AND CAST(cs.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64)) AND CAST(cs.seq_num AS VARCHAR(64)) = CAST(soh.shipto_seq_num AS VARCHAR(64))
+                    ON soh.system_id = cs.system_id AND cs.cust_key = soh.cust_key
+                    AND cs.seq_num = soh.shipto_seq_num
                 LEFT JOIN so_detail sod
                     ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
-                LEFT JOIN item_branch ib
-                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC, soh.so_id DESC
+                {pagination_clause}
                 """,
                 params,
             )
@@ -2065,7 +2256,7 @@ class ERPService:
                     "reference": row.reference,
                     "so_status": row.so_status,
                     "address": ", ".join(part for part in [row.address_1, row.city] if part),
-                    "handling_code": row.handling_code,
+                    "handling_code": "",
                     "sale_type": row.sale_type,
                     "ship_via": row.ship_via,
                     "line_count": row.line_count,
@@ -2145,24 +2336,48 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_reports(self, period_days=30):
+    def get_sales_reports(self, period_days=30, branch=""):
+        cache_key = f'sales_reports_{period_days}_{branch}' if not branch else None
+        if cache_key:
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+        result = self._get_sales_reports_inner(period_days=period_days, branch=branch)
+        if cache_key:
+            self._cache_set(cache_key, result)
+        return result
+
+    def _get_sales_reports_inner(self, period_days=30, branch=""):
         if self.central_db_mode:
             since = datetime.utcnow() - timedelta(days=period_days)
+            params_base: dict = {"since": since}
+            branch_clause = ""
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    params_base["branch_id"] = system_id
+                    branch_clause = " AND system_id = :branch_id"
+
             daily_orders = self._mirror_query(
-                """
+                f"""
                 SELECT
                     CAST(expect_date AS DATE) AS expect_date,
                     COUNT(DISTINCT so_id) AS count
                 FROM erp_mirror_so_header
-                WHERE COALESCE(expect_date, source_updated_at, synced_at) >= :since
+                WHERE is_deleted = false
                   AND expect_date IS NOT NULL
+                  AND expect_date >= :since
+                  {branch_clause}
                 GROUP BY CAST(expect_date AS DATE)
                 ORDER BY CAST(expect_date AS DATE)
                 """,
-                {"since": since},
+                params_base,
             )
+            branch_join_clause = ""
+            if branch and "branch_id" in params_base:
+                branch_join_clause = " AND soh.system_id = :branch_id"
             top_customers = self._mirror_query(
-                """
+                f"""
                 SELECT
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
@@ -2170,24 +2385,28 @@ class ERPService:
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
-                WHERE COALESCE(soh.expect_date, soh.source_updated_at, soh.synced_at) >= :since
+                WHERE soh.is_deleted = false
+                  AND soh.expect_date >= :since
+                  {branch_join_clause}
                 GROUP BY c.cust_key
                 ORDER BY order_count DESC
                 LIMIT 15
                 """,
-                {"since": since},
+                params_base,
             )
             status_breakdown = self._mirror_query(
-                """
+                f"""
                 SELECT
-                    soh.so_status,
-                    COUNT(DISTINCT soh.so_id) AS count
-                FROM erp_mirror_so_header soh
-                WHERE COALESCE(soh.expect_date, soh.source_updated_at, soh.synced_at) >= :since
-                GROUP BY soh.so_status
+                    so_status,
+                    COUNT(DISTINCT so_id) AS count
+                FROM erp_mirror_so_header
+                WHERE is_deleted = false
+                  AND expect_date >= :since
+                  {branch_clause}
+                GROUP BY so_status
                 ORDER BY count DESC
                 """,
-                {"since": since},
+                params_base,
             )
             return {
                 "daily_orders": [dict(row) for row in daily_orders],
@@ -2227,7 +2446,7 @@ class ERPService:
                     COUNT(DISTINCT soh.so_id) AS order_count
                 FROM so_header soh
                 LEFT JOIN cust c
-                    ON CAST(c.cust_key AS VARCHAR(64)) = CAST(soh.cust_key AS VARCHAR(64))
+                    ON soh.system_id = c.system_id AND c.cust_key = soh.cust_key
                 WHERE COALESCE(soh.expect_date, soh.invoice_date, soh.created_date) >= ?
                 GROUP BY soh.cust_key
                 ORDER BY order_count DESC
@@ -2264,6 +2483,49 @@ class ERPService:
                 "top_customers": top_customers,
                 "status_breakdown": status_breakdown,
             }
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_sales_customers_search(self, q="", limit=10):
+        """Fast customer type-ahead: queries the customer table directly instead of through orders."""
+        if len(q) < 2:
+            return []
+        if self.central_db_mode:
+            rows = self._mirror_query(
+                """
+                SELECT cust_code, cust_name, branch_code
+                FROM erp_mirror_cust
+                WHERE is_deleted = false
+                  AND (
+                      cust_code ILIKE :q
+                      OR cust_name ILIKE :q
+                  )
+                ORDER BY cust_name
+                LIMIT :limit
+                """,
+                {"q": f"%{q}%", "limit": limit},
+            )
+            return [dict(row) for row in rows]
+
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            like = f"%{q}%"
+            cursor.execute(
+                f"""
+                SELECT TOP {int(limit)} cust_code, cust_name, branch_code
+                FROM cust
+                WHERE cust_code LIKE ? OR cust_name LIKE ?
+                ORDER BY cust_name
+                """,
+                (like, like),
+            )
+            return [
+                {"cust_code": row.cust_code, "cust_name": row.cust_name, "branch_code": row.branch_code}
+                for row in cursor.fetchall()
+            ]
         finally:
             cursor.close()
             conn.close()
@@ -2494,16 +2756,17 @@ class ERPService:
                 WHERE soh.so_status != 'C'
                   {branch_filter}
                   AND (
-                    (soh.expect_date = '{today}')
-                    OR (sh.ship_date = '{today}')
-                    OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
-                    OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = '{today}' OR soh.expect_date < '{today}')) -- Show backlog too but avoid future ones
+                    (soh.expect_date = ?)
+                    OR (sh.ship_date = ?)
+                    OR (soh.so_status = 'I' AND sh.invoice_date = ?)
+                    OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = ? OR soh.expect_date < ?)) -- Show backlog too but avoid future ones
                   )
                   AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.so_id) DESC
             """
-            
+
+            query_params.extend([today, today, today, today, today])
             cursor.execute(query, query_params)
             rows = cursor.fetchall()
             
@@ -2516,7 +2779,6 @@ class ERPService:
                     'reference': row.reference,
                     'so_status': row.so_status,
                     'shipment_status': row.shipment_status,
-                    'status_label': row.status_label,
                     'invoice_date': row.invoice_date,
                     'system_id': row.system_id,
                     'expect_date': str(row.expect_date) if row.expect_date else '',

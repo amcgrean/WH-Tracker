@@ -170,6 +170,10 @@ class ERPMirrorCustomerShipTo(db.Model, MirrorSyncMetadataMixin):
     attention = db.Column(db.String(255), nullable=True)
     phone = db.Column(db.String(64), nullable=True)
     branch_code = db.Column(db.String(32), nullable=True, index=True)
+    lat = db.Column(db.Numeric(9, 6), nullable=True)
+    lon = db.Column(db.Numeric(9, 6), nullable=True)
+    geocoded_at = db.Column(db.DateTime, nullable=True)
+    geocode_source = db.Column(db.String(64), nullable=True)
     __table_args__ = (
         db.UniqueConstraint('cust_key', 'seq_num', name='uq_erp_mirror_cust_shipto_key'),
     )

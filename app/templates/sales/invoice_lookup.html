@@ -23,21 +23,39 @@
         <div class="card-body">
             <form method="GET" action="{{ url_for('sales.invoice_lookup') }}">
                 <div class="row">
-                    <div class="col-md-4 form-group">
+                    <div class="col-md-3 form-group">
                         <label class="small font-weight-bold">Search (SO # or Customer)</label>
                         <input type="text" name="q" class="form-control" value="{{ q }}"
                             placeholder="e.g. 102450 or Builder Name">
                     </div>
-                    <div class="col-md-3 form-group">
-                        <label class="small font-weight-bold">Date From</label>
+                    <div class="col-md-2 form-group">
+                        <label class="small font-weight-bold">Status</label>
+                        <select name="status" class="form-control">
+                            <option value="" {% if not status %}selected{% endif %}>Invoiced &amp; Closed</option>
+                            <option value="I" {% if status == 'I' %}selected{% endif %}>Invoiced only</option>
+                            <option value="C" {% if status == 'C' %}selected{% endif %}>Closed only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 form-group">
+                        <label class="small font-weight-bold">Branch</label>
+                        <select name="branch" class="form-control">
+                            <option value="" {% if not branch %}selected{% endif %}>All Branches</option>
+                            <option value="20GR" {% if branch == '20GR' %}selected{% endif %}>Grimes (20GR)</option>
+                            <option value="25BW" {% if branch == '25BW' %}selected{% endif %}>Birchwood (25BW)</option>
+                            <option value="10FD" {% if branch == '10FD' %}selected{% endif %}>Fort Dodge (10FD)</option>
+                            <option value="40CV" {% if branch == '40CV' %}selected{% endif %}>Coralville (40CV)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 form-group">
+                        <label class="small font-weight-bold">Invoice Date From</label>
                         <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
                     </div>
-                    <div class="col-md-3 form-group">
-                        <label class="small font-weight-bold">Date To</label>
+                    <div class="col-md-1 form-group">
+                        <label class="small font-weight-bold">Invoice Date To</label>
                         <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
                     </div>
                     <div class="col-md-2 form-group d-flex align-items-end">
-                        <button type="submit" class="btn btn-info btn-block shadow-sm">Search Archives</button>
+                        <button type="submit" class="btn btn-info btn-block shadow-sm">Search</button>
                     </div>
                 </div>
             </form>
@@ -51,16 +69,30 @@
                     <tr>
                         <th>SO Number</th>
                         <th>Customer Name</th>
-                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Invoice Date</th>
                         <th class="text-right">Reference</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
+                    {% if not searched %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="fas fa-filter fa-2x d-block mb-2" style="opacity:0.2;"></i>
+                            Use the filters above to search invoiced and closed orders.
+                        </td>
+                    </tr>
+                    {% else %}
                     {% for inv in invoices %}
                     <tr>
                         <td class="font-weight-bold text-info">{{ inv.so_number }}</td>
                         <td>{{ inv.customer_name }}</td>
+                        <td>
+                            <span class="badge badge-pill badge-{% if inv.so_status == 'I' %}success{% else %}secondary{% endif %}">
+                                {{ 'Invoiced' if inv.so_status == 'I' else 'Closed' }}
+                            </span>
+                        </td>
                         <td>{{ inv.expect_date }}</td>
                         <td class="text-right small">{{ inv.reference }}</td>
                         <td class="text-right">
@@ -74,12 +106,13 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center py-5">
+                        <td colspan="6" class="text-center py-5">
                             <i class="fas fa-search-minus fa-2x d-block mb-2 text-muted" style="opacity:0.2;"></i>
-                            Enter an invoice number, SO number, or customer name above to search.
+                            No results found. Try adjusting your filters.
                         </td>
                     </tr>
                     {% endfor %}
+                    {% endif %}
                 </tbody>
             </table>
         </div>

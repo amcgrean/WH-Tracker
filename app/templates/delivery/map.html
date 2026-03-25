@@ -6,23 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fleet Map - Beisser Ops</title>
 
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Leaflet CSS -->
+    <!-- Leaflet CSS (open-source map library, no API key required) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
 
     <style>
-        :root {
-            --beisser-green: #004526;
-            --beisser-green-light: #006b3b;
-            --beisser-gold: #c5a059;
-            --glass-bg: rgba(255, 255, 255, 0.7);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --dark-charcoal: #1a1a1a;
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -30,9 +18,9 @@
         }
 
         body {
-            background: #000;
-            font-family: 'Inter', sans-serif;
-            color: #333;
+            background: #0b0c10;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: #c5c6c7;
             overflow: hidden;
         }
 
@@ -48,409 +36,509 @@
             z-index: 1;
         }
 
-        /* Glassmorphism Overlays */
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px) saturate(180%);
-            -webkit-backdrop-filter: blur(12px) saturate(180%);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
-        }
-
         /* Overlay Header */
         .map-overlay-header {
             position: absolute;
-            top: 24px;
-            left: 24px;
-            right: 24px;
+            top: 0;
+            left: 0;
+            right: 0;
             z-index: 1000;
+            background: linear-gradient(180deg, rgba(11, 12, 16, 0.95) 0%, rgba(11, 12, 16, 0.7) 70%, transparent 100%);
+            padding: 1.5rem 2rem 3rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             pointer-events: none;
         }
 
-        .map-overlay-header > * { pointer-events: auto; }
-
-        .header-left {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+        .map-overlay-header>* {
+            pointer-events: auto;
         }
-
-        .brand-panel {
-            padding: 20px 24px;
-            min-width: 320px;
-        }
-
-        .back-link {
-            color: var(--beisser-green);
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: flex;
-            align-items: center;
-            margin-bottom: 8px;
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-        .back-link:hover { opacity: 1; }
 
         .map-title {
-            color: var(--dark-charcoal);
+            color: #66fcf1;
             font-weight: 800;
-            font-size: 1.75rem;
-            letter-spacing: -0.5px;
-            display: flex;
-            align-items: center;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
         .branch-badge {
-            background: var(--beisser-gold);
-            color: #fff;
-            padding: 4px 12px;
-            border-radius: 8px;
-            font-size: 0.7rem;
+            display: inline-block;
+            background: #45a29e;
+            color: #0b0c10;
+            padding: 0.2rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
             font-weight: 800;
-            margin-left: 12px;
-            box-shadow: 0 4px 10px rgba(197, 160, 89, 0.3);
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            vertical-align: middle;
         }
 
         .branch-selector {
+            margin-top: 1rem;
             display: flex;
-            gap: 8px;
-            margin-top: 4px;
+            gap: 0.5rem;
         }
 
         .branch-btn {
-            background: rgba(255,255,255,0.5);
-            border: 1px solid rgba(0,0,0,0.05);
-            color: #555;
-            padding: 8px 16px;
-            border-radius: 10px;
+            background: rgba(31, 40, 51, 0.8);
+            border: 1px solid #45a29e;
+            color: #c5c6c7;
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
             text-decoration: none;
-            font-size: 0.75rem;
-            font-weight: 600;
+            font-size: 0.8rem;
+            font-weight: 700;
             transition: all 0.2s;
         }
 
         .branch-btn:hover {
-            background: #fff;
-            transform: translateY(-1px);
+            background: #45a29e;
+            color: #0b0c10;
         }
 
         .branch-btn.active {
-            background: var(--beisser-green);
-            color: #fff;
-            border-color: var(--beisser-green);
+            background: #66fcf1;
+            border-color: #66fcf1;
+            color: #0b0c10;
+        }
+
+        .map-subtitle {
+            color: #45a29e;
+            font-size: 0.9rem;
         }
 
         .header-stats {
             display: flex;
-            gap: 12px;
+            gap: 1.5rem;
+            align-items: center;
         }
 
-        .stat-panel {
-            padding: 16px 20px;
+        .stat-box {
             text-align: center;
-            min-width: 100px;
+            background: rgba(31, 40, 51, 0.9);
+            border: 1px solid #45a29e;
+            border-radius: 12px;
+            padding: 0.8rem 1.5rem;
         }
 
-        .stat-val {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: var(--beisser-green);
+        .stat-box .stat-val {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #66fcf1;
             line-height: 1;
         }
 
-        .stat-label {
-            font-size: 0.6rem;
+        .stat-box .stat-label {
+            font-size: 0.65rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 700;
-            color: #666;
-            margin-top: 4px;
+            letter-spacing: 0.1rem;
+            color: #c5c6c7;
+            margin-top: 0.2rem;
         }
 
-        .clock-panel {
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            font-weight: 700;
-            color: var(--dark-charcoal);
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Bottom Truck Panel */
-        .truck-panel-container {
+        /* Truck sidebar panel */
+        .truck-panel {
             position: absolute;
-            bottom: 32px;
-            left: 24px;
-            right: 24px;
+            bottom: 0;
+            left: 0;
+            right: 0;
             z-index: 1000;
+            background: linear-gradient(0deg, rgba(11, 12, 16, 0.95) 0%, rgba(11, 12, 16, 0.8) 80%, transparent 100%);
+            padding: 3rem 2rem 1.5rem 2rem;
             pointer-events: none;
+        }
+
+        .truck-panel>* {
+            pointer-events: auto;
         }
 
         .truck-cards {
             display: flex;
-            gap: 16px;
+            gap: 1rem;
             overflow-x: auto;
-            padding: 10px 0;
-            pointer-events: auto;
-            scrollbar-width: none;
+            padding-bottom: 0.5rem;
         }
-        .truck-cards::-webkit-scrollbar { display: none; }
 
         .truck-card {
-            min-width: 260px;
-            padding: 20px;
+            min-width: 220px;
+            background: rgba(31, 40, 51, 0.95);
+            border: 1px solid #45a29e;
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            flex-shrink: 0;
+            transition: border-color 0.3s;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
         }
 
         .truck-card:hover {
-            transform: translateY(-8px);
-            background: #fff;
+            border-color: #66fcf1;
         }
 
-        .truck-card.active-focus {
-            border: 2px solid var(--beisser-green);
+        .truck-card.moving {
+            border-color: #17a2b8;
         }
 
-        .status-indicator {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
+        .truck-card.stopped {
+            border-color: #6c757d;
         }
-        .moving .status-indicator { background: #28a745; }
-        .stopped .status-indicator { background: #6c757d; }
 
         .truck-name {
             font-weight: 800;
-            font-size: 1.1rem;
-            color: var(--dark-charcoal);
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
+            font-size: 1rem;
+            color: #fff;
+            white-space: nowrap;
         }
 
         .truck-loc {
-            font-size: 0.75rem;
-            color: #666;
-            margin-bottom: 12px;
+            font-size: 0.8rem;
+            color: #c5c6c7;
+            margin-top: 0.2rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            max-width: 190px;
         }
 
-        .truck-meta {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .speed-badge {
-            font-size: 0.7rem;
+        .truck-speed {
+            font-size: 0.85rem;
             font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 6px;
+            margin-top: 0.3rem;
         }
-        .moving .speed-badge { background: rgba(40, 167, 69, 0.1); color: #28a745; }
-        .stopped .speed-badge { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
 
-        /* Custom Markers */
-        .truck-marker { background: none; border: none; }
-        
-        .marker-wrapper {
-            position: relative;
-            width: 44px;
-            height: 44px;
+        .speed-moving {
+            color: #17a2b8;
+        }
+
+        .speed-stopped {
+            color: #6c757d;
+        }
+
+        .clock-display {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #66fcf1;
+        }
+
+        .back-link {
+            color: #66fcf1;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .back-link:hover {
+            color: #fff;
+            text-decoration: none;
+        }
+
+        /* Custom map markers */
+        .truck-marker {
+            background: none;
+            border: none;
         }
 
         .marker-icon {
-            width: 44px;
-            height: 44px;
-            background: #fff;
-            border: 3px solid var(--beisser-green);
+            width: 40px;
+            height: 40px;
+            background: #004526;
+            border: 3px solid #66fcf1;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--beisser-green);
-            font-size: 1.1rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s;
-            z-index: 2;
-            position: relative;
+            color: #fff;
+            font-size: 1rem;
+            box-shadow: 0 0 15px rgba(102, 252, 241, 0.4);
         }
 
         .marker-icon.moving {
-            background: var(--beisser-green);
-            color: #fff;
+            background: #17a2b8;
             border-color: #fff;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 5px rgba(23, 162, 184, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(23, 162, 184, 0.8);
+            }
+
+            100% {
+                box-shadow: 0 0 5px rgba(23, 162, 184, 0.5);
+            }
         }
 
         .marker-label {
             position: absolute;
-            top: -28px;
+            top: -22px;
             left: 50%;
             transform: translateX(-50%);
-            background: var(--dark-charcoal);
-            color: #fff;
+            background: rgba(0, 0, 0, 0.8);
+            color: #66fcf1;
             font-size: 0.65rem;
             font-weight: 800;
-            padding: 3px 10px;
-            border-radius: 20px;
+            padding: 2px 8px;
+            border-radius: 6px;
             white-space: nowrap;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+            z-index: 20;
+        }
+
+        /* Direction Arrow */
+        .direction-arrow-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 40px;
+            height: 40px;
+            z-index: 5;
+            pointer-events: none;
+            transition: transform 0.5s ease;
         }
 
         .direction-arrow {
             position: absolute;
-            top: -12px;
+            top: -14px;
             left: 50%;
             transform: translateX(-50%);
             width: 0;
             height: 0;
             border-left: 8px solid transparent;
             border-right: 8px solid transparent;
-            border-bottom: 16px solid var(--beisser-gold);
-            z-index: 1;
+            border-bottom: 16px solid #66fcf1;
+            filter: drop-shadow(0 0 5px rgba(102, 252, 241, 0.8));
         }
-
-        /* Leaflet Controls */
-        .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important; border-radius: 12px !important; overflow: hidden; }
-        .leaflet-control-zoom-in, .leaflet-control-zoom-out { background: rgba(255,255,255,0.8) !important; backdrop-filter: blur(5px); color: #333 !important; border: none !important; }
     </style>
 
+    <!-- Auto Refresh every 30 seconds -->
     <meta http-equiv="refresh" content="30">
 </head>
 
 <body>
     <div class="map-container">
+        <!-- Map -->
         <div id="fleetMap"></div>
 
-        <!-- Float Header -->
+        <!-- Overlay Header -->
         <div class="map-overlay-header">
-            <div class="header-left">
-                <div class="brand-panel glass-panel">
-                    <a href="{{ url_for('main.delivery_board') }}" class="back-link">
-                        <i class="fas fa-chevron-left mr-1"></i> Delivery Central
-                    </a>
-                    <div class="map-title">
-                        Fleet Tracker
-                        <span class="branch-badge">{{ current_branch }}</span>
-                    </div>
-                    <div class="branch-selector">
-                        <a href="{{ url_for('main.delivery_map') }}" class="branch-btn {{ 'active' if branch_code == 'all' else '' }}">Global</a>
-                        <a href="{{ url_for('main.delivery_map', branch='grimes') }}" class="branch-btn {{ 'active' if branch_code == 'grimes' else '' }}">Grimes</a>
-                        <a href="{{ url_for('main.delivery_map', branch='birchwood') }}" class="branch-btn {{ 'active' if branch_code == 'birchwood' else '' }}">Birchwood</a>
-                    </div>
+            <div>
+                <a href="{{ url_for('main.delivery_board') }}" class="back-link">
+                    <i class="fas fa-arrow-left mr-1"></i> DELIVERY BOARD
+                </a>
+                <div class="map-title mt-1">
+                    <i class="fas fa-satellite-dish mr-2"></i> Fleet Tracker
+                    <span class="branch-badge">{{ current_branch }}</span>
+                </div>
+                {% if gps_error %}
+                <div class="map-subtitle text-warning"><i class="fas fa-exclamation-triangle mr-1"></i> Error loading GPS — {{ gps_error }}</div>
+                {% else %}
+                <div class="map-subtitle">Live vehicle positions via Samsara GPS</div>
+                {% endif %}
+                <div class="branch-selector">
+                    <a href="{{ url_for('main.delivery_map') }}"
+                        class="branch-btn {{ 'active' if branch_code == 'all' else '' }}">All Locations</a>
+                    <a href="{{ url_for('main.delivery_map', branch='grimes') }}"
+                        class="branch-btn {{ 'active' if branch_code == 'grimes' else '' }}">Grimes (GR)</a>
+                    <a href="{{ url_for('main.delivery_map', branch='birchwood') }}"
+                        class="branch-btn {{ 'active' if branch_code == 'birchwood' else '' }}">Birchwood (BW)</a>
                 </div>
             </div>
-
             <div class="header-stats">
-                <div class="stat-panel glass-panel">
-                    <div class="stat-val">{{ moving_count }}</div>
-                    <div class="stat-label">En Route</div>
+                <div class="stat-box">
+                    <div class="stat-val" id="movingCount">{{ moving_count }}</div>
+                    <div class="stat-label">Moving</div>
                 </div>
-                <div class="stat-panel glass-panel">
-                    <div class="stat-val">{{ stopped_count }}</div>
-                    <div class="stat-label">Stationary</div>
+                <div class="stat-box">
+                    <div class="stat-val" id="stoppedCount">{{ stopped_count }}</div>
+                    <div class="stat-label">Stopped</div>
                 </div>
-                <div class="clock-panel glass-panel" id="clock">00:00:00</div>
+                <div class="stat-box">
+                    <div class="stat-val" id="totalVehicles">{{ locations|length }}</div>
+                    <div class="stat-label">Total Fleet</div>
+                </div>
+                <div>
+                    <div class="clock-display" id="clock">00:00:00</div>
+                </div>
             </div>
         </div>
 
-        <!-- Float Footer -->
-        <div class="truck-panel-container">
+        <!-- Bottom Truck Panel -->
+        <div class="truck-panel">
             <div class="truck-cards" id="truckCards">
+                {% if gps_error %}
+                <div class="truck-card stopped" style="min-width:260px;">
+                    <div class="truck-name"><i class="fas fa-exclamation-triangle mr-1 text-warning"></i> GPS Unavailable</div>
+                    <div class="truck-loc">Error loading GPS data from Samsara.</div>
+                    <div class="truck-speed speed-stopped">{{ gps_error }}</div>
+                </div>
+                {% elif not locations %}
+                <div class="truck-card stopped" style="min-width:220px;">
+                    <div class="truck-name"><i class="fas fa-map-marker-alt mr-1"></i> No Vehicles</div>
+                    <div class="truck-loc">No vehicles found for this filter.</div>
+                </div>
+                {% else %}
                 {% for loc in locations %}
-                <div class="truck-card glass-panel {{ 'moving' if loc.speed_mph > 0 else 'stopped' }}" 
-                     onclick="panToTruck({{ loc.latitude }}, {{ loc.longitude }}, this)">
-                    <div class="status-indicator"></div>
+                <div class="truck-card {{ 'moving' if loc.speed_mph > 0 else 'stopped' }}" data-lat="{{ loc.latitude }}"
+                    data-lng="{{ loc.longitude }}" onclick="panToTruck({{ loc.latitude }}, {{ loc.longitude }})">
                     <div class="truck-name">
-                        <i class="fas fa-truck-velocity mr-2 opacity-50"></i> {{ loc.name }}
+                        <i class="fas fa-truck mr-1"></i> {{ loc.name }}
                     </div>
-                    <div class="truck-loc">{{ loc.address or 'No location data' }}</div>
-                    <div class="truck-meta">
-                        <div class="speed-badge">
-                            {% if loc.speed_mph > 0 %}
-                            <i class="fas fa-tachometer-alt-fast mr-1"></i> {{ loc.speed_mph }} MPH
-                            {% else %}
-                            <i class="fas fa-parking mr-1"></i> AT DEPOT
-                            {% endif %}
-                        </div>
-                        <div class="small text-muted font-weight-bold" style="font-size: 0.6rem;">{{ loc.heading }}&deg; HEAD</div>
+                    <div class="truck-loc">{{ loc.address or 'Locating...' }}</div>
+                    <div class="truck-speed {{ 'speed-moving' if loc.speed_mph > 0 else 'speed-stopped' }}">
+                        {% if loc.speed_mph > 0 %}
+                        <i class="fas fa-tachometer-alt mr-1"></i> {{ loc.speed_mph }} mph
+                        {% else %}
+                        <i class="fas fa-parking mr-1"></i> Stopped
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
+                {% endif %}
             </div>
         </div>
     </div>
 
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        // Vehicle location data from server
         const locations = {{ locations | tojson }};
-        const map = L.map('fleetMap', { zoomControl: false }).setView([41.2565, -95.9345], 11);
 
-        const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; CARTO'
+        // Initialize map centered on Omaha, NE area (Beisser Lumber HQ area)
+        const map = L.map('fleetMap', {
+            zoomControl: false
+        }).setView([41.2565, -95.9345], 12);
+
+        // Dark tile layer
+        const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            maxZoom: 19
         });
 
+        // Satellite tile layer
         const satelliteTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri'
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
         }).addTo(map);
 
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        const baseMaps = {
+            "Satellite": satelliteTiles,
+            "Dark Mode": darkTiles
+        };
 
+        // Add layer control and zoom control
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // Add truck markers
         const markers = [];
-        locations.forEach(loc => {
+        locations.forEach(function (loc) {
             if (!loc.latitude || !loc.longitude) return;
+
+            const isMoving = loc.speed_mph > 0;
+            const iconClass = isMoving ? 'moving' : '';
+
             const heading = loc.heading || 0;
             const icon = L.divIcon({
                 className: 'truck-marker',
                 html: `
-                    <div class="marker-wrapper">
+                    <div style="position:relative; width:40px; height:40px;">
                         <div class="marker-label">${loc.name}</div>
-                        <div class="direction-arrow" style="transform: translateX(-50%) rotate(${heading}deg); transform-origin: 50% 100%;"></div>
-                        <div class="marker-icon ${loc.speed_mph > 0 ? 'moving' : ''}">
-                            <i class="fas fa-truck-fast"></i>
+                        <!-- Arrow container rotated by heading -->
+                        <div class="direction-arrow-container" style="transform: rotate(${heading}deg);">
+                            <div class="direction-arrow"></div>
+                        </div>
+                        <div class="marker-icon ${iconClass}">
+                            <i class="fas fa-truck"></i>
                         </div>
                     </div>
                 `,
-                iconSize: [44, 44],
-                iconAnchor: [22, 22]
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
             });
+
             const marker = L.marker([loc.latitude, loc.longitude], { icon: icon }).addTo(map);
+
+            const popupContent = `
+                <div style="min-width:180px;">
+                    <strong>${loc.name}</strong><br/>
+                    <small>${loc.address || 'No address'}</small><br/>
+                    <hr style="margin:4px 0;"/>
+                    <strong>Speed:</strong> ${loc.speed_mph} mph<br/>
+                    <strong>Heading:</strong> ${loc.heading}&deg;
+                </div>
+            `;
+            marker.bindPopup(popupContent);
             markers.push(marker);
         });
 
+        // Fit map bounds to show all trucks
         if (markers.length > 0) {
-            const group = new L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.2));
+            const focusName = "{{ focus_truck or '' }}";
+            let focusFound = false;
+
+            if (focusName) {
+                const target = locations.find(l => l.name.toLowerCase().includes(focusName.toLowerCase()));
+                if (target && target.latitude) {
+                    panToTruck(target.latitude, target.longitude);
+                    focusFound = true;
+                }
+            }
+
+            if (!focusFound) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.15));
+            }
         }
 
-        function panToTruck(lat, lng, el) {
-            document.querySelectorAll('.truck-card').forEach(c => c.classList.remove('active-focus'));
-            el.classList.add('active-focus');
-            map.setView([lat, lng], 16, { animate: true });
+        // Pan to truck on card click
+        function panToTruck(lat, lng) {
+            map.setView([lat, lng], 15, { animate: true });
         }
 
+        // Clock
         function updateClock() {
             const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
         }
         setInterval(updateClock, 1000);
         updateClock();
+
+        // Auto-refresh GPS locations every 30s using the JSON API
+        const branchCode = "{{ branch_code }}";
+        function refreshLocations() {
+            const apiUrl = branchCode && branchCode !== 'all'
+                ? `/api/delivery/locations/${branchCode}`
+                : '/api/delivery/locations';
+            fetch(apiUrl)
+                .then(r => r.json())
+                .then(data => {
+                    const subtitle = document.querySelector('.map-subtitle');
+                    if (data.error) {
+                        if (subtitle) subtitle.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Error loading GPS — ' + data.error;
+                        return;
+                    }
+                    const locs = data.locations || [];
+                    const moving = locs.filter(l => l.speed_mph > 0).length;
+                    const stopped = locs.length - moving;
+                    document.getElementById('movingCount').innerText = moving;
+                    document.getElementById('stoppedCount').innerText = stopped;
+                    document.getElementById('totalVehicles').innerText = locs.length;
+                    if (subtitle) subtitle.innerHTML = 'Live vehicle positions via Samsara GPS &mdash; updated ' + new Date().toLocaleTimeString();
+                })
+                .catch(() => {
+                    const subtitle = document.querySelector('.map-subtitle');
+                    if (subtitle) subtitle.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Error loading GPS — connection failed';
+                });
+        }
+        setInterval(refreshLocations, 30000);
     </script>
 </body>
-</html>
+
+</html>

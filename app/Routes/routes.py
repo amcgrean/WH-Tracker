@@ -1,6 +1,6 @@
-import hmac
 import os
 import json
+import hmac
 from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort, current_app
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
@@ -645,27 +645,61 @@ def picker_details(picker_id):
 
 @main.route('/search_results')
 def search_results():
-    query = request.args.get('query', '')
-    if query:
-        # Perform search with explicit join and filter by picker name or barcode number
+    query = request.args.get('query', '').strip()
+    if not query or len(query) < 2:
+        return jsonify([])
+
+    results = []
+
+    # 1. Sales orders / customers via ERP
+    try:
+        erp = ERPService()
+        sales_rows = erp.get_sales_order_status(q=query, limit=6)
+        seen_customers = {}
+        for row in sales_rows:
+            so_num = str(row.get('so_number') or '')
+            cust_code = str(row.get('customer_code') or '')
+            cust_name = str(row.get('customer_name') or '')
+
+            # Add sales order result
+            if so_num:
+                results.append({
+                    'title': f'SO #{so_num}',
+                    'subtitle': cust_name or 'Open Order',
+                    'url': url_for('main.pick_detail', so_number=so_num),
+                    'type': 'order',
+                })
+
+            # Add unique customer result
+            key = cust_code or cust_name
+            if key and key not in seen_customers:
+                seen_customers[key] = True
+                results.append({
+                    'title': cust_name or cust_code,
+                    'subtitle': f'Customer #{cust_code}' if cust_code else 'Customer',
+                    'url': url_for('sales.customer_profile', customer_number=cust_code or cust_name),
+                    'type': 'customer',
+                })
+    except Exception:
+        pass
+
+    # 2. Pick / picker search (existing behaviour)
+    try:
         picks = Pick.query.join(Pickster).filter(
             (Pick.barcode_number.like(f'%{query}%')) |
             (Pickster.name.like(f'%{query}%'))
-        ).all()
+        ).limit(5).all()
+        for pick in picks:
+            results.append({
+                'title': f'Pick — {pick.pickster.name}',
+                'subtitle': f'SO {pick.barcode_number} — {localize_to_cst(pick.completed_time).strftime("%m/%d %I:%M %p") if pick.completed_time else "In Progress"}',
+                'url': url_for('main.pick_detail', so_number=pick.barcode_number),
+                'type': 'pick',
+            })
+    except Exception:
+        pass
 
-        # Ensure that the query results are properly formatted
-        results = [
-            {
-                'id': pick.id,
-                'name': pick.pickster.name,  # Ensure that this attribute access is correct
-                'barcode': pick.barcode_number,
-                'completed_time': localize_to_cst(pick.completed_time).strftime('%m/%d %I:%M %p') if pick.completed_time else 'Not Completed'
-
-            }
-            for pick in picks
-        ]
-        return jsonify(results)
-    return jsonify([])
+    return jsonify(results[:12])
 
 @main.route('/api/confirm_staged/<so_number>', methods=['POST'])
 def confirm_staged(so_number):
@@ -739,6 +773,15 @@ def api_sync_status():
         'age_seconds': age_seconds,
         'counts': counts,
     })
+
+
+@main.route('/api/geocode-pending', methods=['POST'])
+def api_geocode_pending():
+    """Deprecated: geocoding now occurs in beisser-api mirror sync, not WH-Tracker."""
+    return jsonify({
+        'error': 'deprecated',
+        'message': 'Ship-to geocoding is managed upstream by beisser-api; WH-Tracker now consumes mirror lat/lon only.',
+    }), 410
 
 
 @main.route('/debug/counts')
@@ -1015,11 +1058,18 @@ def assign_picker():
     return redirect(url_for('main.warehouse_board'))
 
 @main.route('/warehouse/detail/<so_number>')
+@main.route('/warehouse/order/<so_number>')
 def pick_detail(so_number):
     erp = ERPService()
     header = erp.get_so_header(so_number)
     items = erp.get_so_details(so_number)
     return render_template('warehouse/pick_detail.html', so_number=so_number, header=header, items=items)
+
+
+@main.route('/warehouse/wh-detail/<so_number>')
+def warehouse_detail(so_number):
+    """Alias kept for backwards-compatible links in sales templates."""
+    return redirect(url_for('main.pick_detail', so_number=so_number))
 
 @main.route('/supervisor/dashboard')
 def supervisor_dashboard():
@@ -1285,24 +1335,32 @@ def delivery_map(branch=None):
     """
     truck_name = request.args.get('truck')
     samsara = SamsaraService()
-    tag_ids = None
-    display_name = "All Branches"
 
-    if branch:
-        all_tags = samsara.get_tags()
-        # Search for tags matching the branch name or its common abbreviations
-        # Grimes -> "Grimes", "GR"
-        # Birchwood -> "Birchwood", "BW"
-        if branch.lower() in ['grimes', 'gr']:
-            matches = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['GRIMES', 'GR'])]
-            tag_ids = matches if matches else None
-            display_name = "Grimes Branch"
-        elif branch.lower() in ['birchwood', 'bw']:
-            matches = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['BIRCHWOOD', 'BW'])]
-            tag_ids = matches if matches else None
-            display_name = "Birchwood Branch"
+    branch_display_map = {
+        'grimes': 'Grimes Branch', 'gr': 'Grimes Branch',
+        'birchwood': 'Birchwood Branch', 'bw': 'Birchwood Branch',
+        '10fd': 'Fort Dodge Branch', '20gr': 'Grimes Branch',
+        '25bw': 'Birchwood Branch', '40cv': 'Coralville Branch',
+    }
+    display_name = branch_display_map.get((branch or '').lower(), 'All Branches')
+    branch_filter = (branch or '').upper() or None
 
-    locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
+    payload = samsara.get_dispatch_vehicle_payload(branch=branch_filter)
+    gps_error = payload.get('error') or payload.get('warning')
+
+    # Normalise to the format expected by the map template
+    locations = []
+    for v in payload.get('vehicles', []):
+        locations.append({
+            'vehicle_id': v.get('id'),
+            'name': v.get('name', 'Unknown'),
+            'latitude': v.get('lat'),
+            'longitude': v.get('lon'),
+            'speed_mph': v.get('speed') or 0,
+            'heading': v.get('heading') or 0,
+            'time': v.get('located_at', ''),
+            'address': '',
+        })
 
     moving_count = sum(1 for loc in locations if loc.get('speed_mph', 0) > 0)
     stopped_count = len(locations) - moving_count
@@ -1313,7 +1371,8 @@ def delivery_map(branch=None):
                            stopped_count=stopped_count,
                            current_branch=display_name,
                            branch_code=(branch or 'all').lower(),
-                           focus_truck=truck_name)
+                           focus_truck=truck_name,
+                           gps_error=gps_error)
 
 
 @main.route('/delivery/detail/<so_number>')
@@ -1343,19 +1402,33 @@ def delivery_detail(so_number):
 def api_delivery_locations(branch=None):
     """
     JSON API endpoint for vehicle locations (used by map auto-refresh).
+    Returns the full dispatch payload so clients can detect GPS errors.
     """
     samsara = SamsaraService()
-    tag_ids = None
+    branch_filter = (branch or '').upper() if branch and branch.lower() != 'all' else None
+    payload = samsara.get_dispatch_vehicle_payload(branch=branch_filter)
 
-    if branch and branch.lower() != 'all':
-        all_tags = samsara.get_tags()
-        if branch.lower() in ['grimes', 'gr']:
-            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['GRIMES', 'GR'])]
-        elif branch.lower() in ['birchwood', 'bw']:
-            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['BIRCHWOOD', 'BW'])]
+    # Normalise to legacy list format expected by the map JS
+    locations = []
+    for v in payload.get('vehicles', []):
+        locations.append({
+            'vehicle_id': v.get('id'),
+            'name': v.get('name', 'Unknown'),
+            'latitude': v.get('lat'),
+            'longitude': v.get('lon'),
+            'speed_mph': v.get('speed') or 0,
+            'heading': v.get('heading') or 0,
+            'time': v.get('located_at', ''),
+            'address': '',
+        })
 
-    locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
-    return jsonify(locations)
+    return jsonify({
+        'locations': locations,
+        'count': len(locations),
+        'fetched_at': payload.get('fetched_at'),
+        'error': payload.get('error') or payload.get('warning'),
+        'source': payload.get('source', 'unknown'),
+    })
 
 
 @main.route('/sales/tracker')
@@ -1382,30 +1455,33 @@ def sales_delivery_tracker(branch=None):
     kpis = erp.get_delivery_kpis(branch_id=normalized_branch)
 
     # Get vehicle locations from Samsara for Fleet Status table
-    tag_ids = None
-    if normalized_branch:
-        all_tags = samsara.get_tags()
-        if normalized_branch == '20GR':
-            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['GRIMES', 'GR'])]
-        elif normalized_branch == '25BW':
-            tag_ids = [t['id'] for t in all_tags if any(x in t['name'].upper() for x in ['BIRCHWOOD', 'BW'])]
-        elif normalized_branch == '10FD':
-            tag_ids = [t['id'] for t in all_tags if 'FORT DODGE' in t['name'].upper() or '10FD' in t['name'].upper()]
-        elif normalized_branch == '40CV':
-            tag_ids = [t['id'] for t in all_tags if 'CORALVILLE' in t['name'].upper() or '40CV' in t['name'].upper()]
-
-    vehicle_locations = samsara.get_vehicle_locations(tag_ids=tag_ids)
+    gps_payload = samsara.get_dispatch_vehicle_payload(branch=normalized_branch or None)
+    gps_error = gps_payload.get('error') or gps_payload.get('warning')
+    vehicle_locations = [
+        {
+            'vehicle_id': v.get('id'),
+            'name': v.get('name', 'Unknown'),
+            'latitude': v.get('lat'),
+            'longitude': v.get('lon'),
+            'speed_mph': v.get('speed') or 0,
+            'heading': v.get('heading') or 0,
+            'time': v.get('located_at', ''),
+            'address': '',
+        }
+        for v in gps_payload.get('vehicles', [])
+    ]
     active_trucks = len(vehicle_locations)
     in_transit_count = sum(1 for loc in vehicle_locations if loc.get('speed_mph', 0) > 0)
 
-    return render_template('sales/delivery_tracker.html', 
-                           deliveries=deliveries, 
+    return render_template('sales/delivery_tracker.html',
+                           deliveries=deliveries,
                            kpis=kpis,
                            vehicle_locations=vehicle_locations,
                            active_trucks=active_trucks,
                            in_transit_count=in_transit_count,
                            current_branch=current_branch,
                            current_branch_code=normalized_branch or 'all',
+                           gps_error=gps_error,
                            today=datetime.now().strftime('%Y-%m-%d'))
 
 

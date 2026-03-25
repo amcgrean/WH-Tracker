@@ -28,6 +28,16 @@ class SamsaraService:
         if not self.api_token:
             print("SamsaraService: No API token configured. Falling back to MOCK data.")
             return None
+        try:
+            url = f"{self.BASE_URL}{endpoint}"
+            resp = requests.get(url, headers=self.headers, params=params, timeout=10)
+            if resp.status_code != 200:
+                print(f"Samsara API HTTP Error: {resp.status_code} - {resp.text}")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            print(f"Samsara API Exception for {endpoint}: {exc}")
+            return None
 
     def _dispatch_branch_aliases(self):
         raw = (os.environ.get('SAMSARA_BRANCH_TAGS_JSON') or '').strip()
@@ -70,6 +80,8 @@ class SamsaraService:
             return 15
 
     def _dispatch_fetch_locations(self, limit=200):
+        if not self.api_token:
+            raise ValueError("SAMSARA_API_TOKEN is not configured")
         ttl = max(5, self._dispatch_ttl())
         now = time.time()
         if self._dispatch_cache['data'] is not None and now - self._dispatch_cache['ts'] < ttl:
@@ -193,6 +205,14 @@ class SamsaraService:
                 'fetched_at': datetime.utcnow().isoformat() + 'Z',
                 'source': 'samsara',
             }
+        except ValueError as exc:
+            # Missing API token — return the same shape as the no-token early return above
+            return {
+                'vehicles': [],
+                'count': 0,
+                'fetched_at': datetime.utcnow().isoformat() + 'Z',
+                'warning': str(exc),
+            }
         except requests.HTTPError as exc:
             return {
                 'vehicles': [],
@@ -210,19 +230,6 @@ class SamsaraService:
                 'error': 'unexpected_error',
                 'detail': str(exc),
             }
-        try:
-            url = f"{self.BASE_URL}{endpoint}"
-            print(f"Samsara API Request: {url} with params {params}")
-            resp = requests.get(url, headers=self.headers, params=params, timeout=10)
-            
-            if resp.status_code != 200:
-                print(f"Samsara API HTTP Error: {resp.status_code} - {resp.text}")
-            
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            print(f"Samsara API Exception: {e}")
-            return None
 
     def get_tags(self):
         """

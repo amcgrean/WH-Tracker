@@ -97,7 +97,7 @@ def rep_dashboard():
 @sales.route('/customer-profile/<customer_number>')
 def customer_profile(customer_number):
     """Detailed profile for a specific customer."""
-    customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=200)]
+    customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=50)]
     order_numbers = list({r['so_number'] for r in customer_rows if r.get('so_number')})
     first_row = customer_rows[0] if customer_rows else {}
     customer_name = first_row.get('customer_name') or customer_number
@@ -121,8 +121,9 @@ def customer_profile(customer_number):
 def order_status():
     """Searchable/filterable view of all open orders."""
     q = request.args.get('q', '').strip()
-    orders = [_normalize_order_row(r) for r in erp.get_sales_order_status(q=q, limit=100)]
-    return render_template('sales/order_status.html', orders=orders, q=q)
+    branch = request.args.get('branch', '').strip()
+    orders = [_normalize_order_row(r) for r in erp.get_sales_order_status(q=q, limit=100, branch=branch)]
+    return render_template('sales/order_status.html', orders=orders, q=q, branch=branch)
 
 
 @sales.route('/customer-notes/<customer_number>', methods=['GET', 'POST'])
@@ -168,16 +169,29 @@ def invoice_lookup():
     q = request.args.get('q', '').strip()
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
+    status = request.args.get('status', '')
+    branch = request.args.get('branch', '').strip()
+    searched = bool(q or date_from or date_to or status or branch)
 
-    invoices = [_normalize_order_row(r) for r in erp.get_sales_invoice_lookup(q=q, date_from=date_from, date_to=date_to, limit=50)]
-    return render_template('sales/invoice_lookup.html', invoices=invoices, q=q, date_from=date_from, date_to=date_to)
+    invoices = []
+    if searched:
+        invoices = [_normalize_order_row(r) for r in erp.get_sales_invoice_lookup(
+            q=q, date_from=date_from, date_to=date_to, status=status, limit=100, branch=branch
+        )]
+    return render_template(
+        'sales/invoice_lookup.html',
+        invoices=invoices, q=q, date_from=date_from, date_to=date_to,
+        status=status, branch=branch, searched=searched,
+    )
 
 
 @sales.route('/products')
 def products():
     """Product catalog with stock levels and pricing."""
     q = request.args.get('q', '').strip()
-    products_list = [_normalize_product_row(r) for r in erp.get_sales_products(q=q, limit=50)]
+    products_list = []
+    if q:
+        products_list = [_normalize_product_row(r) for r in erp.get_sales_products(q=q, limit=50)]
     return render_template('sales/products.html', products=products_list, q=q)
 
 
@@ -185,7 +199,8 @@ def products():
 def reports():
     """Sales analytics and territory reports."""
     period_days = request.args.get('period', 30, type=int)
-    report_data = erp.get_sales_reports(period_days=period_days)
+    branch = request.args.get('branch', '').strip()
+    report_data = erp.get_sales_reports(period_days=period_days, branch=branch)
     daily_orders = [_normalize_daily_order(r) for r in report_data['daily_orders']]
     top_customers = [_normalize_top_customer(r) for r in report_data['top_customers']]
     status_breakdown = [_normalize_status_breakdown(r) for r in report_data['status_breakdown']]
@@ -195,6 +210,7 @@ def reports():
     return render_template(
         'sales/reports.html',
         period_days=period_days,
+        branch=branch,
         daily_orders=daily_orders,
         top_customers=top_customers,
         status_breakdown=status_breakdown,
@@ -225,10 +241,75 @@ def awards():
     return render_template('sales/awards.html')
 
 
+PAGE_SIZE = 50
+
 @sales.route('/order-history', defaults={'customer_number': ''})
 @sales.route('/order-history/<customer_number>')
 def order_history(customer_number):
     """Full order history for a customer."""
     q = request.args.get('q', '').strip()
-    history = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, q=q, limit=None if customer_number else 200)]
-    return render_template('sales/order_history.html', history=history, customer_number=customer_number, q=q)
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    status = request.args.get('status', '')
+    branch = request.args.get('branch', '').strip()
+    page = request.args.get('page', 1, type=int)
+    page = max(1, page)
+    searched = bool(customer_number or q or date_from or date_to or status or branch)
+
+    history = []
+    if searched:
+        history = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(
+            customer_number, q=q, date_from=date_from, date_to=date_to, status=status,
+            branch=branch, limit=PAGE_SIZE, page=page
+        )]
+    return render_template(
+        'sales/order_history.html',
+        history=history,
+        customer_number=customer_number,
+        q=q, date_from=date_from, date_to=date_to, status=status, branch=branch,
+        searched=searched,
+        page=page,
+        page_size=PAGE_SIZE,
+        has_next=len(history) == PAGE_SIZE,
+    )
+
+
+@sales.route('/customer/<customer_number>')
+def customer_shortcut(customer_number):
+    """Short URL alias for customer profile — used by hub search form and external links."""
+    return redirect(url_for('sales.customer_profile', customer_number=customer_number))
+
+
+@sales.route('/api/orders')
+def api_orders():
+    """JSON endpoint for order status — supports AJAX filtering without full page reload."""
+    from flask import jsonify
+    q = request.args.get('q', '').strip()
+    branch = request.args.get('branch', '').strip()
+    limit = min(int(request.args.get('limit', 100)), 500)
+    orders = [_normalize_order_row(r) for r in erp.get_sales_order_status(q=q, limit=limit, branch=branch)]
+    return jsonify(orders)
+
+
+@sales.route('/api/customers/search')
+def api_customer_search():
+    """JSON endpoint for customer type-ahead — queries customer table directly for speed."""
+    from flask import jsonify
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+    # Use direct customer table lookup instead of the heavy order join
+    rows = erp.get_sales_customers_search(q=q, limit=10)
+    results = []
+    seen = set()
+    for r in rows:
+        key = _value(r, 'cust_code') or ''
+        name = _value(r, 'cust_name') or key
+        if key and key not in seen:
+            seen.add(key)
+            results.append({
+                'title': name,
+                'subtitle': f"Customer # {key}",
+                'url': url_for('sales.customer_profile', customer_number=key),
+            })
+    return jsonify(results)

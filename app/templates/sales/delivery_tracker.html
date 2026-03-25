@@ -146,12 +146,19 @@
                                         'N/A' }}</td>
                                 </tr>
                                 {% else %}
+                                {% if gps_error %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
-                                        <i class="fas fa-satellite mr-2"></i> No active fleet data found for this
-                                        branch.
+                                    <td colspan="5" class="text-center text-warning py-4">
+                                        <i class="fas fa-exclamation-triangle mr-2"></i> Error loading GPS — {{ gps_error }}
                                     </td>
                                 </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-satellite mr-2"></i> No active fleet data found for this branch.
+                                    </td>
+                                </tr>
+                                {% endif %}
                                 {% endfor %}
                             </tbody>
                         </table>

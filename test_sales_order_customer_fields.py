@@ -99,3 +99,69 @@ def test_normalize_order_row_keeps_address_and_metadata():
     assert row["sale_type"] == "Stock"
     assert row["ship_via"] == "Truck"
     assert row["line_count"] == 3
+
+
+class _LegacyDeliveryCursor:
+    def __init__(self):
+        self.params = None
+
+    def execute(self, sql, params):
+        self.params = params
+
+    def fetchall(self):
+        class Row:
+            so_id = "2001"
+            cust_name = "Legacy Customer"
+            address_1 = "999 Legacy Ln"
+            city = "Des Moines"
+            reference = "PO-LEG"
+            so_status = "S"
+            shipment_status = "D"
+            invoice_date = None
+            system_id = "20GR"
+            expect_date = "2026-03-20"
+            sale_type = "Stock"
+            route = "R3"
+            ship_via = "Truck"
+            driver = "Legacy Driver"
+            status_flag_delivery = "D"
+
+        return [Row()]
+
+    def close(self):
+        return None
+
+
+class _LegacyDeliveryConnection:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def cursor(self):
+        return self._cursor
+
+    def close(self):
+        return None
+
+
+def test_sales_delivery_tracker_legacy_uses_computed_status_label(monkeypatch):
+    service = ERPService()
+    service.central_db_mode = False
+    service.allow_legacy_erp_fallback = True
+
+    cursor = _LegacyDeliveryCursor()
+    monkeypatch.setattr(service, "get_connection", lambda: _LegacyDeliveryConnection(cursor))
+    monkeypatch.setattr(service, "_get_local_pick_states", lambda _: {})
+
+    rows = service.get_sales_delivery_tracker()
+
+    assert rows[0]["status_label"] == "STAGED - DELIVERED"
+    assert len(cursor.params) == 5
+
+
+def test_require_central_db_allows_explicit_legacy_fallback():
+    service = ERPService()
+    service.central_db_mode = False
+    service.allow_legacy_erp_fallback = True
+
+    # Should not raise when legacy fallback is explicitly enabled.
+    service._require_central_db_for_cloud_mode()

@@ -9,6 +9,18 @@ from app.Services.samsara_service import SamsaraService
 dispatch = Blueprint("dispatch", __name__, url_prefix="/dispatch")
 dispatch_service = DispatchService()
 erp_service = ERPService()
+samsara_service = SamsaraService()
+
+
+def _add_business_days(start_date: date, days: int) -> date:
+    result = start_date
+    sign = 1 if days >= 0 else -1
+    remaining = abs(days)
+    while remaining > 0:
+        result += timedelta(days=sign)
+        if result.weekday() < 5:  # Mon-Fri
+            remaining -= 1
+    return result
 
 
 def _parse_iso_date(value: str, fallback: date) -> date:
@@ -29,7 +41,8 @@ def health():
         {
             "ok": True,
             "time_utc": datetime.utcnow().isoformat() + "Z",
-            "using_db": dispatch_service.using_db(),
+            "using_cloud_mirror": True,
+            "legacy_erp_fallback_enabled": erp_service.allow_legacy_erp_fallback,
         }
     )
 
@@ -42,11 +55,10 @@ def branches():
 @dispatch.get("/api/stops")
 def stops():
     today = date.today()
-    start = _parse_iso_date(request.args.get("start", today.isoformat()), today)
-    end = _parse_iso_date(
-        request.args.get("end", (today + timedelta(days=3)).isoformat()),
-        today + timedelta(days=3),
-    )
+    default_start = _add_business_days(today, -7)
+    default_end = _add_business_days(today, 1)
+    start = _parse_iso_date(request.args.get("start", default_start.isoformat()), default_start)
+    end = _parse_iso_date(request.args.get("end", default_end.isoformat()), default_end)
     statuses = request.args.get("status")
     branch = request.args.get("branch")
     sale_types = request.args.get("sale_types")
@@ -54,28 +66,16 @@ def stops():
     driver = request.args.get("driver")
     debug_mode = request.args.get("debug", "").lower() in ("1", "true", "yes", "y")
 
-    try:
-        rows = erp_service.get_dispatch_stops(
-            start=start,
-            end=end,
-            sale_types=sale_types,
-            status_filter=statuses,
-            route_id=route_id,
-            driver=driver,
-            include_no_gps=debug_mode,
-            branches=branch,
-        )
-    except Exception:
-        rows = dispatch_service.get_stops(
-            start=start,
-            end=end,
-            sale_types=sale_types,
-            status_filter=statuses,
-            route_id=route_id,
-            driver=driver,
-            include_no_gps=debug_mode,
-            branches=branch,
-        )
+    rows = erp_service.get_dispatch_stops(
+        start=start,
+        end=end,
+        sale_types=sale_types,
+        status_filter=statuses,
+        route_id=route_id,
+        driver=driver,
+        include_no_gps=True,
+        branches=branch,
+    )
     return jsonify(rows)
 
 
@@ -83,10 +83,7 @@ def stops():
 def shipment_lines(so_id: int):
     shipment_num = request.args.get("shipment_num")
     shipment_value = int(shipment_num) if shipment_num not in (None, "", "null") else None
-    try:
-        lines = erp_service.get_dispatch_shipment_lines(so_id, shipment_value, limit=200)
-    except Exception:
-        lines = dispatch_service.get_shipment_lines(so_id, shipment_value, limit=200)
+    lines = erp_service.get_dispatch_shipment_lines(so_id, shipment_value, limit=200)
     return jsonify(lines)
 
 
@@ -109,6 +106,5 @@ def manifest():
 def live_vehicles():
     branch = request.args.get("branch")
     limit = request.args.get("limit", type=int)
-    samsara = SamsaraService()
-    payload = samsara.get_dispatch_vehicle_payload(branch=branch, limit=limit)
+    payload = samsara_service.get_dispatch_vehicle_payload(branch=branch, limit=limit)
     return jsonify(payload)
