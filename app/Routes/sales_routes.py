@@ -90,8 +90,36 @@ def hub():
 @sales.route('/rep-dashboard')
 def rep_dashboard():
     """Specific personalized dashboard for a sales rep."""
-    stats = erp.get_sales_rep_metrics(period_days=30)
-    return render_template('sales/rep_dashboard.html', stats=stats)
+    period_days = request.args.get('period', 30, type=int)
+    if period_days not in (7, 30, 90):
+        period_days = 30
+
+    rep_name = request.args.get('rep', '').strip() or None
+
+    # Reuse existing sales reports query for breakdowns
+    reports = erp.get_sales_reports(period_days=period_days)
+    top_customers = reports.get('top_customers', [])
+    status_breakdown = reports.get('status_breakdown', [])
+
+    # Build branch/handling-code breakdown from order status data
+    orders = erp.get_sales_order_status(limit=500)
+    handling_codes = {}
+    for o in orders:
+        code = o.get('sale_type') or o.get('handling_code') or 'None'
+        handling_codes[code] = handling_codes.get(code, 0) + 1
+    branch_counts = [
+        {'handling_code': k, 'order_count': v}
+        for k, v in sorted(handling_codes.items(), key=lambda x: -x[1])
+    ]
+
+    return render_template(
+        'sales/rep_dashboard.html',
+        period_days=period_days,
+        rep_name=rep_name,
+        top_customers=top_customers,
+        status_breakdown=status_breakdown,
+        branch_counts=branch_counts,
+    )
 
 
 @sales.route('/customer-profile/<customer_number>')
