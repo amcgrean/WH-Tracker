@@ -262,7 +262,7 @@
                 $clearBtn.toggle(query.length > 0);
                 clearTimeout(searchTimer);
                 if (query.length > 1) {
-                    searchTimer = setTimeout(function() { doSearch(query); }, 250);
+                    searchTimer = setTimeout(function() { doSearch(query); }, 400);
                 } else {
                     $results.hide().empty();
                 }
