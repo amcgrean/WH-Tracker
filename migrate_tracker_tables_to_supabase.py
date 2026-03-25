@@ -19,13 +19,10 @@ CORE_TABLES = [
     "credit_images",
 ]
 
-LEGACY_CACHE_TABLES = [
-    "erp_mirror_picks",
-    "erp_mirror_work_orders",
-    "erp_delivery_kpis",
-]
+# Legacy cache tables (erp_mirror_picks, erp_mirror_work_orders, erp_delivery_kpis)
+# have been retired and dropped. See docs/FINAL_RETIREMENT_OF_LEGACY_MIRROR.md.
 
-TABLES_IN_INSERT_ORDER = CORE_TABLES + (LEGACY_CACHE_TABLES if os.environ.get("INCLUDE_LEGACY_MIRROR_TABLES") else [])
+TABLES_IN_INSERT_ORDER = CORE_TABLES
 
 TABLES_IN_TRUNCATE_ORDER = list(reversed(TABLES_IN_INSERT_ORDER))
 INSERT_BATCH_SIZE = 1000

@@ -37,4 +37,17 @@ The legacy ERP mirror system (`ERPMirrorPick`, `ERPMirrorWorkOrder`, `ERPDeliver
 - Monitor the `erp_sync_state` on the supervisor dashboard to ensure the heartbeat continues.
 - If additional ERP entities are needed, they should be added to the central sync process and then mapped to models in `tracker` using the `Normalized` pattern.
 
+## 2026-03-25 Flat Table Cleanup
+
+The old flat table models (`central_db.py` containing `CentralSalesOrder`, `CentralSalesOrderLine`, `CentralInventory`, `CentralCustomer`, `CentralDispatchOrder`) have been removed. These were bound to a `central_db` database connection that was never configured in the Flask app, and were never imported by any production code.
+
+Additionally, all `ERPService` mirror queries now include `WHERE is_deleted = false` to properly honor the soft-delete flag on `erp_mirror_*` tables.
+
+The canonical table mapping is:
+- `customers` -> `erp_mirror_cust` (key: `cust_key`)
+- `sales_orders` -> `erp_mirror_so_header` (key: `system_id` + `so_id`)
+- `sales_order_lines` -> `erp_mirror_so_detail` (key: `so_id` + `sequence`)
+- `inventory` -> `erp_mirror_item` + `erp_mirror_item_branch` (key: `item_ptr`)
+- `dispatch_orders` -> `erp_mirror_shipments_header` (key: `so_id` + `shipment_num`)
+
 **Handed off by Antigravity**

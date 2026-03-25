@@ -3,11 +3,11 @@
 This document summarizes the current state of the WH-Tracker project based on recent development cycles and identifies the "missing pieces" required to reach full production readiness.
 
 ## 1. ERP Synchronization (Critical)
-The sync system is the backbone of the application. While functional, it is currently in an "interim" state.
+The sync system is the backbone of the application. The Pi sync worker mirrors ERP data into normalized `erp_mirror_*` tables in Supabase.
 
-*   **Status**: [sync_erp.py](file:///c:/Users/amcgrean/python/tracker/sync_erp.py) is running as a manual loop (every 5 minutes).
-*   **Missing - Robust Scheduled Sync**: We have the architectural blueprints ([erp_sync_architectural_pattern.md](file:///c:/Users/amcgrean/python/tracker/erp_sync_architectural_pattern.md)) for a PowerShell-based Task Scheduler job, but the actual `run_erp_sync.ps1` script is missing from the root.
-*   **Missing - Error Handling**: The sync currently relies on a console window staying open. A formal Windows Service or Task Scheduler job is needed for 24/7 reliability.
+*   **Status**: Pi sync worker runs continuously with 5-second polling for operational tables. All queries now read from `erp_mirror_*` tables with `is_deleted = false` filtering.
+*   **Completed**: Legacy flat tables (`customers`, `sales_orders`, `sales_order_lines`, `inventory`, `dispatch_orders`) and cache tables (`erp_mirror_picks`, `erp_mirror_work_orders`, `erp_delivery_kpis`) have been fully retired.
+*   **Missing - Robust Scheduled Sync**: A formal Windows Service or Task Scheduler job is needed for 24/7 reliability on-prem.
 
 ## 2. Work Order Tracker (New Module)
 The Work Order Tracker is intended to sit alongside the Pick Tracker for specialized millwork/door building flows.

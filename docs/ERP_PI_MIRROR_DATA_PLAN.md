@@ -1,6 +1,6 @@
 # ERP Pi Mirror Data Plan
 
-Last updated: 2026-03-16
+Last updated: 2026-03-25
 
 ## Purpose
 
@@ -599,30 +599,28 @@ Mirror:
 - customer contact tables
 - invoice history and payment history tables
 
-## Proposed Tracker Mirror Targets
+## Tracker Mirror Targets (Completed)
 
-Long term, `tracker` should move away from using only `ERPMirrorPick` and `ERPMirrorWorkOrder`.
+As of 2026-03-25, `tracker` has fully migrated to the normalized mirror family. The old `ERPMirrorPick` and `ERPMirrorWorkOrder` cache tables have been retired and dropped.
 
-Recommended replacement family:
+Active mirror models (all include `is_deleted` soft-delete filtering):
 
-- `ERPMirrorSalesOrderHeader`
-- `ERPMirrorSalesOrderLine`
-- `ERPMirrorShipmentHeader`
-- `ERPMirrorShipmentLine`
-- `ERPMirrorCustomer`
-- `ERPMirrorCustomerShipTo`
-- `ERPMirrorItem`
-- `ERPMirrorItemBranch`
-- `ERPMirrorItemUomConv`
-- `ERPMirrorArOpen`
-- `ERPMirrorArOpenDetail`
-- `ERPMirrorPrintTransaction`
-- `ERPMirrorPrintTransactionDetail`
-- `ERPMirrorWorkOrder`
-- `ERPMirrorPickHeader`
-- `ERPMirrorPickDetail`
-
-`ERPMirrorPick` can remain as a temporary convenience table or materialized rollup for cloud mode, but it should stop being the only mirrored ERP representation.
+- `ERPMirrorSalesOrderHeader` (`erp_mirror_so_header`)
+- `ERPMirrorSalesOrderLine` (`erp_mirror_so_detail`)
+- `ERPMirrorShipmentHeader` (`erp_mirror_shipments_header`)
+- `ERPMirrorShipmentLine` (`erp_mirror_shipments_detail`)
+- `ERPMirrorCustomer` (`erp_mirror_cust`)
+- `ERPMirrorCustomerShipTo` (`erp_mirror_cust_shipto` — with lat/lon/geocode columns)
+- `ERPMirrorItem` (`erp_mirror_item`)
+- `ERPMirrorItemBranch` (`erp_mirror_item_branch`)
+- `ERPMirrorItemUomConv` (`erp_mirror_item_uomconv`)
+- `ERPMirrorArOpen` (`erp_mirror_aropen`)
+- `ERPMirrorArOpenDetail` (`erp_mirror_aropendt`)
+- `ERPMirrorPrintTransaction` (`erp_mirror_print_transaction`)
+- `ERPMirrorPrintTransactionDetail` (`erp_mirror_print_transaction_detail`)
+- `ERPMirrorWorkOrderHeader` (`erp_mirror_wo_header`)
+- `ERPMirrorPickHeaderNormalized` (`erp_mirror_pick_header`)
+- `ERPMirrorPickDetailNormalized` (`erp_mirror_pick_detail`)
 
 ## Open Questions For Column Review
 
