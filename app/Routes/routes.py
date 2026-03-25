@@ -5,7 +5,7 @@ from flask import render_template, request, redirect, url_for, flash, Blueprint,
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.extensions import db
-from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, PickAssignment, CreditImage, AuditEvent, ERPSyncState
+from app.Models.models import Pickster, Pick, PickTypes, WorkOrder, WorkOrderAssignment, PickAssignment, CreditImage, AuditEvent, ERPSyncState
 from app.runtime_settings import env_bool
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, text
@@ -877,15 +877,15 @@ def work_orders():
 def work_orders_open(user_id):
     # Page 2: Open Work Orders
     user = Pickster.query.get_or_404(user_id)
-    open_orders = WorkOrder.query.filter(
-        WorkOrder.assigned_to_id == user.id,
-        WorkOrder.status.in_(['Open', 'Assigned']),
-    ).order_by(WorkOrder.created_at.desc()).all()
+    open_orders = WorkOrderAssignment.query.filter(
+        WorkOrderAssignment.assigned_to_id == user.id,
+        WorkOrderAssignment.status.in_(['Open', 'Assigned']),
+    ).order_by(WorkOrderAssignment.created_at.desc()).all()
     return render_template('work_order/open_orders.html', user=user, open_orders=open_orders)
 
 @main.route('/work_orders/complete/<int:wo_id>', methods=['POST'])
 def complete_work_order(wo_id):
-    wo = WorkOrder.query.get_or_404(wo_id)
+    wo = WorkOrderAssignment.query.get_or_404(wo_id)
     now = datetime.utcnow()
     wo.status = 'Complete'
     wo.completed_at = now
@@ -1079,10 +1079,10 @@ def supervisor_dashboard():
         # 2. Get active assignments (who is assigned to what)
         pick_assignments = {a.picker_id: a.so_number for a in PickAssignment.query.all()}
         wo_assignments = {
-            wo.assigned_to_id: wo.work_order_number
-            for wo in WorkOrder.query.filter(
-                WorkOrder.assigned_to_id != None,
-                WorkOrder.completed_at == None,
+            a.assigned_to_id: a.wo_id
+            for a in WorkOrderAssignment.query.filter(
+                WorkOrderAssignment.assigned_to_id != None,
+                WorkOrderAssignment.completed_at == None,
             ).all()
         }
 
@@ -1160,13 +1160,13 @@ def supervisor_work_orders():
     erp = ERPService()
     erp_wos = erp.get_open_work_orders()
     
-    # Fetch local assignments for these WOs in chunks to avoid SQLite limit
+    # Fetch local assignments for these WOs in chunks to avoid large IN-clause limits
     wo_ids = [str(wo['wo_id']) for wo in erp_wos]
     local_wos_list = []
     for i in range(0, len(wo_ids), CHUNK_SIZE):
         chunk = wo_ids[i:i + CHUNK_SIZE]
-        local_wos_list.extend(WorkOrder.query.filter(WorkOrder.work_order_number.in_(chunk)).all())
-    local_wos = {wo.work_order_number: wo for wo in local_wos_list}
+        local_wos_list.extend(WorkOrderAssignment.query.filter(WorkOrderAssignment.wo_id.in_(chunk)).all())
+    local_wos = {a.wo_id: a for a in local_wos_list}
     
     # Staff for dropdown
     staff = Pickster.query.order_by(Pickster.name).all()
@@ -1178,7 +1178,7 @@ def supervisor_work_orders():
         local_wo = local_wos.get(wo_id_str)
         
         erp_wo['assigned_to'] = local_wo.assigned_to.name if local_wo and local_wo.assigned_to else None
-        erp_wo['local_status'] = local_wo.status if local_wo else 'Open'
+        erp_wo['local_status'] = local_wo.status if local_wo else erp_wo.get('status', 'Open')
         
         so_num = str(erp_wo['so_number'])
         if so_num not in grouped_wos:
@@ -1230,8 +1230,8 @@ def assign_wo():
             item_number = item.get('item_number')
             description = item.get('description')
 
-            # Check if local record exists
-            local_wo = WorkOrder.query.filter_by(work_order_number=wo_id).first()
+            # Check if local assignment record exists
+            local_wo = WorkOrderAssignment.query.filter_by(wo_id=wo_id).first()
 
             if not staff_id:
                 # Clear assignment
@@ -1240,9 +1240,9 @@ def assign_wo():
                     local_wo.status = 'Open'
             else:
                 if not local_wo:
-                    # Create local record
-                    local_wo = WorkOrder(
-                        work_order_number=wo_id,
+                    # Create local assignment record
+                    local_wo = WorkOrderAssignment(
+                        wo_id=wo_id,
                         sales_order_number=so_number,
                         item_number=item_number,
                         description=description,
@@ -1283,7 +1283,7 @@ def start_work_orders():
             skipped += 1
             continue
 
-        existing = WorkOrder.query.filter_by(work_order_number=payload['wo_id']).first()
+        existing = WorkOrderAssignment.query.filter_by(wo_id=payload['wo_id']).first()
         if existing:
             existing.sales_order_number = payload['so_number'] or existing.sales_order_number
             existing.item_number = payload['item_number'] or existing.item_number
@@ -1294,9 +1294,9 @@ def start_work_orders():
             created += 1
             continue
 
-        new_wo = WorkOrder(
+        new_wo = WorkOrderAssignment(
             sales_order_number=payload['so_number'] or 'UNKNOWN',
-            work_order_number=payload['wo_id'],
+            wo_id=payload['wo_id'],
             item_number=payload['item_number'],
             description=payload['description'],
             status='Assigned',
