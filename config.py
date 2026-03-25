@@ -1,5 +1,5 @@
 import os
-from app.runtime_settings import get_database_url, get_sqlalchemy_engine_options, load_tracker_env
+from app.runtime_settings import env_bool, get_database_url, get_sqlalchemy_engine_options, is_fly_runtime, load_tracker_env
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 load_tracker_env()
@@ -18,9 +18,15 @@ class Config(object):
     # Credit / RMA image uploads — stored on local disk; path relative to project root
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads/credits')
 
-    if os.environ.get('VERCEL'):
+    require_strong_secret = env_bool(
+        "REQUIRE_STRONG_SECRET_KEY",
+        bool(os.environ.get("VERCEL")) or is_fly_runtime(),
+    )
+    if require_strong_secret:
         if SECRET_KEY == 'dev_default_secret_key_12345':
-            raise RuntimeError('SECRET_KEY must be set for Vercel/serverless deployments.')
+            raise RuntimeError('SECRET_KEY must be set when REQUIRE_STRONG_SECRET_KEY is enabled.')
+        if len(SECRET_KEY) < 32:
+            raise RuntimeError('SECRET_KEY must be at least 32 characters when REQUIRE_STRONG_SECRET_KEY is enabled.')
 
 class DevelopmentConfig(Config):
     DEBUG = True

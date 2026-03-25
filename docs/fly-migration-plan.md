@@ -97,6 +97,13 @@
   - add/confirm health endpoint path for Fly checks;
   - document upload storage limitations and safest interim behavior.
 
+#### Phase 3 implementation notes (completed)
+- Fly runtime now defaults `RUN_MIGRATIONS_ON_START` to `false`; Vercel remains `false`; non-Fly/non-Vercel remains `true` for backward compatibility.
+- Fly runtime now defaults to requiring a strong `SECRET_KEY` (minimum 32 chars) via env-controlled `REQUIRE_STRONG_SECRET_KEY`.
+- Added lightweight root health endpoint (`/healthz`) for Fly checks while preserving existing `/dispatch/api/health`.
+- Upload folder is created on startup, and Fly runtime logs a warning that local-disk uploads are non-durable without a mounted volume.
+- Fly baseline config now keeps at least one machine warm (`min_machines_running = 1`) to avoid scale-to-zero cold starts.
+
 ### Phase 4 (local validation + docs)
 - Build container locally and run with env placeholders.
 - Validate startup command and `PORT` binding behavior.

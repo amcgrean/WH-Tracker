@@ -16,7 +16,7 @@ primary_region = "ord"
   force_https = true
   auto_start_machines = true
   auto_stop_machines = "stop"
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
   [[http_service.checks]]
@@ -24,4 +24,4 @@ primary_region = "ord"
     timeout = "5s"
     grace_period = "20s"
     method = "GET"
-    path = "/dispatch/api/health"
+    path = "/healthz"

@@ -17,6 +17,11 @@ import pytz
 # Create a Blueprint
 main = Blueprint('main', __name__)
 
+@main.get("/healthz")
+def root_health():
+    return jsonify({"ok": True, "service": "wh-tracker"})
+
+
 # ── Pick type constants ───────────────────────────────────────────────────────
 WILL_CALL_TYPE_ID = 6
 CHUNK_SIZE = 900  # SQL Server IN-clause variable limit

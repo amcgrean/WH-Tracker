@@ -7,7 +7,7 @@ from .Models.models import CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirror
 from .Routes.routes import main as main_blueprint
 from .Routes.dispatch_routes import dispatch as dispatch_blueprint
 from .Routes.sales_routes import sales as sales_blueprint
-from .runtime_settings import env_bool, get_database_url, is_pooled_postgres_url
+from .runtime_settings import env_bool, get_database_url, is_fly_runtime, is_pooled_postgres_url
 from .navigation import build_navigation, get_current_user_roles
 
 
@@ -114,16 +114,28 @@ def create_app():
             "current_user_roles": current_roles,
         }
 
+    fly_runtime = is_fly_runtime()
+
     if app.config.get("VERCEL") or os.environ.get("VERCEL"):
         primary_url = get_database_url()
         if primary_url and not is_pooled_postgres_url(primary_url):
             app.logger.warning("DATABASE_URL does not appear to be a pooled Postgres endpoint; burst traffic may exhaust connections.")
 
-    run_migrations_on_start = env_bool("RUN_MIGRATIONS_ON_START", not os.environ.get("VERCEL"))
+    default_run_migrations = not (os.environ.get("VERCEL") or fly_runtime)
+    run_migrations_on_start = env_bool("RUN_MIGRATIONS_ON_START", default_run_migrations)
     if run_migrations_on_start:
         with app.app_context():
             _run_migrations(app)
     else:
         app.logger.info("Skipping runtime migrations on startup.")
+
+    upload_folder = app.config.get("UPLOAD_FOLDER")
+    if upload_folder:
+        os.makedirs(upload_folder, exist_ok=True)
+        if fly_runtime:
+            app.logger.warning(
+                "UPLOAD_FOLDER uses local disk storage (%s); files are not durable across Fly machine replacement unless a volume is mounted.",
+                upload_folder,
+            )
 
     return app
