@@ -377,38 +377,30 @@ class ERPService:
         Helper method to get the local pick state (Pick Printed, Picking, Picking Complete)
         for a list of SO numbers by querying the local Pick database.
         Returns a dict mapping so_number -> state.
+
+        Uses a lightweight aggregate query instead of loading full ORM objects.
         """
-        # Import inside method to avoid circular imports if models import ERPService
         from app.Models.models import Pick
         from app.extensions import db
-        
-        query = db.session.query(Pick)
+
+        # Aggregate per SO: has_active (started but not completed), has_completed
+        query = db.session.query(
+            Pick.barcode_number,
+            func.bool_or(Pick.start_time.isnot(None) & Pick.completed_time.is_(None)).label('has_active'),
+            func.bool_or(Pick.completed_time.isnot(None)).label('has_completed'),
+        )
         if so_numbers:
             query = query.filter(Pick.barcode_number.in_(so_numbers))
-            
-        picks = query.all()
-        
+        rows = query.group_by(Pick.barcode_number).all()
+
         states = {}
-        for p in picks:
-            so = p.barcode_number
-            # If multiple picks exist for an SO, we want the "most active" state.
-            # Picking Complete < Pick Printed < Picking
-            current_state = states.get(so, 'Pick Printed')
-            
-            new_state = 'Pick Printed'
-            if p.start_time and not p.completed_time:
-                new_state = 'Picking'
-            elif p.completed_time:
-                new_state = 'Picking Complete'
-                
-            # Upgrade state if necessary
-            if new_state == 'Picking':
+        for so, has_active, has_completed in rows:
+            if has_active:
                 states[so] = 'Picking'
-            elif new_state == 'Picking Complete' and current_state != 'Picking':
-                 states[so] = 'Picking Complete'
-            elif current_state not in states:
-                 states[so] = new_state
-                 
+            elif has_completed:
+                states[so] = 'Picking Complete'
+            else:
+                states[so] = 'Pick Printed'
         return states
 
     def _get_latest_audit_event_map(self, event_type, so_numbers=None):
@@ -804,6 +796,16 @@ class ERPService:
         Fetches a summary of Open Sales Orders (Status 'K'), grouped by Handling Code.
         Returns: List of dicts {so_number, customer_name, address, reference, handling_code, line_count}
         """
+        cache_key = 'open_so_summary'
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        result = self._get_open_so_summary_inner()
+        self._cache_set(cache_key, result)
+        return result
+
+    def _get_open_so_summary_inner(self):
         if self.central_db_mode:
             backorder_expr = self._mirror_so_detail_backorder_expr()
             rows = self._mirror_query(
@@ -819,19 +821,19 @@ class ERPService:
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id
-                   AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
+                   AND soh.so_id = sod.so_id
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id
-                   AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
+                   AND ib.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id
                    AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id
                    AND cs.cust_key = soh.cust_key
-                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                   AND cs.seq_num = soh.shipto_seq_num
                 WHERE soh.is_deleted = false
-                  AND UPPER(COALESCE(soh.so_status, '')) = 'K'
+                  AND soh.so_status = 'K'
                   AND COALESCE({backorder_expr}, 0) = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 ORDER BY ib.handling_code, soh.so_id
@@ -937,17 +939,17 @@ class ERPService:
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id
-                   AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
+                   AND soh.so_id = sod.so_id
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id
-                   AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
+                   AND ib.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id
                    AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id
                    AND cs.cust_key = soh.cust_key
-                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                   AND cs.seq_num = soh.shipto_seq_num
                 WHERE soh.is_deleted = false AND {' AND '.join(filters)}
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 """,
@@ -1054,11 +1056,11 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
+                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
                 WHERE soh.is_deleted = false
-                  AND CAST(soh.so_id AS TEXT) = :so_number
+                  AND soh.so_id = :so_number
                 ORDER BY sh.ship_date DESC NULLS LAST, sh.invoice_date DESC NULLS LAST
                 LIMIT 1
                 """,
@@ -1161,13 +1163,13 @@ class ERPService:
                     sod.qty_ordered
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
+                    ON soh.system_id = sod.system_id AND soh.so_id = sod.so_id
                 LEFT JOIN erp_mirror_item i
-                    ON CAST(i.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
+                    ON i.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
+                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
                 WHERE soh.is_deleted = false
-                  AND CAST(soh.so_id AS TEXT) = :so_number
+                  AND soh.so_id = :so_number
                   AND COALESCE(""" + backorder_expr + """, 0) = 0
                 ORDER BY ib.handling_code NULLS LAST, sod.sequence
                 """,
@@ -1830,7 +1832,7 @@ class ERPService:
             params = {"limit": limit}
             clauses = ["soh.is_deleted = false"]
             if open_only:
-                clauses.append("UPPER(COALESCE(soh.so_status, '')) = 'O'")
+                clauses.append("soh.so_status = 'O'")
             if q:
                 params["q"] = f"%{q}%"
                 clauses.append(
@@ -1865,7 +1867,7 @@ class ERPService:
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
-                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    AND cs.seq_num = soh.shipto_seq_num
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
                 {where_clause}
