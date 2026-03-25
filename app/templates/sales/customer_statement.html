@@ -95,7 +95,7 @@
                     {% if seen.append(r.so_number) %}{% endif %}
                     <tr>
                         <td class="font-weight-bold">
-                            <a href="{{ url_for('main.warehouse_detail', so_number=r.so_number) }}"
+                            <a href="{{ url_for('main.pick_detail', so_number=r.so_number) }}"
                                class="text-success">{{ r.so_number }}</a>
                         </td>
                         <td>{{ r.handling_code or '—' }}</td>

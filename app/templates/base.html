@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{% endblock %} - Beisser Ops</title>
 
+    <!-- Premium Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
@@ -13,49 +14,32 @@
     {% block head %}{% endblock %}
 
     <style>
-        .search-wrapper {
-            position: relative;
-        }
-
+        /* Sidebar/Shell specific overrides - mostly keeping style.css as source of truth */
+        .search-wrapper { position: relative; }
         #searchResultsContainer {
             position: absolute;
-            top: calc(100% + 0.5rem);
+            top: calc(100% + 10px);
             right: 0;
             z-index: 1060;
-            background: #fff;
-            width: min(350px, 92vw);
-            border-radius: 12px;
-            box-shadow: var(--shadow-md);
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #eee;
-        }
-
-        .search-result-item {
-            padding: 12px 16px;
-            border-bottom: 1px solid #f8f9fa;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .search-result-item:hover {
-            background: #f1f3f5;
+            width: 380px;
+            display: none;
         }
     </style>
 </head>
 
 <body class="app-shell-body">
     <div class="app-shell">
-        <aside class="app-sidebar" id="appSidebar" aria-label="Primary navigation">
+        <!-- Sidebar Navigation (PR Addition) -->
+        <aside class="app-sidebar glass-panel" id="appSidebar" aria-label="Primary navigation">
             <div class="app-sidebar__header">
-                <a class="app-sidebar__brand" href="{{ url_for('main.work_center') }}">
-                    <span class="app-sidebar__brand-icon"><i class="fas fa-cubes"></i></span>
+                <a class="app-sidebar__brand d-flex align-items-center" href="{{ url_for('main.work_center') }}">
+                    <i class="fas fa-cubes mr-2 text-gradient"></i>
                     <span>
-                        <span class="d-block">BEISSER OPS</span>
-                        <small class="text-muted d-block">Unified navigation</small>
+                        <span class="d-block font-weight-bold">BEISSER <span class="font-weight-normal">OPS</span></span>
+                        <small class="text-muted d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">UNIFIED NAVIGATION</small>
                     </span>
                 </a>
-                <button class="app-sidebar__close d-lg-none" type="button" id="sidebarCloseButton" aria-label="Close navigation">
+                <button class="app-sidebar__close d-lg-none btn btn-link text-dark" type="button" id="sidebarCloseButton">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -77,19 +61,20 @@
 
             <div class="app-sidebar__content">
                 {% for section in nav_sections %}
-                <section class="nav-section">
-                    <div class="nav-section__header">
-                        <span class="nav-section__icon"><i class="{{ section["icon"] }}"></i></span>
-                        <span>{{ section["label"] }}</span>
+                <section class="nav-section mb-4">
+                    <div class="nav-section__header px-4 py-2 small font-weight-bold text-uppercase text-muted" style="letter-spacing: 1px;">
+                        <i class="{{ section['icon'] }} mr-2 opacity-50"></i>{{ section['label'] }}
                     </div>
-                    <div class="nav-section__items">
-                        {% for item in section["items"] %}
-                        <a href="{{ item["href"] }}" class="nav-link-card{% if item["is_active"] %} active{% endif %}">
-                            <span class="nav-link-card__icon"><i class="{{ item["icon"] }}"></i></span>
-                            <span class="nav-link-card__content">
-                                <span class="nav-link-card__label">{{ item["label"] }}</span>
-                                <small class="nav-link-card__description">{{ item["description"] }}</small>
-                            </span>
+                    <div class="nav-section__items px-2">
+                        {% for item in section['items'] %}
+                        <a href="{{ item['href'] }}" class="nav-link-card d-flex align-items-center p-3 mb-1 rounded-lg transition-all {% if item['is_active'] %} active {% endif %}">
+                            <div class="nav-link-card__icon mr-3 bg-white shadow-sm rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                <i class="{{ item['icon'] }}"></i>
+                            </div>
+                            <div class="nav-link-card__content">
+                                <div class="nav-link-card__label font-weight-bold" style="font-size: 0.9rem;">{{ item['label'] }}</div>
+                                <small class="text-muted d-block" style="font-size: 0.75rem;">{{ item['description'] }}</small>
+                            </div>
                         </a>
                         {% endfor %}
                     </div>
@@ -98,47 +83,48 @@
             </div>
         </aside>
 
+        <!-- Sidebar Overlay for Mobile -->
         <div class="app-sidebar-overlay" id="appSidebarOverlay"></div>
 
         <div class="app-main-shell">
+            <!-- Top Navigation Bar -->
             {% block navbar %}
-            <header class="app-topbar navbar-ops sticky-top">
-                <div class="d-flex align-items-center justify-content-between flex-wrap w-100">
-                    <div class="d-flex align-items-center mr-3 mb-2 mb-md-0">
-                        <button class="app-nav-toggle mr-3" type="button" id="sidebarToggleButton" aria-label="Open navigation" aria-controls="appSidebar" aria-expanded="false">
+            <header class="app-topbar navbar-ops sticky-top px-4 py-2">
+                <div class="d-flex align-items-center justify-content-between w-100">
+                    <div class="d-flex align-items-center">
+                        <button class="app-nav-toggle btn btn-link text-dark mr-3" type="button" id="sidebarToggleButton">
                             <i class="fas fa-bars"></i>
                         </button>
-                        <div>
-                            <a class="navbar-brand d-flex align-items-center mb-0" href="{{ url_for('main.work_center') }}">
-                                <i class="fas fa-cubes mr-2"></i> BEISSER <span class="font-weight-normal ml-1">OPS</span>
-                            </a>
-                            <small class="text-muted d-block topbar-subtitle">Role-ready sidebar navigation across the app.</small>
+                        <div class="d-none d-md-block">
+                            <h5 class="mb-0 font-weight-bold">BEISSER <span class="font-weight-normal text-muted">OPS</span></h5>
                         </div>
                     </div>
 
+                    <!-- Global Search (My Glassmorphism Version) -->
                     {% block search_nav %}
-                    <div class="search-wrapper ml-auto mb-2 mb-md-0">
-                        <div class="input-group app-search-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text bg-white border-right-0 rounded-left">
+                    <div class="search-wrapper ml-auto">
+                        <div class="input-group glass-panel rounded-pill p-1 shadow-sm" style="background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.05);">
+                            <div class="input-group-prepend border-0">
+                                <span class="input-group-text bg-transparent border-0">
                                     <i class="fas fa-search text-muted"></i>
                                 </span>
                             </div>
-                            <input type="text" id="searchInput" class="form-control border-left-0"
-                                placeholder="SO # or Name...">
+                            <input type="text" id="searchInput" class="form-control bg-transparent border-0 shadow-none text-dark"
+                                placeholder="SO # or Name..." style="width: 280px; font-weight: 500;">
                         </div>
-                        <div id="searchResultsContainer"></div>
+                        <div id="searchResultsContainer" class="glass-card shadow-lg animate-fade-in"></div>
                     </div>
                     {% endblock %}
                 </div>
             </header>
             {% endblock %}
 
+            <!-- Main Content Area -->
             {% with messages = get_flashed_messages(with_categories=true) %}
               {% if messages %}
                 <div class="container-fluid px-4 pt-3">
                   {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else 'success') }} alert-dismissible fade show" role="alert">
+                    <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else 'success') }} alert-dismissible bg-white glass-panel fade show" role="alert">
                       {{ message }}
                       <button type="button" class="close" data-dismiss="alert" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
@@ -153,6 +139,7 @@
                 {% block content %}{% endblock %}
             </main>
 
+            <!-- Footer -->
             <footer class="footer-ops">
                 <div class="container text-center">
                     <div class="mb-4">
@@ -163,13 +150,13 @@
                     <div class="d-flex justify-content-center flex-wrap mb-4">
                         <a href="{{ url_for('main.work_center') }}" class="footer-link mx-3 small mb-2">Home</a>
                         <a href="{{ url_for('main.warehouse_board') }}" class="footer-link mx-3 small mb-2">Warehouse</a>
-                        <a href="{{ url_for('main.sales_delivery_tracker') }}" class="footer-link mx-3 small mb-2">Delivery</a>
-                        <a href="{{ url_for('sales.hub') }}" class="footer-link mx-3 small mb-2">Sales</a>
+                        <a href="{{ url_for('main.delivery_board') }}" class="footer-link mx-3 small mb-2">Logistics</a>
+                        <a href="{{ url_for('sales.hub') }}" class="footer-link mx-3 small mb-2">Sales Hub</a>
                         <a href="{{ url_for('main.admin') }}" class="footer-link mx-3 small mb-2">Admin</a>
                     </div>
                     <p class="small text-muted mb-0">&copy; 2026 Beisser Lumber Co. | <span class="text-white-50">v2.1.0-Emerald</span>
                         {% if config.SQLALCHEMY_DATABASE_URI and 'sqlite' not in config.SQLALCHEMY_DATABASE_URI %}
-                        <span class="badge badge-success ml-2" style="opacity: 0.6;">Mirror Mode</span>
+                        <span class="badge badge-success ml-2" style="opacity: 0.6; font-size: 0.65rem;">MIRROR MODE</span>
                         {% endif %}
                     </p>
                 </div>
@@ -177,6 +164,7 @@
         </div>
     </div>
 
+    <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
@@ -184,22 +172,42 @@
 
     <script>
         $(document).ready(function () {
+            // Sidebar Toggles
+            $('#sidebarToggleButton, #appSidebarOverlay, #sidebarCloseButton').on('click', function() {
+                $('.app-shell').toggleClass('sidebar-open');
+                const isOpen = $('.app-shell').hasClass('sidebar-open');
+                $(this).attr('aria-expanded', isOpen);
+            });
+
+            // Navbar scroll effect
+            $(window).scroll(function() {
+                if ($(this).scrollTop() > 20) {
+                    $('.navbar-ops').addClass('scrolled');
+                } else {
+                    $('.navbar-ops').removeClass('scrolled');
+                }
+            });
+
+            // Search Functionality (Corrected for route data contract)
             const $input = $('#searchInput');
             const $results = $('#searchResultsContainer');
-
+ 
             $input.on('input', function () {
                 const query = $(this).val().trim();
                 if (query.length > 2) {
                     $.getJSON(`/search_results?query=${encodeURIComponent(query)}`, function (data) {
                         $results.empty().show();
                         if (data.length === 0) {
-                            $results.append('<div class="search-result-item text-muted small">No matches found</div>');
+                            $results.append('<div class="search-result-item px-3 py-2 text-muted small">No matches found</div>');
                         } else {
-                            data.forEach((item) => {
+                            data.forEach(item => {
                                 $results.append(`
-                                    <div class="search-result-item" onclick="window.location='${item.url}'">
-                                        <div class="font-weight-bold">${item.title}</div>
-                                        <small class="text-muted">${item.subtitle || ''}</small>
+                                    <div class="search-result-item p-3 border-bottom" onclick="window.location='/warehouse/detail/${item.barcode}'">
+                                        <div class="font-weight-bold text-dark">#${item.barcode}</div>
+                                        <div class="small text-muted d-flex justify-content-between">
+                                            <span>${item.name || 'Unknown'}</span>
+                                            <span class="badge badge-light">${item.completed_time || 'Active'}</span>
+                                        </div>
                                     </div>
                                 `);
                             });
@@ -209,11 +217,9 @@
                     $results.hide().empty();
                 }
             });
-
-            $(document).on('click', function (event) {
-                if (!$(event.target).closest('.search-wrapper').length) {
-                    $results.hide();
-                }
+ 
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('.search-wrapper').length) $results.hide();
             });
 
             // Sidebar nav filter
@@ -239,7 +245,6 @@
             });
         });
     </script>
-
     {% block scripts %}{% endblock %}
 </body>
 

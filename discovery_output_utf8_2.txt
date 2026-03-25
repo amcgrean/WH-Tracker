@@ -1,0 +1,54 @@
+
+======================================================================
+--- Load Timeframe: start_load_hours and end_load_hours ---
+shipto_name | address_1 | start_load_hours | end_load_hours
+----------------------------------------------------------------------
+Paul Erickson | 11890 NW Brookview Lane |  | 
+1st Interiors, Inc. | General Purchases |  | 
+1st Interiors, Inc. | Woodward-Casey's |  | 
+1st Interiors, Inc. | 12041 NW Towner Drive |  | 
+1st Interiors, Inc. | 1014 SE Lorenz Drive |  | 
+1st Interiors, Inc. | 1205 SE 16th Court |  | 
+1st Interiors, Inc. | 5150 NE 14th Street |  | 
+1st Interiors, Inc. | 95 University |  | 
+1st Interiors, Inc. | 209 East Main Street |  | 
+1st Interiors, Inc. | I-35/80 & Douglas |  | 
+======================================================================
+
+
+======================================================================
+--- Load Timeframe: so_header.load_timeframe ---
+Error querying Load Timeframe: so_header.load_timeframe: ('42S22', "[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'load_timeframe'. (207) (SQLExecDirectW); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'load_timeframe'. (207)")
+
+======================================================================
+--- Audit History: pick_detail statuses ---
+Error querying Audit History: pick_detail statuses: ('42S22', "[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'so_id'. (207) (SQLExecDirectW); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'status'. (207)")
+
+======================================================================
+--- Audit History: so_change_history ---
+Error querying Audit History: so_change_history: ('42S22', "[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'before_status_870'. (207) (SQLExecDirectW); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'after_status_870'. (207)")
+
+======================================================================
+--- Branch Tag: system_id from so_header ---
+Error querying Branch Tag: system_id from so_header: ('42S22', "[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'oe_branch'. (207) (SQLExecDirectW)")
+
+======================================================================
+--- En Route Match: shipments_header driver/truck ---
+Error querying En Route Match: shipments_header driver/truck: ('42S22', "[42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'truck'. (207) (SQLExecDirectW); [42S22] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Invalid column name 'truck'. (207)")
+
+======================================================================
+--- Shipment Stages: loaded, shipped, delivered ---
+shipment_num | status_flag | status_flag_delivery | loaded_time | ship_date
+----------------------------------------------------------------------
+1 | S |  |  | 2026-03-04 00:00:00
+1 | L |  | 14:04:59 | 2026-03-04 00:00:00
+2 | D |  |  | 2026-03-04 00:00:00
+1 | S |  |  | 2026-03-04 00:00:00
+1 | D |  |  | 2026-03-04 00:00:00
+1 | L |  | 12:21:00 | 2026-03-04 00:00:00
+1 | D |  |  | 2026-03-04 00:00:00
+1 | D |  |  | 2026-03-04 00:00:00
+1 | L |  | 12:22:17 | 2026-03-04 00:00:00
+1 | D |  |  | 2026-03-04 00:00:00
+======================================================================
+
