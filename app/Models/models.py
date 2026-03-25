@@ -28,10 +28,34 @@ class PickTypes(db.Model):
 
 
 class WorkOrder(db.Model):
-    __tablename__ = 'work_orders'
+    """Read-only ERP mirror of dbo.wo_header, synced every ~10 minutes."""
+    __tablename__ = 'erp_mirror_wo_header'
     id = db.Column(db.Integer, primary_key=True)
-    sales_order_number = db.Column(db.String(128), nullable=False)
-    work_order_number = db.Column(db.String(128), nullable=False, unique=True)
+    wo_id = db.Column(db.String(64), nullable=False, index=True)
+    source = db.Column(db.String(32), nullable=True)
+    source_id = db.Column(db.String(64), nullable=True, index=True)  # Sales Order number
+    source_seq = db.Column(db.Integer, nullable=True)
+    wo_status = db.Column(db.String(64), nullable=True, index=True)
+    wo_rule = db.Column(db.String(64), nullable=True)
+    item_ptr = db.Column(db.String(64), nullable=True, index=True)
+    qty = db.Column(db.Numeric(18, 4), nullable=True)
+    department = db.Column(db.String(64), nullable=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    # Mirror metadata columns
+    is_deleted = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    synced_at = db.Column(db.DateTime, nullable=True)
+    source_updated_at = db.Column(db.DateTime, nullable=True)
+    __table_args__ = (
+        db.UniqueConstraint('wo_id', name='uq_erp_mirror_wo_header_key'),
+    )
+
+
+class WorkOrderAssignment(db.Model):
+    """Local assignment/tracking record linking an ERP work order to a builder."""
+    __tablename__ = 'wo_assignments'
+    id = db.Column(db.Integer, primary_key=True)
+    wo_id = db.Column(db.String(128), nullable=False, unique=True, index=True)
+    sales_order_number = db.Column(db.String(128))
     item_number = db.Column(db.String(128))
     description = db.Column(db.String(256))
     status = db.Column(db.String(50), default='Open')
@@ -41,8 +65,13 @@ class WorkOrder(db.Model):
     completed_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
 
-    assigned_to = db.relationship('Pickster', foreign_keys=[assigned_to_id], backref=db.backref('work_orders', lazy=True))
-    completed_by = db.relationship('Pickster', foreign_keys=[completed_by_id], backref=db.backref('completed_work_orders', lazy=True))
+    assigned_to = db.relationship('Pickster', foreign_keys=[assigned_to_id], backref=db.backref('wo_assignments', lazy=True))
+    completed_by = db.relationship('Pickster', foreign_keys=[completed_by_id], backref=db.backref('completed_wo_assignments', lazy=True))
+
+    @property
+    def work_order_number(self):
+        """Alias for wo_id — used by templates that predate the erp_mirror migration."""
+        return self.wo_id
 
 
 class PickAssignment(db.Model):
@@ -301,23 +330,6 @@ class ERPMirrorShipmentLine(db.Model, MirrorSyncMetadataMixin):
         db.UniqueConstraint('system_id', 'so_id', 'shipment_num', 'line_no', name='uq_erp_mirror_shipments_detail_key'),
     )
 
-
-class ERPMirrorWorkOrderHeader(db.Model, MirrorSyncMetadataMixin):
-    __tablename__ = 'erp_mirror_wo_header'
-    id = db.Column(db.Integer, primary_key=True)
-    wo_id = db.Column(db.String(64), nullable=False, index=True)
-    source = db.Column(db.String(32), nullable=True)
-    source_id = db.Column(db.String(64), nullable=True, index=True)
-    source_seq = db.Column(db.Integer, nullable=True)
-    wo_status = db.Column(db.String(64), nullable=True, index=True)
-    wo_rule = db.Column(db.String(64), nullable=True)
-    item_ptr = db.Column(db.String(64), nullable=True, index=True)
-    qty = db.Column(db.Numeric(18, 4), nullable=True)
-    department = db.Column(db.String(64), nullable=True)
-    branch_code = db.Column(db.String(32), nullable=True, index=True)
-    __table_args__ = (
-        db.UniqueConstraint('wo_id', name='uq_erp_mirror_wo_header_key'),
-    )
 
 
 class ERPMirrorPickHeaderNormalized(db.Model, MirrorSyncMetadataMixin):
