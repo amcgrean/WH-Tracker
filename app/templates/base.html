@@ -21,9 +21,27 @@
             top: calc(100% + 10px);
             right: 0;
             z-index: 1060;
-            width: 380px;
+            width: 400px;
             display: none;
         }
+        /* Desktop sidebar collapse */
+        @media (min-width: 992px) {
+            .sidebar-collapsed .app-sidebar {
+                width: 0;
+                overflow: hidden;
+                border-right: none;
+            }
+        }
+        /* Smaller nav link cards */
+        .nav-link-card { padding: 0.5rem 0.75rem !important; }
+        .nav-link-card__icon { width: 28px !important; height: 28px !important; font-size: 0.75rem; }
+        .nav-link-card__label { font-size: 0.82rem !important; }
+        .nav-link-card small { font-size: 0.7rem !important; }
+        /* Search result items */
+        .search-result-item { transition: background 0.15s; }
+        .search-result-item:hover { background: rgba(0,69,38,0.05); }
+        #searchClearBtn { cursor: pointer; opacity: 0.5; display: none; }
+        #searchClearBtn:hover { opacity: 1; }
     </style>
 </head>
 
@@ -67,8 +85,8 @@
                     </div>
                     <div class="nav-section__items px-2">
                         {% for item in section['items'] %}
-                        <a href="{{ item['href'] }}" class="nav-link-card d-flex align-items-center p-3 mb-1 rounded-lg transition-all {% if item['is_active'] %} active {% endif %}">
-                            <div class="nav-link-card__icon mr-3 bg-white shadow-sm rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                        <a href="{{ item['href'] }}" class="nav-link-card d-flex align-items-center mb-1 rounded-lg transition-all {% if item['is_active'] %} active {% endif %}">
+                            <div class="nav-link-card__icon mr-3 bg-white shadow-sm rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
                                 <i class="{{ item['icon'] }}"></i>
                             </div>
                             <div class="nav-link-card__content">
@@ -106,11 +124,17 @@
                         <div class="input-group glass-panel rounded-pill p-1 shadow-sm" style="background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.05);">
                             <div class="input-group-prepend border-0">
                                 <span class="input-group-text bg-transparent border-0">
-                                    <i class="fas fa-search text-muted"></i>
+                                    <i class="fas fa-search text-muted" style="font-size:0.85rem;"></i>
                                 </span>
                             </div>
                             <input type="text" id="searchInput" class="form-control bg-transparent border-0 shadow-none text-dark"
-                                placeholder="SO # or Name..." style="width: 280px; font-weight: 500;">
+                                placeholder="Search orders &amp; customers…" style="width: 260px; font-size: 0.875rem; font-weight: 500;"
+                                autocomplete="off" aria-label="Search orders and customers">
+                            <div class="input-group-append border-0">
+                                <span class="input-group-text bg-transparent border-0 px-2" id="searchClearBtn" title="Clear search" role="button" aria-label="Clear search">
+                                    <i class="fas fa-times" style="font-size:0.75rem;"></i>
+                                </span>
+                            </div>
                         </div>
                         <div id="searchResultsContainer" class="glass-card shadow-lg animate-fade-in"></div>
                     </div>
@@ -172,11 +196,25 @@
 
     <script>
         $(document).ready(function () {
-            // Sidebar Toggles
-            $('#sidebarToggleButton, #appSidebarOverlay, #sidebarCloseButton').on('click', function() {
-                $('.app-shell').toggleClass('sidebar-open');
-                const isOpen = $('.app-shell').hasClass('sidebar-open');
-                $(this).attr('aria-expanded', isOpen);
+            // Restore desktop sidebar collapsed state
+            if ($(window).width() >= 992 && localStorage.getItem('sidebarCollapsed') === '1') {
+                $('.app-shell').addClass('sidebar-collapsed');
+            }
+
+            // Sidebar toggle: collapse on desktop, open/close drawer on mobile
+            $('#sidebarToggleButton').on('click', function() {
+                if ($(window).width() >= 992) {
+                    $('.app-shell').toggleClass('sidebar-collapsed');
+                    const isCollapsed = $('.app-shell').hasClass('sidebar-collapsed');
+                    localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+                } else {
+                    $('.app-shell').toggleClass('sidebar-open');
+                }
+            });
+
+            // Mobile overlay / close button dismiss the sidebar drawer
+            $('#appSidebarOverlay, #sidebarCloseButton').on('click', function() {
+                $('.app-shell').removeClass('sidebar-open');
             });
 
             // Navbar scroll effect
@@ -188,38 +226,58 @@
                 }
             });
 
-            // Search Functionality (Corrected for route data contract)
+            // Global search
             const $input = $('#searchInput');
             const $results = $('#searchResultsContainer');
- 
+            const $clearBtn = $('#searchClearBtn');
+            const TYPE_BADGE = { order: 'badge-primary', customer: 'badge-success', pick: 'badge-secondary' };
+            let searchTimer = null;
+
+            function doSearch(query) {
+                $.getJSON('/search_results?query=' + encodeURIComponent(query), function (data) {
+                    $results.empty().show();
+                    if (data.length === 0) {
+                        $results.append('<div class="px-3 py-2 text-muted small">No matches found</div>');
+                        return;
+                    }
+                    data.forEach(function(item) {
+                        const badgeClass = TYPE_BADGE[item.type] || 'badge-light';
+                        const title = $('<span>').text(item.title).html();
+                        const subtitle = $('<span>').text(item.subtitle || '').html();
+                        $results.append(
+                            '<a href="' + item.url + '" class="search-result-item d-block px-3 py-2 border-bottom text-decoration-none" style="color:inherit;">' +
+                            '<div class="d-flex align-items-center justify-content-between">' +
+                            '<span class="font-weight-bold text-dark" style="font-size:0.875rem;">' + title + '</span>' +
+                            '<span class="badge ' + badgeClass + ' ml-2" style="font-size:0.62rem;white-space:nowrap;">' + item.type + '</span>' +
+                            '</div>' +
+                            '<div class="small text-muted">' + subtitle + '</div>' +
+                            '</a>'
+                        );
+                    });
+                });
+            }
+
             $input.on('input', function () {
                 const query = $(this).val().trim();
-                if (query.length > 2) {
-                    $.getJSON(`/search_results?query=${encodeURIComponent(query)}`, function (data) {
-                        $results.empty().show();
-                        if (data.length === 0) {
-                            $results.append('<div class="search-result-item px-3 py-2 text-muted small">No matches found</div>');
-                        } else {
-                            data.forEach(item => {
-                                $results.append(`
-                                    <div class="search-result-item p-3 border-bottom" onclick="window.location='/warehouse/detail/${item.barcode}'">
-                                        <div class="font-weight-bold text-dark">#${item.barcode}</div>
-                                        <div class="small text-muted d-flex justify-content-between">
-                                            <span>${item.name || 'Unknown'}</span>
-                                            <span class="badge badge-light">${item.completed_time || 'Active'}</span>
-                                        </div>
-                                    </div>
-                                `);
-                            });
-                        }
-                    });
+                $clearBtn.toggle(query.length > 0);
+                clearTimeout(searchTimer);
+                if (query.length > 1) {
+                    searchTimer = setTimeout(function() { doSearch(query); }, 250);
                 } else {
                     $results.hide().empty();
                 }
             });
- 
+
+            $clearBtn.on('click', function() {
+                $input.val('').trigger('input').focus();
+            });
+
             $(document).on('click', function (e) {
                 if (!$(e.target).closest('.search-wrapper').length) $results.hide();
+            });
+
+            $input.on('keydown', function(e) {
+                if (e.key === 'Escape') { $input.val('').trigger('input'); $results.hide(); }
             });
 
             // Sidebar nav filter
@@ -235,7 +293,7 @@
                     let anyVisible = false;
                     $(this).find('.nav-link-card').each(function () {
                         const label = $(this).find('.nav-link-card__label').text().toLowerCase();
-                        const desc = $(this).find('.nav-link-card__description').text().toLowerCase();
+                        const desc = $(this).find('small').text().toLowerCase();
                         const match = label.includes(term) || desc.includes(term);
                         $(this).toggle(match);
                         if (match) anyVisible = true;

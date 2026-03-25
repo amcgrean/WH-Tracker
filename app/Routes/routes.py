@@ -654,7 +654,7 @@ def search_results():
     # 1. Sales orders / customers via ERP
     try:
         erp = ERPService()
-        sales_rows = erp.get_sales_order_status(q=query, limit=6)
+        sales_rows = erp.get_sales_order_status(q=query, limit=8, open_only=False)
         seen_customers = {}
         for row in sales_rows:
             so_num = str(row.get('so_number') or '')
