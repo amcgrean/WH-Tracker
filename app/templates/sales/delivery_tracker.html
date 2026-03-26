@@ -99,69 +99,69 @@
         </div>
     </div>
 
-    <!-- Fleet Status Quick-View -->
+    <!-- Fleet Status Quick-View (collapsed by default) -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card border-0 shadow-sm bg-white">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-satellite-dish mr-2"></i> Fleet GPS
-                        Status</h6>
-                    <small class="text-muted"><span class="text-success"><i class="fas fa-circle mr-1"
-                                style="font-size:0.5rem;"></i> {{ active_trucks }} Active</span> •
-                        Auto-refreshes</small>
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center"
+                     style="cursor: pointer;" data-toggle="collapse" data-target="#fleetGpsBody"
+                     aria-expanded="false" aria-controls="fleetGpsBody" id="fleetGpsToggle">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-satellite-dish mr-2"></i> Fleet GPS Status
+                        <i class="fas fa-chevron-down ml-2 fleet-toggle-icon" style="font-size: 0.7rem; transition: transform 0.2s;"></i>
+                    </h6>
+                    <small class="text-muted">
+                        <span class="text-success"><i class="fas fa-circle mr-1" style="font-size:0.5rem;"></i> {{ active_trucks }} Active</span>
+                        • <span class="text-info">{{ in_transit_count }} Moving</span>
+                        • Click to expand
+                    </small>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                        <table class="table table-hover mb-0">
-                            <thead class="bg-light text-xs text-uppercase font-weight-bold sticky-top">
-                                <tr>
-                                    <th class="pl-4">Vehicle</th>
-                                    <th>Location</th>
-                                    <th>Speed</th>
-                                    <th>Status</th>
-                                    <th>Last Updated</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for loc in vehicle_locations %}
-                                <tr>
-                                    <td class="pl-4 font-weight-bold">{{ loc.name }}</td>
-                                    <td><small class="text-muted">{{ loc.address or 'GPS: %.4f,
-                                            %.4f'|format(loc.latitude, loc.longitude) }}</small></td>
-                                    <td>
+                <div class="collapse" id="fleetGpsBody">
+                    <div class="card-body py-3">
+                        {% if vehicle_locations %}
+                        <div class="row">
+                            {% for loc in vehicle_locations %}
+                            <div class="col-md-6 col-lg-4 col-xl-3 mb-2">
+                                <div class="d-flex align-items-center p-2 rounded border bg-light fleet-truck-card">
+                                    <div class="mr-2">
                                         {% if loc.speed_mph > 0 %}
-                                        <span class="text-info font-weight-bold">{{ loc.speed_mph }} mph</span>
+                                        <span class="badge badge-info p-2"><i class="fas fa-truck fa-sm"></i></span>
                                         {% else %}
-                                        <span class="text-muted">Stopped</span>
+                                        <span class="badge badge-secondary p-2"><i class="fas fa-truck fa-sm"></i></span>
                                         {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if loc.speed_mph > 0 %}
-                                        <span class="badge badge-pill badge-info">In Transit</span>
-                                        {% else %}
-                                        <span class="badge badge-pill badge-secondary">Idle</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="small text-muted">{{ loc.time[:19].replace('T', ' ') if loc.time else
-                                        'N/A' }}</td>
-                                </tr>
-                                {% else %}
-                                {% if gps_error %}
-                                <tr>
-                                    <td colspan="5" class="text-center text-warning py-4">
-                                        <i class="fas fa-exclamation-triangle mr-2"></i> Error loading GPS — {{ gps_error }}
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
-                                        <i class="fas fa-satellite mr-2"></i> No active fleet data found for this branch.
-                                    </td>
-                                </tr>
-                                {% endif %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                    </div>
+                                    <div class="flex-grow-1 overflow-hidden">
+                                        <div class="font-weight-bold text-dark text-truncate" style="font-size: 0.8rem;">{{ loc.name }}</div>
+                                        <div class="text-muted text-truncate" style="font-size: 0.7rem;" title="{{ loc.address or 'GPS: %.4f, %.4f'|format(loc.latitude, loc.longitude) }}">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>
+                                            {% if loc.address %}
+                                                {{ loc.address }}
+                                            {% else %}
+                                                {{ '%.4f, %.4f'|format(loc.latitude, loc.longitude) }}
+                                            {% endif %}
+                                        </div>
+                                        <div style="font-size: 0.65rem;" class="text-muted">
+                                            {% if loc.speed_mph > 0 %}
+                                            <span class="text-info font-weight-bold">{{ loc.speed_mph }} mph</span>
+                                            {% else %}
+                                            <span>Stopped</span>
+                                            {% endif %}
+                                            • {{ loc.time[:19].replace('T', ' ') if loc.time else 'N/A' }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% elif gps_error %}
+                        <div class="text-center text-warning py-3">
+                            <i class="fas fa-exclamation-triangle mr-2"></i> Error loading GPS — {{ gps_error }}
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-satellite mr-2"></i> No active fleet data found for this branch.
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -192,39 +192,52 @@
         </div>
     </div>
 
-    <!-- Summary Stats -->
-    <div class="row mb-4 kpi-grid">
-        <div class="col-6 col-md-3 mb-3 mb-md-0">
-            <div class="card border-0 shadow-sm text-center py-3 bg-white kpi-clickable" data-filter="all"
+    <!-- Summary Stats + View Toggle -->
+    <div class="row mb-3 kpi-grid">
+        <div class="col-6 col-md-3 mb-2 mb-md-0">
+            <div class="card border-0 shadow-sm text-center py-2 bg-white kpi-clickable" data-filter="all"
                 style="cursor: pointer; transition: 0.2s;">
-                <div class="h3 font-weight-bold text-dark mb-0 count-all">0</div>
-                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">Total Scheduled</div>
+                <div class="h4 font-weight-bold text-dark mb-0 count-all">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted">Total Scheduled</div>
             </div>
         </div>
-        <div class="col-6 col-md-3 mb-3 mb-md-0">
-            <div class="card border-0 shadow-sm text-center py-3 bg-white kpi-clickable" data-filter="picking"
-                style="border-bottom: 4px solid #f6c23e !important; cursor: pointer; transition: 0.2s;">
-                <div class="h3 font-weight-bold text-warning mb-0 count-picking">0</div>
-                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">Awaiting Picking</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm text-center py-3 bg-white kpi-clickable" data-filter="staged"
-                style="border-bottom: 4px solid #36b9cc !important; cursor: pointer; transition: 0.2s;">
-                <div class="h3 font-weight-bold text-info mb-0 count-staged">0</div>
-                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">Staged & Ready</div>
+        <div class="col-6 col-md-3 mb-2 mb-md-0">
+            <div class="card border-0 shadow-sm text-center py-2 bg-white kpi-clickable" data-filter="picking"
+                style="border-bottom: 3px solid #f6c23e !important; cursor: pointer; transition: 0.2s;">
+                <div class="h4 font-weight-bold text-warning mb-0 count-picking">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted">Awaiting Picking</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm text-center py-3 bg-white kpi-clickable" data-filter="transit"
-                style="border-bottom: 4px solid #1cc88a !important; cursor: pointer; transition: 0.2s;">
-                <div class="h3 font-weight-bold text-success mb-0 count-transit">0</div>
-                <div class="text-xs text-uppercase font-weight-bold text-muted mt-1">En Route</div>
+            <div class="card border-0 shadow-sm text-center py-2 bg-white kpi-clickable" data-filter="staged"
+                style="border-bottom: 3px solid #36b9cc !important; cursor: pointer; transition: 0.2s;">
+                <div class="h4 font-weight-bold text-info mb-0 count-staged">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted">Staged & Ready</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center py-2 bg-white kpi-clickable" data-filter="transit"
+                style="border-bottom: 3px solid #1cc88a !important; cursor: pointer; transition: 0.2s;">
+                <div class="h4 font-weight-bold text-success mb-0 count-transit">0</div>
+                <div class="text-xs text-uppercase font-weight-bold text-muted">En Route</div>
             </div>
         </div>
     </div>
 
-    <!-- Status Groupings -->
+    <!-- View Toggle -->
+    <div class="d-flex justify-content-end mb-3">
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary active" id="btnCardView" onclick="setView('cards')">
+                <i class="fas fa-th-large mr-1"></i> Cards
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="btnTableView" onclick="setView('table')">
+                <i class="fas fa-table mr-1"></i> Table
+            </button>
+        </div>
+    </div>
+
+    <!-- Card View (Status Groupings) -->
+    <div id="cardViewContainer">
     {% set status_groups = [
     {'id': 'transit', 'label': 'En Route / Delivered', 'icon': 'fa-truck-loading', 'class': 'success'},
     {'id': 'staged', 'label': 'Staged / Loaded', 'icon': 'fa-pallet', 'class': 'info'},
@@ -233,29 +246,29 @@
     ] %}
 
     {% for group in status_groups %}
-    <div class="card border-0 shadow-sm mb-4" id="card-{{ group.id }}">
-        <div class="card-header bg-white py-3 d-flex align-items-center">
-            <div class="rounded-circle bg-{{ group.class }} text-white mr-3 d-flex align-items-center justify-content-center"
-                style="width: 40px; height: 40px;">
+    <div class="card border-0 shadow-sm mb-3" id="card-{{ group.id }}">
+        <div class="card-header bg-white py-2 d-flex align-items-center">
+            <div class="rounded-circle bg-{{ group.class }} text-white mr-2 d-flex align-items-center justify-content-center"
+                style="width: 32px; height: 32px; font-size: 0.8rem;">
                 <i class="fas {{ group.icon }}"></i>
             </div>
-            <h5 class="m-0 font-weight-bold text-{{ group.class }}">{{ group.label }}</h5>
+            <h6 class="m-0 font-weight-bold text-{{ group.class }}">{{ group.label }}</h6>
             <div class="ml-auto">
                 <span class="badge badge-{{ group.class }} badge-pill group-count-{{ group.id }}">0</span>
             </div>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover mb-0" id="table-{{ group.id }}">
+                <table class="table table-hover table-sm mb-0" id="table-{{ group.id }}">
                     <thead class="bg-light text-xs text-uppercase font-weight-bold">
                         <tr>
-                            <th class="pl-4">SO #</th>
-                            <th>Customer</th>
-                            <th>Location / Route</th>
-                            <th>Expected</th>
-                            <th>Reference</th>
-                            <th>Status Badge</th>
-                            <th class="text-right pr-4">Details</th>
+                            <th class="pl-3 py-1">SO #</th>
+                            <th class="py-1">Customer</th>
+                            <th class="py-1">Location / Route</th>
+                            <th class="py-1">Expected</th>
+                            <th class="py-1">Reference</th>
+                            <th class="py-1">Status</th>
+                            <th class="text-right pr-3 py-1">Details</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -273,60 +286,57 @@
 
                         {% if target_group == group.id %}
                         <tr data-group="{{ target_group }}">
-                            <td class="pl-4 font-weight-bold text-dark" data-label="SO #">
-                                {{ d.so_number }}
+                            <td class="pl-3 font-weight-bold" data-label="SO #">
+                                <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}" class="text-primary">
+                                    {{ d.so_number }}
+                                </a>
                                 {% if d.system_id %}
-                                <br><span class="badge badge-primary px-1 py-0 text-xs mt-1"
-                                    style="background-color: var(--beisser-secondary);">{{ d.system_id }}</span>
+                                <span class="badge badge-primary px-1 py-0 text-xs ml-1"
+                                    style="background-color: var(--beisser-secondary); font-size: 0.6rem;">{{ d.system_id }}</span>
                                 {% endif %}
                             </td>
-                            <td data-label="Customer">{{ d.customer_name }}</td>
+                            <td data-label="Customer" class="text-truncate" style="max-width: 180px;">{{ d.customer_name }}</td>
                             <td data-label="Location / Route">
-                                <div class="text-muted small text-break delivery-address">{{ d.address }}
-                                </div>
+                                <div class="text-muted text-break delivery-address" style="font-size: 0.75rem;">{{ d.address }}</div>
                                 {% if d.route or d.ship_via %}
-                                <div class="badge badge-light border mt-1 font-weight-normal text-left"
-                                    style="white-space: normal;">
-                                    {% if d.ship_via %}<span class="text-dark font-weight-bold">{{ d.ship_via
-                                        }}</span>{% endif %}
-                                    {% if d.route %}<span class="text-secondary"><i
-                                            class="fas fa-steering-wheel mx-1"></i> {{ d.route }}</span>{% endif %}
-                                </div>
+                                <span class="text-xs">
+                                    {% if d.ship_via %}<span class="font-weight-bold">{{ d.ship_via }}</span>{% endif %}
+                                    {% if d.route %}<span class="text-secondary ml-1">{{ d.route }}</span>{% endif %}
+                                </span>
                                 {% endif %}
                             </td>
-                            <td data-label="Expected"><span class="badge badge-light border">{{ d.expect_date }}</span></td>
-                            <td data-label="Reference">{{ d.reference }}</td>
-                            <td data-label="Status Badge">
+                            <td data-label="Expected"><span class="badge badge-light border" style="font-size: 0.7rem;">{{ d.expect_date }}</span></td>
+                            <td data-label="Reference" class="text-xs">{{ d.reference }}</td>
+                            <td data-label="Status">
                                 {% if 'EN ROUTE' in label %}
                                 <a href="{{ url_for('main.delivery_map', truck=d.driver) }}"
-                                    class="badge badge-success px-2 py-1 text-white text-decoration-none hover-shadow"
-                                    title="View Truck Map">
-                                    <i class="fas fa-truck mr-1"></i> {{ label }} <i
-                                        class="fas fa-external-link-alt ml-1" style="font-size: 0.6rem;"></i>
+                                    class="badge badge-success px-2 py-1 text-white text-decoration-none"
+                                    title="View Truck Map" style="font-size: 0.65rem;">
+                                    <i class="fas fa-truck mr-1"></i> {{ label }}
                                 </a>
-                                {% elif 'DELIVERED' in label %}<span class="badge badge-success px-2 py-1"><i
+                                {% elif 'DELIVERED' in label %}<span class="badge badge-success px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-check-circle mr-1"></i> {{ label }}</span>
-                                {% elif 'INVOICED' in label %}<span class="badge badge-success px-2 py-1"><i
+                                {% elif 'INVOICED' in label %}<span class="badge badge-success px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-file-invoice mr-1"></i> INVOICED</span>
-                                {% elif 'LOADED' in label %}<span class="badge badge-info px-2 py-1"><i
+                                {% elif 'LOADED' in label %}<span class="badge badge-info px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-truck-loading mr-1"></i> {{ label }}</span>
-                                {% elif 'STAGED' in label %}<span class="badge badge-info px-2 py-1"><i
+                                {% elif 'STAGED' in label %}<span class="badge badge-info px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-pallet mr-1"></i> {{ label }}</span>
-                                {% elif label == 'PARTIAL' %}<span class="badge badge-warning px-2 py-1"><i
+                                {% elif label == 'PARTIAL' %}<span class="badge badge-warning px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-dolly-flatbed mr-1"></i> PARTIAL</span>
-                                {% elif 'PICKING COMPLETE' in label %}<span class="badge badge-primary px-2 py-1"><i
+                                {% elif 'PICKING COMPLETE' in label %}<span class="badge badge-primary px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-clipboard-check mr-1"></i> PICKING COMPLETE</span>
-                                {% elif 'PICK PRINTED' in label %}<span class="badge badge-secondary px-2 py-1"><i
+                                {% elif 'PICK PRINTED' in label %}<span class="badge badge-secondary px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-print mr-1"></i> PICK PRINTED</span>
-                                {% elif 'PICKING' in label %}<span class="badge badge-success px-2 py-1"><i
+                                {% elif 'PICKING' in label %}<span class="badge badge-success px-2 py-1" style="font-size: 0.65rem;"><i
                                         class="fas fa-running mr-1"></i> PICKING</span>
-                                {% else %}<span class="badge badge-secondary px-2 py-1">{{ label }}</span>
+                                {% else %}<span class="badge badge-secondary px-2 py-1" style="font-size: 0.65rem;">{{ label }}</span>
                                 {% endif %}
                             </td>
-                            <td class="text-right pr-4" data-label="Details">
+                            <td class="text-right pr-3" data-label="Details">
                                 <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}"
-                                    class="btn btn-sm btn-light border shadow-xs delivery-view-btn">
-                                    <span>View details</span> <i class="fas fa-chevron-right ml-1"></i>
+                                    class="btn btn-xs btn-light border shadow-xs delivery-view-btn" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;">
+                                    View <i class="fas fa-chevron-right ml-1"></i>
                                 </a>
                             </td>
                         </tr>
@@ -338,6 +348,85 @@
         </div>
     </div>
     {% endfor %}
+    </div>
+
+    <!-- Table View (sortable, all orders in one table) -->
+    <div id="tableViewContainer" style="display: none;">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white py-2 d-flex align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-table mr-2"></i> All Orders</h6>
+                <small class="text-muted ml-auto" id="tableViewCount"></small>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0" id="allOrdersTable">
+                        <thead class="bg-light text-xs text-uppercase font-weight-bold">
+                            <tr>
+                                <th class="pl-3 py-1 sortable-th" data-sort="so" style="cursor:pointer;">SO # <i class="fas fa-sort ml-1 text-muted"></i></th>
+                                <th class="py-1 sortable-th" data-sort="customer" style="cursor:pointer;">Customer <i class="fas fa-sort ml-1 text-muted"></i></th>
+                                <th class="py-1 sortable-th" data-sort="address" style="cursor:pointer;">Address <i class="fas fa-sort ml-1 text-muted"></i></th>
+                                <th class="py-1 sortable-th" data-sort="route" style="cursor:pointer;">Route <i class="fas fa-sort ml-1 text-muted"></i></th>
+                                <th class="py-1 sortable-th" data-sort="expected" style="cursor:pointer;">Expected <i class="fas fa-sort ml-1 text-muted"></i></th>
+                                <th class="py-1 sortable-th" data-sort="reference" style="cursor:pointer;">Reference <i class="fas fa-sort ml-1 text-muted"></i></th>
+                                <th class="py-1 sortable-th" data-sort="status" style="cursor:pointer;">Status <i class="fas fa-sort ml-1 text-muted"></i></th>
+                                <th class="py-1 sortable-th" data-sort="branch" style="cursor:pointer;">Branch <i class="fas fa-sort ml-1 text-muted"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in deliveries %}
+                            {% set label = d.status_label|upper %}
+                            {% set target_group = 'open' %}
+                            {% if label == 'INVOICED' or 'EN ROUTE' in label or 'DELIVERED' in label %}
+                            {% set target_group = 'transit' %}
+                            {% elif 'STAGED' in label or 'LOADED' in label %}
+                            {% set target_group = 'staged' %}
+                            {% elif 'PICK PRINTED' in label or 'PICKING' in label %}
+                            {% set target_group = 'picking' %}
+                            {% endif %}
+                            <tr class="table-view-row" data-group="{{ target_group }}"
+                                data-so="{{ d.so_number }}" data-customer="{{ d.customer_name }}"
+                                data-address="{{ d.address }}" data-route="{{ d.ship_via or '' }} {{ d.route or '' }}"
+                                data-expected="{{ d.expect_date }}" data-reference="{{ d.reference }}"
+                                data-status="{{ label }}" data-branch="{{ d.system_id or '' }}">
+                                <td class="pl-3 font-weight-bold">
+                                    <a href="{{ url_for('main.delivery_detail', so_number=d.so_number) }}" class="text-primary">{{ d.so_number }}</a>
+                                    {% if d.system_id %}
+                                    <span class="badge badge-primary px-1 py-0 ml-1" style="background-color: var(--beisser-secondary); font-size: 0.6rem;">{{ d.system_id }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-truncate" style="max-width: 180px;">{{ d.customer_name }}</td>
+                                <td class="text-muted" style="font-size: 0.75rem; max-width: 200px;">{{ d.address }}</td>
+                                <td class="text-xs">
+                                    {% if d.ship_via %}<span class="font-weight-bold">{{ d.ship_via }}</span>{% endif %}
+                                    {% if d.route %}<span class="text-secondary ml-1">{{ d.route }}</span>{% endif %}
+                                </td>
+                                <td><span class="badge badge-light border" style="font-size: 0.7rem;">{{ d.expect_date }}</span></td>
+                                <td class="text-xs">{{ d.reference }}</td>
+                                <td>
+                                    {% if 'EN ROUTE' in label %}
+                                    <a href="{{ url_for('main.delivery_map', truck=d.driver) }}" class="badge badge-success px-2 py-1 text-white text-decoration-none" style="font-size: 0.65rem;">
+                                        <i class="fas fa-truck mr-1"></i> {{ label }}
+                                    </a>
+                                    {% elif 'DELIVERED' in label %}<span class="badge badge-success px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-check-circle mr-1"></i> {{ label }}</span>
+                                    {% elif 'INVOICED' in label %}<span class="badge badge-success px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-file-invoice mr-1"></i> INVOICED</span>
+                                    {% elif 'LOADED' in label %}<span class="badge badge-info px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-truck-loading mr-1"></i> {{ label }}</span>
+                                    {% elif 'STAGED' in label %}<span class="badge badge-info px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-pallet mr-1"></i> {{ label }}</span>
+                                    {% elif label == 'PARTIAL' %}<span class="badge badge-warning px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-dolly-flatbed mr-1"></i> PARTIAL</span>
+                                    {% elif 'PICKING COMPLETE' in label %}<span class="badge badge-primary px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-clipboard-check mr-1"></i> PICKING COMPLETE</span>
+                                    {% elif 'PICK PRINTED' in label %}<span class="badge badge-secondary px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-print mr-1"></i> PICK PRINTED</span>
+                                    {% elif 'PICKING' in label %}<span class="badge badge-success px-2 py-1" style="font-size: 0.65rem;"><i class="fas fa-running mr-1"></i> PICKING</span>
+                                    {% else %}<span class="badge badge-secondary px-2 py-1" style="font-size: 0.65rem;">{{ label }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-xs">{{ d.system_id or '' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -361,6 +450,10 @@
         border-top: 0;
     }
 
+    .table-sm td, .table-sm th {
+        padding: 0.3rem 0.4rem;
+    }
+
     .bg-light {
         background-color: #f8f9fc !important;
     }
@@ -378,7 +471,7 @@
     }
 
     .delivery-last-updated {
-        min-height: 42px;
+        min-height: 36px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -400,7 +493,7 @@
     }
 
     .delivery-address {
-        max-width: 260px;
+        max-width: 200px;
     }
 
     .delivery-view-btn {
@@ -408,9 +501,37 @@
     }
 
     .kpi-clickable:hover {
-        transform: translateY(-3px);
+        transform: translateY(-2px);
         box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
     }
+
+    .fleet-truck-card {
+        transition: background-color 0.15s;
+    }
+
+    .fleet-truck-card:hover {
+        background-color: #e9ecef !important;
+    }
+
+    .fleet-toggle-icon {
+        transition: transform 0.2s;
+    }
+
+    #fleetGpsBody.show ~ .card-header .fleet-toggle-icon,
+    .collapsed .fleet-toggle-icon {
+        transform: rotate(0deg);
+    }
+
+    [aria-expanded="true"] .fleet-toggle-icon {
+        transform: rotate(180deg) !important;
+    }
+
+    .sortable-th:hover {
+        background-color: #e9ecef !important;
+    }
+
+    .sort-asc .fa-sort::before { content: "\f0de"; }
+    .sort-desc .fa-sort::before { content: "\f0dd"; }
 
     @media (max-width: 991.98px) {
         .delivery-toolbar-card {
@@ -442,49 +563,49 @@
             min-height: 100%;
         }
 
-        .table-responsive {
+        #cardViewContainer .table-responsive {
             overflow: visible;
         }
 
-        .table-responsive table,
-        .table-responsive tbody,
-        .table-responsive tr,
-        .table-responsive td {
+        #cardViewContainer .table-responsive table,
+        #cardViewContainer .table-responsive tbody,
+        #cardViewContainer .table-responsive tr,
+        #cardViewContainer .table-responsive td {
             display: block;
             width: 100%;
         }
 
-        .table-responsive thead {
+        #cardViewContainer .table-responsive thead {
             display: none;
         }
 
-        .table-responsive tr[data-group] {
+        #cardViewContainer .table-responsive tr[data-group] {
             border-bottom: 1px solid #e9ecef;
-            padding: 1rem 1rem 0.75rem;
+            padding: 0.75rem;
         }
 
-        .table-responsive tr[data-group]:last-child {
+        #cardViewContainer .table-responsive tr[data-group]:last-child {
             border-bottom: 0;
         }
 
-        .table-responsive td {
+        #cardViewContainer .table-responsive td {
             border: 0;
-            padding: 0 0 0.75rem 0;
+            padding: 0 0 0.5rem 0;
             text-align: left !important;
         }
 
-        .table-responsive td::before {
+        #cardViewContainer .table-responsive td::before {
             content: attr(data-label);
             display: block;
-            margin-bottom: 0.25rem;
-            font-size: 0.7rem;
+            margin-bottom: 0.15rem;
+            font-size: 0.65rem;
             letter-spacing: 0.04em;
             text-transform: uppercase;
             color: #6c757d;
             font-weight: 700;
         }
 
-        .table-responsive td.pl-4 {
+        #cardViewContainer .table-responsive td.pl-3 {
             padding-left: 0 !important;
         }
 
@@ -503,22 +624,51 @@
 
 <script>
     let activeFilter = 'all';
+    let currentView = 'cards';
 
     function clearFilter() {
         activeFilter = 'all';
         document.getElementById('activeFilterBadge').style.display = 'none';
-
-        // Reset card opacities
         document.querySelectorAll('.kpi-clickable').forEach(card => card.style.opacity = '1');
-
-        // Trigger generic updateUI
         const searchInput = document.getElementById('deliverySearch');
         searchInput.dispatchEvent(new Event('input'));
     }
 
+    function setView(view) {
+        currentView = view;
+        const cardContainer = document.getElementById('cardViewContainer');
+        const tableContainer = document.getElementById('tableViewContainer');
+        const btnCard = document.getElementById('btnCardView');
+        const btnTable = document.getElementById('btnTableView');
+
+        if (view === 'table') {
+            cardContainer.style.display = 'none';
+            tableContainer.style.display = '';
+            btnCard.classList.remove('active');
+            btnTable.classList.add('active');
+            updateTableView();
+        } else {
+            cardContainer.style.display = '';
+            tableContainer.style.display = 'none';
+            btnCard.classList.add('active');
+            btnTable.classList.remove('active');
+        }
+        // Re-apply search/filter
+        document.getElementById('deliverySearch').dispatchEvent(new Event('input'));
+    }
+
+    function updateTableView() {
+        const rows = document.querySelectorAll('.table-view-row');
+        let visible = 0;
+        rows.forEach(r => { if (r.style.display !== 'none') visible++; });
+        const countEl = document.getElementById('tableViewCount');
+        if (countEl) countEl.innerText = visible + ' orders';
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const searchInput = document.getElementById('deliverySearch');
-        const rows = document.querySelectorAll('tr[data-group]');
+        const cardRows = document.querySelectorAll('#cardViewContainer tr[data-group]');
+        const tableRows = document.querySelectorAll('.table-view-row');
         const statCards = {
             all: document.querySelector('.count-all'),
             picking: document.querySelector('.count-picking'),
@@ -526,7 +676,18 @@
             transit: document.querySelector('.count-transit')
         };
 
-        // Add click handlers to KPI cards
+        // Fleet GPS toggle icon rotation
+        const fleetToggle = document.getElementById('fleetGpsToggle');
+        if (fleetToggle) {
+            document.getElementById('fleetGpsBody').addEventListener('show.bs.collapse', function() {
+                fleetToggle.setAttribute('aria-expanded', 'true');
+            });
+            document.getElementById('fleetGpsBody').addEventListener('hide.bs.collapse', function() {
+                fleetToggle.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        // KPI card click handlers
         document.querySelectorAll('.kpi-clickable').forEach(card => {
             card.addEventListener('click', function () {
                 const filterId = this.getAttribute('data-filter');
@@ -534,19 +695,13 @@
                     clearFilter();
                 } else {
                     activeFilter = filterId;
-
-                    // Dim other cards
                     document.querySelectorAll('.kpi-clickable').forEach(c => c.style.opacity = '0.5');
                     this.style.opacity = '1';
-
-                    // Show badge
                     document.getElementById('activeFilterBadge').style.display = 'block';
                     document.getElementById('activeFilterName').innerText =
                         filterId === 'all' ? 'All' :
-                            filterId === 'picking' ? 'Awaiting Picking' :
-                                filterId === 'staged' ? 'Staged & Ready' :
-                                    'En Route';
-
+                        filterId === 'picking' ? 'Awaiting Picking' :
+                        filterId === 'staged' ? 'Staged & Ready' : 'En Route';
                     searchInput.dispatchEvent(new Event('input'));
                 }
             });
@@ -556,24 +711,19 @@
             const term = searchInput.value.toLowerCase().trim();
             const searchStats = document.getElementById('searchStats');
             const matchCountEl = document.getElementById('matchCount');
-
             let counts = { all: 0, picking: 0, staged: 0, transit: 0, open: 0 };
             let visibleCount = 0;
 
-            rows.forEach(row => {
+            // Update card view rows
+            cardRows.forEach(row => {
                 const text = row.innerText.toLowerCase();
                 const group = row.dataset.group;
-
-                // Track counts regardless of filter
                 if (text.includes(term)) {
                     counts.all++;
                     counts[group]++;
-
-                    // Display logic combining term AND active filter
                     const matchesFilter = (activeFilter === 'all') ||
                         (activeFilter === group) ||
                         (activeFilter === 'picking' && group === 'open');
-
                     if (matchesFilter) {
                         row.style.display = '';
                         visibleCount++;
@@ -585,15 +735,24 @@
                 }
             });
 
-            // Update section counts and visibility
+            // Update table view rows
+            tableRows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                const group = row.dataset.group;
+                const matchesTerm = text.includes(term);
+                const matchesFilter = (activeFilter === 'all') ||
+                    (activeFilter === group) ||
+                    (activeFilter === 'picking' && group === 'open');
+                row.style.display = (matchesTerm && matchesFilter) ? '' : 'none';
+            });
+
+            // Update section counts and visibility (card view)
             ['transit', 'staged', 'picking', 'open'].forEach(groupId => {
                 const count = counts[groupId];
-                const section = document.getElementById(`card-${groupId}`);
-                const badge = document.querySelector(`.group-count-${groupId}`);
-
+                const section = document.getElementById('card-' + groupId);
+                const badge = document.querySelector('.group-count-' + groupId);
                 if (badge) badge.innerText = count;
 
-                // Determine section visibility based on filter
                 let sectionVisible = true;
                 if (activeFilter !== 'all') {
                     if (activeFilter === 'picking') {
@@ -602,25 +761,19 @@
                         sectionVisible = (groupId === activeFilter);
                     }
                 }
-
                 if (count === 0 && term !== "") sectionVisible = false;
-
                 if (section) section.style.display = sectionVisible ? '' : 'none';
 
-                // Handle Empty State Row
-                const table = document.getElementById(`table-${groupId}`);
+                const table = document.getElementById('table-' + groupId);
                 if (table) {
                     const tbody = table.querySelector('tbody');
                     let emptyRow = tbody.querySelector('.empty-row');
-
-                    // If matches exist in this group but none are visible (due to filter) or exactly 0
                     const rowsInGroup = Array.from(tbody.querySelectorAll('tr[data-group]')).filter(r => r.style.display === '');
-
                     if (rowsInGroup.length === 0 && sectionVisible) {
                         if (!emptyRow) {
                             emptyRow = document.createElement('tr');
                             emptyRow.className = 'empty-row';
-                            emptyRow.innerHTML = `<td colspan="7" class="text-center py-4 text-muted">No matches or filtered out</td>`;
+                            emptyRow.innerHTML = '<td colspan="7" class="text-center py-3 text-muted">No matches</td>';
                             tbody.appendChild(emptyRow);
                         }
                     } else if (emptyRow) {
@@ -629,27 +782,57 @@
                 }
             });
 
-            // Update Top Counters
             statCards.all.innerText = counts.all;
             statCards.transit.innerText = counts.transit;
             statCards.staged.innerText = counts.staged;
             statCards.picking.innerText = counts.picking + counts.open;
 
-            // Search Stats Display
             if (term.length > 0 || activeFilter !== 'all') {
                 searchStats.style.display = 'block';
-                matchCountEl.innerText = `Showing ${visibleCount} orders`;
+                matchCountEl.innerText = 'Showing ' + (currentView === 'table' ?
+                    Array.from(tableRows).filter(r => r.style.display !== 'none').length : visibleCount) + ' orders';
             } else {
                 searchStats.style.display = 'none';
             }
+
+            updateTableView();
         }
 
         searchInput.addEventListener('input', updateUI);
 
+        // Table sorting
+        let sortCol = null;
+        let sortDir = 'asc';
+        document.querySelectorAll('.sortable-th').forEach(th => {
+            th.addEventListener('click', function() {
+                const col = this.dataset.sort;
+                if (sortCol === col) {
+                    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortCol = col;
+                    sortDir = 'asc';
+                }
+                // Update header icons
+                document.querySelectorAll('.sortable-th').forEach(h => {
+                    h.classList.remove('sort-asc', 'sort-desc');
+                });
+                this.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+
+                const tbody = document.querySelector('#allOrdersTable tbody');
+                const rows = Array.from(tbody.querySelectorAll('.table-view-row'));
+                rows.sort((a, b) => {
+                    let va = (a.dataset[col] || '').toLowerCase();
+                    let vb = (b.dataset[col] || '').toLowerCase();
+                    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+                    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+                    return 0;
+                });
+                rows.forEach(row => tbody.appendChild(row));
+            });
+        });
+
         // Initial update
         updateUI();
-
-        // Set last updated time
         document.getElementById('lastUpdated').innerText = new Date().toLocaleTimeString();
     });
 </script>

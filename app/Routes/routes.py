@@ -1503,7 +1503,7 @@ def sales_delivery_tracker(branch=None):
             'speed_mph': v.get('speed') or 0,
             'heading': v.get('heading') or 0,
             'time': v.get('located_at', ''),
-            'address': '',
+            'address': v.get('address') or '',
         }
         for v in gps_payload.get('vehicles', [])
     ]
