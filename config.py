@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from app.runtime_settings import env_bool, get_database_url, get_sqlalchemy_engine_options, is_fly_runtime, load_tracker_env
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -11,9 +12,20 @@ class Config(object):
     SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = get_sqlalchemy_engine_options(database_url)
-    
+
     # Required for Flask sessions and flash messages
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev_default_secret_key_12345')
+
+    # Sessions stay alive for 7 days after last activity
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)
+    # Prevent session cookie being sent over plain HTTP in production
+    SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE",
+                                     bool(os.environ.get("VERCEL")) or is_fly_runtime())
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+
+    # Authentication feature flag — set AUTH_REQUIRED=true to enforce login on all routes
+    AUTH_REQUIRED = env_bool("AUTH_REQUIRED", False)
 
     # Credit / RMA image uploads — stored on local disk; path relative to project root
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads/credits')

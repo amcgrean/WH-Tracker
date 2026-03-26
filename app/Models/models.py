@@ -103,6 +103,49 @@ class AuditEvent(db.Model):
     notes = db.Column(db.Text)
     occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+class AppUser(db.Model):
+    """Authenticated application user. One record per person who can log in."""
+    __tablename__ = 'app_users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # Login identity
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    # Rep / employee ID that ties this login to ERP data (e.g. "mschmit")
+    user_id = db.Column(db.String(64), nullable=True, index=True)
+    display_name = db.Column(db.String(128), nullable=True)
+    # Phase 2: phone for SMS OTP — stored E.164 format, e.g. "+16025551234"
+    phone = db.Column(db.String(32), nullable=True)
+    # JSON array of role strings e.g. ["sales", "ops"]
+    roles = db.Column(db.JSON, nullable=False, default=list)
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+
+    def has_role(self, *roles):
+        """Return True if user holds any of the requested roles or is admin."""
+        user_roles = set(self.roles or [])
+        return 'admin' in user_roles or bool(user_roles & set(roles))
+
+    def __repr__(self):
+        return f'<AppUser {self.email}>'
+
+
+class OTPCode(db.Model):
+    """Short-lived one-time passcode sent to a user's email (or phone in phase 2)."""
+    __tablename__ = 'otp_codes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    code = db.Column(db.String(8), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False, nullable=False, index=True)
+
     actor = db.relationship('Pickster', backref=db.backref('audit_events', lazy=True))
 
 

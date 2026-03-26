@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — Beisser Ops</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { background: var(--bg-primary, #f8f9fa); font-family: 'Inter', sans-serif; }
+        .auth-card {
+            max-width: 420px;
+            margin: 80px auto 0;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,69,38,0.10);
+            padding: 2.5rem;
+        }
+        .auth-brand { color: #004526; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.5px; }
+        .auth-brand span { font-weight: 400; }
+        .btn-beisser {
+            background: #004526;
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .btn-beisser:hover { background: #005c34; color: #fff; }
+        .form-control:focus { border-color: #004526; box-shadow: 0 0 0 0.2rem rgba(0,69,38,.15); }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="text-center mb-4">
+            <div class="auth-brand">BEISSER <span>OPS</span></div>
+            <p class="text-muted mt-1 mb-0" style="font-size:.85rem;">Sign in with your work email</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else ('info' if category == 'info' else 'success')) }} py-2" role="alert" style="font-size:.875rem;">
+                {{ message }}
+            </div>
+          {% endfor %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.login') }}" autocomplete="off">
+            <div class="form-group">
+                <label for="email" class="font-weight-semibold" style="font-size:.875rem;">Email address</label>
+                <input type="email" class="form-control" id="email" name="email"
+                       placeholder="you@beisserlumber.com"
+                       autofocus required autocomplete="email">
+            </div>
+            <button type="submit" class="btn btn-beisser btn-block mt-3">
+                <i class="fas fa-paper-plane mr-2"></i>Send sign-in code
+            </button>
+        </form>
+
+        <p class="text-center text-muted mt-4 mb-0" style="font-size:.78rem;">
+            A 6-digit code will be emailed to you. No password needed.
+        </p>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

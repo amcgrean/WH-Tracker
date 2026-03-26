@@ -152,9 +152,28 @@
                         </div>
                     </div>
 
+                    <!-- Logged-in user + logout -->
+                    {% if current_user %}
+                    <div class="d-flex align-items-center ml-auto mr-3">
+                        <span class="d-none d-md-inline text-muted small mr-2" style="font-size:.78rem;">
+                            <i class="fas fa-user-circle mr-1"></i>
+                            <strong>{{ current_user.display_name or current_user.email }}</strong>
+                            {% if current_user.user_id %}
+                            <span class="badge badge-light ml-1" style="font-size:.65rem;">{{ current_user.user_id }}</span>
+                            {% endif %}
+                        </span>
+                        <form method="POST" action="{{ url_for('auth.logout') }}" class="m-0">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem; padding:.2rem .6rem;" title="Sign out">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span class="d-none d-lg-inline ml-1">Sign out</span>
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+
                     <!-- Global Search (My Glassmorphism Version) -->
                     {% block search_nav %}
-                    <div class="search-wrapper ml-auto">
+                    <div class="search-wrapper {% if not current_user %}ml-auto{% endif %}">
                         <div class="input-group glass-panel rounded-pill p-1 shadow-sm" style="background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.05);">
                             <div class="input-group-prepend border-0">
                                 <span class="input-group-text bg-transparent border-0">

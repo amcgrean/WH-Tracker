@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enter Code — Beisser Ops</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { background: var(--bg-primary, #f8f9fa); font-family: 'Inter', sans-serif; }
+        .auth-card {
+            max-width: 420px;
+            margin: 80px auto 0;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,69,38,0.10);
+            padding: 2.5rem;
+        }
+        .auth-brand { color: #004526; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.5px; }
+        .auth-brand span { font-weight: 400; }
+        .btn-beisser { background: #004526; color: #fff; border: none; font-weight: 600; }
+        .btn-beisser:hover { background: #005c34; color: #fff; }
+        .otp-input {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 0.5em;
+            text-align: center;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: .5rem 1rem;
+            width: 100%;
+        }
+        .otp-input:focus {
+            border-color: #004526;
+            box-shadow: 0 0 0 0.2rem rgba(0,69,38,.15);
+            outline: none;
+        }
+        .email-badge {
+            background: #e8f5e9;
+            color: #004526;
+            border-radius: 20px;
+            padding: .2rem .75rem;
+            font-size: .8rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="text-center mb-4">
+            <div class="auth-brand">BEISSER <span>OPS</span></div>
+            <p class="text-muted mt-1 mb-0" style="font-size:.85rem;">Check your email for the code</p>
+        </div>
+
+        {% if email %}
+        <div class="text-center mb-3">
+            <span class="email-badge"><i class="fas fa-envelope mr-1"></i>{{ email }}</span>
+        </div>
+        {% endif %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else ('info' if category == 'info' else 'success')) }} py-2" role="alert" style="font-size:.875rem;">
+                {{ message }}
+            </div>
+          {% endfor %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.verify') }}" autocomplete="off">
+            <input type="hidden" name="email" value="{{ email }}">
+            <div class="form-group">
+                <label class="font-weight-semibold d-block text-center mb-2" style="font-size:.875rem;">
+                    Enter your 6-digit code
+                </label>
+                <input type="text" class="otp-input" name="code"
+                       inputmode="numeric" pattern="[0-9]{6}"
+                       maxlength="6" placeholder="——————"
+                       autofocus autocomplete="one-time-code" required>
+            </div>
+            <button type="submit" class="btn btn-beisser btn-block mt-2">
+                <i class="fas fa-sign-in-alt mr-2"></i>Sign in
+            </button>
+        </form>
+
+        <div class="text-center mt-3">
+            <form method="POST" action="{{ url_for('auth.resend') }}" class="d-inline">
+                <input type="hidden" name="email" value="{{ email }}">
+                <button type="submit" class="btn btn-link btn-sm text-muted p-0" style="font-size:.8rem;">
+                    <i class="fas fa-redo-alt mr-1"></i>Resend code
+                </button>
+            </form>
+            <span class="text-muted mx-2" style="font-size:.8rem;">·</span>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-link btn-sm text-muted p-0" style="font-size:.8rem;">
+                Use a different email
+            </a>
+        </div>
+
+        <p class="text-center text-muted mt-4 mb-0" style="font-size:.75rem;">
+            Code expires in 10 minutes.
+        </p>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Auto-submit when 6 digits entered
+        document.querySelector('.otp-input').addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 6);
+            if (this.value.length === 6) {
+                this.closest('form').submit();
+            }
+        });
+    </script>
+</body>
+</html>
