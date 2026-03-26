@@ -1006,21 +1006,48 @@ def board_orders():
     assignments = {
         a.so_number: a.picker_id
         for a in PickAssignment.query.filter(PickAssignment.so_number.in_(so_numbers)).all()
-    }
-    picker_ids = [picker_id for picker_id in assignments.values() if picker_id]
+    } if so_numbers else {}
+    picker_ids = [pid for pid in assignments.values() if pid]
     pickers = {
         p.id: p
         for p in Pickster.query.filter(
             Pickster.user_type == 'picker',
             Pickster.id.in_(picker_ids),
         ).all()
-    }
-    
+    } if picker_ids else {}
+
     for item in order_summary:
         picker_id = assignments.get(item['so_number'])
         item['assigned_picker'] = pickers.get(picker_id) if picker_id else None
-        
+
     return render_template('warehouse/order_board.html', orders=order_summary)
+
+
+@main.route('/api/board/orders')
+def api_board_orders():
+    """JSON endpoint for the order board — lightweight alternative to the full HTML render."""
+    erp = ERPService()
+    order_summary = erp.get_open_order_board_summary()
+
+    so_numbers = [item['so_number'] for item in order_summary]
+    assignments = {
+        a.so_number: a.picker_id
+        for a in PickAssignment.query.filter(PickAssignment.so_number.in_(so_numbers)).all()
+    } if so_numbers else {}
+    picker_ids = [pid for pid in assignments.values() if pid]
+    picker_map = {
+        p.id: p.name
+        for p in Pickster.query.filter(
+            Pickster.user_type == 'picker',
+            Pickster.id.in_(picker_ids),
+        ).all()
+    } if picker_ids else {}
+
+    for item in order_summary:
+        picker_id = assignments.get(item['so_number'])
+        item['assigned_picker'] = picker_map.get(picker_id) if picker_id else None
+
+    return jsonify(order_summary)
 
 @main.route('/warehouse/board/tv/<handling_code>')
 def board_tv(handling_code):
