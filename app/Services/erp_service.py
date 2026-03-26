@@ -1058,9 +1058,9 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                    ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
-                  AND soh.so_id = :so_number
+                  AND CAST(soh.so_id AS TEXT) = :so_number
                 ORDER BY sh.ship_date DESC NULLS LAST, sh.invoice_date DESC NULLS LAST
                 LIMIT 1
                 """,
@@ -1996,7 +1996,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                    ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE {' AND '.join(clauses)}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(COALESCE(sh.invoice_date, soh.expect_date)) DESC NULLS LAST, soh.so_id DESC
