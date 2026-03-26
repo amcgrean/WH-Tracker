@@ -116,6 +116,81 @@ flyctl ssh console --app <fly-app-name> -C "cd /app && flask db upgrade"
 
 If this command style is inconvenient, use an equivalent one-off Fly machine/process pattern, but keep migrations single-run and explicit.
 
+## Migration recovery — resolving the three-head conflict (M2 fix)
+
+> **Context:** Prior to the M2 fix, `flask db upgrade` failed because:
+> - Three Alembic heads existed (`a7b8c9d0e1f2`, `a2b3c4d5e6f7`, `a8f3c2d1e9b7`).
+> - `a8f3c2d1e9b7` (GPS coords) tried to add columns that already existed in
+>   Supabase, causing a duplicate-column error.
+>
+> The M2 fix made `a8f3c2d1e9b7` idempotent and added merge migration
+> `c1d2e3f4a5b6` to converge all three heads into one.
+
+### Step 1 — Redeploy first
+
+Push/deploy the branch that contains the M2 changes so the updated migration
+files are present inside the running container before you touch the DB.
+
+```bash
+flyctl deploy --app <fly-app-name> --remote-only
+```
+
+Wait for the deploy to finish and the health check to pass:
+
+```bash
+flyctl status --app <fly-app-name>
+# machines should show "started"; /healthz should return 200
+```
+
+### Step 2 — Run migrations (single controlled execution)
+
+SSH into the running machine and run upgrade:
+
+```bash
+flyctl ssh console --app <fly-app-name> -C "cd /app && flask db upgrade"
+```
+
+**What this applies, in order:**
+
+| Revision | Description | Schema effect on Supabase |
+|----------|-------------|--------------------------|
+| `a8f3c2d1e9b7` | GPS coords (idempotent) | No-op — columns already exist; just records the revision |
+| `a2b3c4d5e6f7` | `wo_assignments` table | Creates table + indexes (real DDL) |
+| `c1d2e3f4a5b6` | Merge (empty) | No DDL; writes final head row to `alembic_version` |
+
+No `flask db stamp` step is needed. The idempotent GPS migration handles its own
+reconciliation by design.
+
+### Step 3 — Verify clean state
+
+```bash
+flyctl ssh console --app <fly-app-name> -C "cd /app && flask db heads"
+# Expected: exactly one head
+#   c1d2e3f4a5b6 (head)
+
+flyctl ssh console --app <fly-app-name> -C "cd /app && flask db current"
+# Expected: c1d2e3f4a5b6 (head)
+```
+
+### What success looks like
+
+- `flask db heads` returns **exactly one line**: `c1d2e3f4a5b6 (head)`
+- `flask db current` returns `c1d2e3f4a5b6 (head)`
+- `flask db upgrade` (if re-run) prints `INFO  [alembic.runtime.migration] Running upgrade ...` for each unapplied revision then exits with code 0; re-running it a second time is a no-op
+- App health endpoints respond normally: `/healthz` and `/dispatch/api/health`
+
+### If `flask db upgrade` still fails
+
+Do not retry blindly. Check the error:
+
+- **"column already exists" on a column other than the GPS ones** — a different migration has the same problem; investigate before proceeding.
+- **"relation wo_assignments already exists"** — the `wo_assignments` table was created outside of migrations; stamp it and rerun:
+  ```bash
+  flask db stamp a2b3c4d5e6f7
+  flask db upgrade
+  ```
+- **Any other error** — stop, capture the full traceback, and investigate. Do not use `flask db stamp heads` as a blanket fix without understanding what was skipped.
+
 ## Health verification after launch
 ```bash
 flyctl status --app <fly-app-name>
