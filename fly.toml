@@ -1,6 +1,6 @@
 # Fly.io app scaffold for WH-Tracker (Phase 2)
 # Replace app/region values before first deploy.
-app = "wh-tracker-fly-placeholder"
+app = "wh-tracker-fly"
 primary_region = "ord"
 
 [build]
