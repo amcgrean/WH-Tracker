@@ -420,6 +420,8 @@ def api_pickers_picks():
             start_time_localized = localize_to_cst(pick.start_time)
             data.append({
                 'barcode_number': pick.barcode_number,
+                'shipment_num': pick.shipment_num,
+                'order_url': url_for('main.pick_detail', so_number=pick.barcode_number),
                 'start_time': start_time_localized.strftime('%Y-%m-%d %I:%M %p %Z'),
                 'elapsed_time': format_elapsed_time(start_time_localized),
                 'picker_name': picker.name,
@@ -485,10 +487,12 @@ def api_picks():
 
         picks_data = [{
             'barcode_number': pick.barcode_number,
-            'start_time': localize_to_cst(pick.start_time).strftime('%Y-%m-%d %I:%M %p %Z'),  # Localizing and formatting time
+            'shipment_num': pick.shipment_num,
+            'order_url': url_for('main.pick_detail', so_number=pick.barcode_number),
+            'start_time': localize_to_cst(pick.start_time).strftime('%Y-%m-%d %I:%M %p %Z'),
             'elapsed_time': calculate_business_elapsed_time(pick.start_time),
             'picker_name': picker.name,
-            'pick_type': get_pick_type_name(pick.pick_type_id)  # Using function to get pick type name
+            'pick_type': get_pick_type_name(pick.pick_type_id)
         } for pick in open_picks]
 
         data.extend(picks_data)
@@ -653,6 +657,8 @@ def picker_details(picker_id):
 
         updated_picks.append({
             'barcode_number': pick.barcode_number,
+            'shipment_num': pick.shipment_num,
+            'order_url': url_for('main.pick_detail', so_number=pick.barcode_number),
             'customer_name': erp_info.get('customer_name', 'Unknown'),
             'reference': erp_info.get('reference', ''),
             'start_time': start_time_cst.strftime('%Y-%m-%d %I:%M %p %Z'),

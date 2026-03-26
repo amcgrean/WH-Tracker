@@ -403,6 +403,37 @@ class ERPService:
                 states[so] = 'Pick Printed'
         return states
 
+    def _get_pick_states_by_shipment(self, so_numbers=None):
+        """
+        Like _get_local_pick_states but keys on (so_number, shipment_num) so that
+        individual shipments of the same SO can have independent pick states.
+        Returns a dict mapping (so_number, shipment_num) -> state.
+        Picks with no shipment_num are keyed as (so_number, None).
+        """
+        from app.Models.models import Pick
+        from app.extensions import db
+
+        query = db.session.query(
+            Pick.barcode_number,
+            Pick.shipment_num,
+            func.bool_or(Pick.start_time.isnot(None) & Pick.completed_time.is_(None)).label('has_active'),
+            func.bool_or(Pick.completed_time.isnot(None)).label('has_completed'),
+        )
+        if so_numbers:
+            query = query.filter(Pick.barcode_number.in_(so_numbers))
+        rows = query.group_by(Pick.barcode_number, Pick.shipment_num).all()
+
+        states = {}
+        for so, shipment, has_active, has_completed in rows:
+            key = (str(so), str(shipment) if shipment else None)
+            if has_active:
+                states[key] = 'Picking'
+            elif has_completed:
+                states[key] = 'Picking Complete'
+            else:
+                states[key] = 'Pick Printed'
+        return states
+
     def _get_latest_audit_event_map(self, event_type, so_numbers=None):
         """Return the latest audit timestamp for each SO for a given event type."""
         from app.Models.models import AuditEvent
