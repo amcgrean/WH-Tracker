@@ -14,7 +14,7 @@
     {% block head %}{% endblock %}
 
     <style>
-        /* Sidebar/Shell specific overrides - mostly keeping style.css as source of truth */
+        /* Sidebar/Shell specific overrides */
         .search-wrapper { position: relative; }
         #searchResultsContainer {
             position: absolute;
@@ -32,11 +32,30 @@
                 border-right: none;
             }
         }
-        /* Smaller nav link cards */
-        .nav-link-card { padding: 0.5rem 0.75rem !important; }
-        .nav-link-card__icon { width: 28px !important; height: 28px !important; font-size: 0.75rem; }
-        .nav-link-card__label { font-size: 0.82rem !important; }
-        .nav-link-card small { font-size: 0.7rem !important; }
+        /* Nav link cards — compact */
+        .nav-link-card { padding: 0.35rem 0.6rem !important; margin-bottom: 1px !important; }
+        .nav-link-card__icon { width: 24px !important; height: 24px !important; font-size: 0.7rem; flex-shrink: 0; }
+        .nav-link-card__label { font-size: 0.8rem !important; line-height: 1.2; }
+        .nav-link-card small { font-size: 0.67rem !important; line-height: 1.2; }
+        /* Section toggle button */
+        .nav-section__toggle {
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: color 0.15s;
+            border-radius: 6px;
+        }
+        .nav-section__toggle:hover { color: var(--beisser-green); background: rgba(0,69,38,0.04); }
+        .nav-section__toggle:focus { outline: none; box-shadow: none; }
+        /* Chevron rotation */
+        .nav-section__chevron { transition: transform 0.2s ease; font-size: 0.6rem; opacity: 0.5; }
+        .nav-section__toggle[aria-expanded="true"] .nav-section__chevron { transform: rotate(180deg); }
+        /* Coming-soon badge */
+        .nav-coming-soon {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            padding: 0.3rem 0.6rem;
+            font-style: italic;
+        }
         /* Search result items */
         .search-result-item { transition: background 0.15s; }
         .search-result-item:hover { background: rgba(0,69,38,0.05); }
@@ -79,22 +98,37 @@
 
             <div class="app-sidebar__content">
                 {% for section in nav_sections %}
-                <section class="nav-section mb-4">
-                    <div class="nav-section__header px-4 py-2 small font-weight-bold text-uppercase text-muted" style="letter-spacing: 1px;">
-                        <i class="{{ section['icon'] }} mr-2 opacity-50"></i>{{ section['label'] }}
-                    </div>
-                    <div class="nav-section__items px-2">
+                <section class="nav-section mb-1" data-section-id="{{ section['id'] }}">
+                    <button class="nav-section__toggle w-100 d-flex align-items-center justify-content-between px-3 py-1 border-0 bg-transparent text-left"
+                            data-toggle="collapse"
+                            data-target="#section-items-{{ section['id'] }}"
+                            aria-expanded="{{ 'true' if section['has_active_item'] else 'false' }}"
+                            aria-controls="section-items-{{ section['id'] }}">
+                        <div class="d-flex align-items-center">
+                            <i class="{{ section['icon'] }} mr-2" style="font-size:0.7rem;opacity:0.55;width:14px;text-align:center;"></i>
+                            <span class="font-weight-bold text-uppercase" style="font-size:0.68rem;letter-spacing:0.08em;">{{ section['label'] }}</span>
+                        </div>
+                        <i class="fas fa-chevron-down nav-section__chevron"></i>
+                    </button>
+                    <div class="nav-section__items px-1 collapse {% if section['has_active_item'] %}show{% endif %}"
+                         id="section-items-{{ section['id'] }}">
+                        {% if section.get('coming_soon') %}
+                        <div class="nav-coming-soon px-2 py-1">
+                            <i class="fas fa-clock mr-1" style="font-size:0.65rem;"></i>Coming soon
+                        </div>
+                        {% else %}
                         {% for item in section['items'] %}
-                        <a href="{{ item['href'] }}" class="nav-link-card d-flex align-items-center mb-1 rounded-lg transition-all {% if item['is_active'] %} active {% endif %}">
-                            <div class="nav-link-card__icon mr-3 bg-white shadow-sm rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                        <a href="{{ item['href'] }}" class="nav-link-card d-flex align-items-center rounded transition-all{% if item['is_active'] %} active{% endif %}">
+                            <div class="nav-link-card__icon mr-2 bg-white shadow-sm rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
                                 <i class="{{ item['icon'] }}"></i>
                             </div>
-                            <div class="nav-link-card__content">
-                                <div class="nav-link-card__label font-weight-bold" style="font-size: 0.9rem;">{{ item['label'] }}</div>
-                                <small class="text-muted d-block" style="font-size: 0.75rem;">{{ item['description'] }}</small>
+                            <div class="nav-link-card__content min-width-0">
+                                <div class="nav-link-card__label font-weight-semibold">{{ item['label'] }}</div>
+                                <small class="text-muted d-block text-truncate">{{ item['description'] }}</small>
                             </div>
                         </a>
                         {% endfor %}
+                        {% endif %}
                     </div>
                 </section>
                 {% endfor %}
@@ -280,11 +314,35 @@
                 if (e.key === 'Escape') { $input.val('').trigger('input'); $results.hide(); }
             });
 
-            // Sidebar nav filter
+            // Section collapse state persistence
+            $('.nav-section[data-section-id]').each(function () {
+                const sectionId = $(this).data('section-id');
+                const stored = localStorage.getItem('navSection_' + sectionId);
+                const $items = $(this).find('.nav-section__items');
+                const $btn = $(this).find('.nav-section__toggle');
+                // Only restore from storage if page has no active item in this section
+                if (stored !== null && !$items.hasClass('show')) {
+                    if (stored === '1') {
+                        $items.addClass('show');
+                        $btn.attr('aria-expanded', 'true');
+                    }
+                }
+            });
+
+            $(document).on('show.bs.collapse hide.bs.collapse', '.nav-section__items', function (e) {
+                const $section = $(this).closest('.nav-section[data-section-id]');
+                if ($section.length) {
+                    const sectionId = $section.data('section-id');
+                    localStorage.setItem('navSection_' + sectionId, e.type === 'show' ? '1' : '0');
+                }
+            });
+
+            // Sidebar nav filter — expands matching sections automatically
             const $navFilter = $('#sidebarNavFilter');
             $navFilter.on('input', function () {
                 const term = $(this).val().toLowerCase().trim();
                 if (!term) {
+                    // Restore all sections visible, but preserve collapse state
                     $('.nav-section').show();
                     $('.nav-link-card').show();
                     return;
@@ -299,6 +357,11 @@
                         if (match) anyVisible = true;
                     });
                     $(this).toggle(anyVisible);
+                    // Auto-expand sections that have matches
+                    if (anyVisible) {
+                        $(this).find('.nav-section__items').addClass('show');
+                        $(this).find('.nav-section__toggle').attr('aria-expanded', 'true');
+                    }
                 });
             });
         });

@@ -29,7 +29,7 @@
     --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     
     /* Sidebar Layout */
-    --sidebar-width: 320px;
+    --sidebar-width: 260px;
 }
 
 body {
@@ -79,12 +79,12 @@ h1, h2, h3, h4, .navbar-brand {
 }
 
 .app-sidebar__header {
-    padding: 2rem 1.5rem;
+    padding: 1rem 1.25rem;
     border-bottom: 1px solid rgba(0,0,0,0.05);
 }
 
 .app-sidebar__content {
-    padding: 1.5rem 1rem;
+    padding: 0.5rem 0.25rem;
 }
 
 .nav-link-card {
@@ -308,7 +308,7 @@ h1, h2, h3, h4, .navbar-brand {
         top: 0;
         bottom: 0;
         transform: translateX(-100%);
-        width: 280px;
+        width: 260px;
     }
 
     .sidebar-open .app-sidebar {
