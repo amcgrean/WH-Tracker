@@ -11,7 +11,8 @@ pyodbc
 reportlab
 qrcode
 pillow
-# Auth (OTP email delivery — uses stdlib smtplib, no extra dep needed)
+# Auth — OTP email delivery
+resend              # Resend HTTP API (preferred for prod — set RESEND_API_KEY)
 # Phase 2 SMS: add twilio here when ready
 msal
 pillow-heif

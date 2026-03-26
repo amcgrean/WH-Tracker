@@ -121,36 +121,8 @@ def verify_otp(email: str, code: str) -> tuple[bool, str]:
 # Email delivery
 # ---------------------------------------------------------------------------
 
-def send_otp_email(email: str, code: str) -> tuple[bool, str]:
-    """
-    Send the OTP code to *email*.
-
-    Returns (success: bool, message: str).
-    In dev mode (AUTH_OTP_CONSOLE=true) prints to console instead.
-    """
-    # Dev mode shortcut
-    if os.environ.get("AUTH_OTP_CONSOLE", "").lower() in ("1", "true", "yes"):
-        logger.info("DEV OTP for %s: %s", email, code)
-        print(f"\n{'='*40}\nOTP for {email}: {code}\n{'='*40}\n", flush=True)
-        return True, "console"
-
-    smtp_server = _cfg("OTP_SMTP_SERVER", _cfg("SMTP_SERVER", "smtp.office365.com"))
-    smtp_port = int(_cfg("OTP_SMTP_PORT", _cfg("SMTP_PORT", "587")))
-    smtp_user = _cfg("OTP_EMAIL_FROM", _cfg("EMAIL_ADDRESS"))
-    smtp_pass = _cfg("OTP_EMAIL_PASSWORD", _cfg("EMAIL_PASSWORD"))
-    from_addr = smtp_user or _cfg("OTP_EMAIL_FROM")
-
-    if not smtp_user or not smtp_pass:
-        logger.warning(
-            "SMTP credentials not configured (OTP_EMAIL_FROM / OTP_EMAIL_PASSWORD). "
-            "Set AUTH_OTP_CONSOLE=true for dev mode."
-        )
-        return False, "Email not configured."
-
-    app_name = _cfg("OTP_APP_NAME", "Beisser Ops")
-    subject = f"Your {app_name} sign-in code"
-
-    html_body = f"""
+def _build_html(code: str, app_name: str) -> str:
+    return f"""
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
         <h2 style="color: #004526;">{app_name}</h2>
         <p>Use the code below to sign in. It expires in {OTP_EXPIRY_MINUTES} minutes.</p>
@@ -165,22 +137,94 @@ def send_otp_email(email: str, code: str) -> tuple[bool, str]:
     </div>
     """
 
+
+def _send_via_resend(to_email: str, subject: str, html: str) -> tuple[bool, str]:
+    """Send using the Resend HTTP API (RESEND_API_KEY must be set)."""
+    try:
+        import resend as resend_sdk
+    except ImportError:
+        return False, "resend package not installed (pip install resend)."
+
+    resend_sdk.api_key = _cfg("RESEND_API_KEY")
+    from_addr = _cfg("OTP_EMAIL_FROM", _cfg("EMAIL_ADDRESS", "noreply@beisserlumber.com"))
+    app_name = _cfg("OTP_APP_NAME", "Beisser Ops")
+
+    try:
+        resend_sdk.Emails.send({
+            "from": f"{app_name} <{from_addr}>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+        })
+        return True, "sent-resend"
+    except Exception as exc:
+        logger.error("Resend send failed: %s", exc)
+        return False, f"Resend error: {exc}"
+
+
+def _send_via_smtp(to_email: str, subject: str, html: str) -> tuple[bool, str]:
+    """Send using SMTP (Office 365 default, or any STARTTLS provider)."""
+    # Resend SMTP relay uses username="resend", not the from address.
+    # Generic SMTP uses OTP_SMTP_USER (defaults to from address for O365/Gmail).
+    from_addr  = _cfg("OTP_EMAIL_FROM", _cfg("EMAIL_ADDRESS"))
+    smtp_user  = _cfg("OTP_SMTP_USER", from_addr)   # override to "resend" for Resend SMTP relay
+    smtp_pass  = _cfg("OTP_EMAIL_PASSWORD", _cfg("EMAIL_PASSWORD"))
+    smtp_server = _cfg("OTP_SMTP_SERVER", "smtp.office365.com")
+    smtp_port  = int(_cfg("OTP_SMTP_PORT", "587"))
+
+    if not smtp_user or not smtp_pass:
+        logger.warning(
+            "SMTP credentials not configured. "
+            "Set RESEND_API_KEY for Resend or OTP_EMAIL_FROM/OTP_EMAIL_PASSWORD for SMTP. "
+            "Use AUTH_OTP_CONSOLE=true for dev."
+        )
+        return False, "Email not configured."
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = from_addr
-    msg["To"] = email
-    msg.attach(MIMEText(html_body, "html"))
+    msg["To"] = to_email
+    msg.attach(MIMEText(html, "html"))
 
     try:
         with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
             server.ehlo()
             server.starttls()
             server.login(smtp_user, smtp_pass)
-            server.sendmail(from_addr, [email], msg.as_string())
-        return True, "sent"
+            server.sendmail(from_addr, [to_email], msg.as_string())
+        return True, "sent-smtp"
     except smtplib.SMTPAuthenticationError:
-        logger.error("OTP email: SMTP auth failed for user %s", smtp_user)
+        logger.error("OTP SMTP auth failed for user %s", smtp_user)
         return False, "SMTP authentication failed."
     except Exception as exc:
-        logger.error("OTP email send failed: %s", exc)
+        logger.error("OTP SMTP send failed: %s", exc)
         return False, f"Could not send email: {exc}"
+
+
+def send_otp_email(email: str, code: str) -> tuple[bool, str]:
+    """
+    Send the OTP code to *email*.
+
+    Delivery priority:
+      1. AUTH_OTP_CONSOLE=true  → print to console (dev only)
+      2. RESEND_API_KEY set     → Resend HTTP API (recommended for prod)
+      3. OTP_EMAIL_PASSWORD set → plain SMTP (Office 365, Gmail, etc.)
+
+    Returns (success: bool, message: str).
+    """
+    app_name = _cfg("OTP_APP_NAME", "Beisser Ops")
+    subject  = f"Your {app_name} sign-in code"
+    html     = _build_html(code, app_name)
+
+    # 1. Dev console shortcut
+    if os.environ.get("AUTH_OTP_CONSOLE", "").lower() in ("1", "true", "yes"):
+        logger.info("DEV OTP for %s: %s", email, code)
+        print(f"\n{'='*40}\nOTP for {email}: {code}\n{'='*40}\n", flush=True)
+        return True, "console"
+
+    # 2. Resend API
+    if _cfg("RESEND_API_KEY"):
+        return _send_via_resend(email, subject, html)
+
+    # 3. SMTP fallback
+    return _send_via_smtp(email, subject, html)
