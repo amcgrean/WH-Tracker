@@ -214,3 +214,18 @@ This will:
 Result: one head, clean state.
 
 *PHASE M2 completed: 2026-03-26*
+
+---
+
+## PHASE M3 — Fly Recovery Commands (2026-03-26)
+
+See `docs/fly-deploy.md` → **"Migration recovery — resolving the three-head conflict"**
+for the full step-by-step runbook.
+
+### Summary
+
+1. **Deploy first** — get the M2 migration files into the running container.
+2. **Run `flask db upgrade`** — one command, no stamp needed.
+3. **Verify** with `flask db heads` (expect one line: `c1d2e3f4a5b6 (head)`) and `flask db current`.
+
+*PHASE M3 completed: 2026-03-26*
