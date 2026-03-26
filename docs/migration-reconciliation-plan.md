@@ -157,4 +157,60 @@ then create a new merge migration for all three heads.
 
 ---
 
-*Document created: PHASE M1 — 2026-03-26*
+---
+
+## PHASE M2 — Implemented Fix (2026-03-26)
+
+### Changes made
+
+#### 1. `migrations/versions/a8f3c2d1e9b7_add_gps_coords_to_cust_shipto.py` — made idempotent
+
+The four `op.add_column` calls and `op.create_index` call were replaced with raw
+PostgreSQL SQL using `ADD COLUMN IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`.
+
+The `downgrade()` was left unchanged — it uses standard `op.drop_column` /
+`op.drop_index`, which is correct for a rollback (if you're rolling back, the
+columns should be removed).
+
+**Why this is safe:** This migration has never been successfully recorded in
+`alembic_version` on any database. Editing a never-applied migration is equivalent
+to correcting it before first use. Fresh databases get the columns added normally;
+databases that already have the columns (including Supabase) skip the add silently.
+
+#### 2. `migrations/versions/c1d2e3f4a5b6_merge_three_heads.py` — new merge migration
+
+```
+down_revision = ('a7b8c9d0e1f2', 'a2b3c4d5e6f7', 'a8f3c2d1e9b7')
+```
+
+Empty `upgrade()` and `downgrade()`. This migration's only purpose is to give
+Alembic a single head so `flask db upgrade` works without additional flags.
+
+### Resulting graph (after M2)
+
+```
+... → b4c5d6e7f8a9 (existing merge)
+          ├──► e1f2a3b4c5d6 → f9a1b2c3d4e5 → a7b8c9d0e1f2 ─────┐
+          └──► a2b3c4d5e6f7 ────────────────────────────────────┤
+                                                                  ├──► c1d2e3f4a5b6  (new HEAD, single)
+f3a8b9c4d5e6 → a8f3c2d1e9b7 (idempotent GPS) ───────────────────┘
+```
+
+### What existing DBs need after redeploy
+
+See PHASE M3 section (to be added) for exact Fly recovery commands.
+
+Short answer for a DB that has the GPS columns but has never had `a8f3c2d1e9b7` stamped:
+
+```bash
+flask db upgrade
+```
+
+This will:
+1. Apply `a8f3c2d1e9b7` (idempotent — no-op on columns that already exist)
+2. Apply `a2b3c4d5e6f7` (creates `wo_assignments` table — real schema change)
+3. Apply `c1d2e3f4a5b6` (empty merge migration — just writes alembic_version row)
+
+Result: one head, clean state.
+
+*PHASE M2 completed: 2026-03-26*
