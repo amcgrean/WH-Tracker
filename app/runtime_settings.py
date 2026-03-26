@@ -34,6 +34,13 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+def is_fly_runtime() -> bool:
+    return any(
+        (os.environ.get(name) or "").strip()
+        for name in ("FLY_APP_NAME", "FLY_REGION", "FLY_ALLOC_ID")
+    )
+
+
 def normalize_database_url(value: str | None) -> str | None:
     if value and value.startswith("postgres://"):
         return value.replace("postgres://", "postgresql://", 1)

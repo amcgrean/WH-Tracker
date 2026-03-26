@@ -83,7 +83,11 @@
                             {% if picker.status == 'active' %}
                             <div class="status-pill status-active mb-1">
                                 <span class="mr-2" style="width: 6px; height: 6px; background: currentColor; border-radius: 50%;"></span>
+                                {% if picker.task_type == 'Pick' %}
+                                <a href="{{ url_for('main.pick_detail', so_number=picker.current_task) }}" class="text-primary font-weight-bold">Picking #{{ picker.current_task }}</a>
+                                {% else %}
                                 Picking #{{ picker.current_task }}
+                                {% endif %}
                             </div>
                             <div class="small font-weight-bold text-muted">
                                 <i class="far fa-clock mr-1"></i> {{ picker.active_duration }}m elapsed
@@ -92,7 +96,13 @@
                             <div class="status-pill status-assigned mb-1">
                                 <i class="fas fa-hourglass-start mr-2 small"></i> Assigned
                             </div>
-                            <div class="small text-muted">Task: {{ picker.task_type }}</div>
+                            <div class="small text-muted">
+                                {% if picker.task_type == 'Pick' %}
+                                Task: <a href="{{ url_for('main.pick_detail', so_number=picker.current_task) }}" class="text-primary font-weight-bold">SO #{{ picker.current_task }}</a>
+                                {% else %}
+                                Task: {{ picker.task_type }}
+                                {% endif %}
+                            </div>
                             {% else %}
                             <div class="status-pill status-idle mb-1">
                                 <i class="fas fa-moon mr-2 small"></i> Idle

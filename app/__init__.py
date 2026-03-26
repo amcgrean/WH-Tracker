@@ -3,12 +3,14 @@ import os
 from flask import Flask
 from flask_migrate import upgrade
 from .extensions import db, migrate
-from .Models.models import CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, Pick, PickAssignment, PickTypes, Pickster, WorkOrder, WorkOrderAssignment  # noqa: F401
+from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, OTPCode, Pick, PickAssignment, PickTypes, Pickster, WorkOrder, WorkOrderAssignment  # noqa: F401
 from .Routes.routes import main as main_blueprint
 from .Routes.dispatch_routes import dispatch as dispatch_blueprint
 from .Routes.sales_routes import sales as sales_blueprint
-from .runtime_settings import env_bool, get_database_url, is_pooled_postgres_url
+from .Routes.auth_routes import auth as auth_blueprint
+from .runtime_settings import env_bool, get_database_url, is_fly_runtime, is_pooled_postgres_url
 from .navigation import build_navigation, get_current_user_roles
+from .auth import get_current_user
 
 
 def _resolve_branched_alembic_state(app):
@@ -105,6 +107,7 @@ def create_app():
     app.register_blueprint(main_blueprint)
     app.register_blueprint(dispatch_blueprint)
     app.register_blueprint(sales_blueprint)
+    app.register_blueprint(auth_blueprint)
 
     @app.context_processor
     def inject_navigation():
@@ -112,18 +115,51 @@ def create_app():
         return {
             "nav_sections": build_navigation(current_roles),
             "current_user_roles": current_roles,
+            "current_user": get_current_user(),
         }
+
+    @app.before_request
+    def make_session_permanent():
+        from flask import session
+        session.permanent = True
+
+    @app.before_request
+    def enforce_auth():
+        """
+        When AUTH_REQUIRED=true every route except the auth blueprint and static
+        files redirects unauthenticated visitors to the login page.
+        """
+        if not app.config.get("AUTH_REQUIRED"):
+            return
+        from flask import redirect, request, session, url_for
+        public_endpoints = {"auth.login", "auth.verify", "auth.resend", "static"}
+        if request.endpoint in public_endpoints:
+            return
+        if not session.get("user_id"):
+            return redirect(url_for("auth.login", next=request.url))
+
+    fly_runtime = is_fly_runtime()
 
     if app.config.get("VERCEL") or os.environ.get("VERCEL"):
         primary_url = get_database_url()
         if primary_url and not is_pooled_postgres_url(primary_url):
             app.logger.warning("DATABASE_URL does not appear to be a pooled Postgres endpoint; burst traffic may exhaust connections.")
 
-    run_migrations_on_start = env_bool("RUN_MIGRATIONS_ON_START", not os.environ.get("VERCEL"))
+    default_run_migrations = not (os.environ.get("VERCEL") or fly_runtime)
+    run_migrations_on_start = env_bool("RUN_MIGRATIONS_ON_START", default_run_migrations)
     if run_migrations_on_start:
         with app.app_context():
             _run_migrations(app)
     else:
         app.logger.info("Skipping runtime migrations on startup.")
+
+    upload_folder = app.config.get("UPLOAD_FOLDER")
+    if upload_folder:
+        os.makedirs(upload_folder, exist_ok=True)
+        if fly_runtime:
+            app.logger.warning(
+                "UPLOAD_FOLDER uses local disk storage (%s); files are not durable across Fly machine replacement unless a volume is mounted.",
+                upload_folder,
+            )
 
     return app

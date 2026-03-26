@@ -16,11 +16,17 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('erp_mirror_cust_shipto', sa.Column('lat', sa.Numeric(precision=9, scale=6), nullable=True))
-    op.add_column('erp_mirror_cust_shipto', sa.Column('lon', sa.Numeric(precision=9, scale=6), nullable=True))
-    op.add_column('erp_mirror_cust_shipto', sa.Column('geocoded_at', sa.DateTime(), nullable=True))
-    op.add_column('erp_mirror_cust_shipto', sa.Column('geocode_source', sa.String(length=64), nullable=True))
-    op.create_index('ix_erp_mirror_cust_shipto_geocoded', 'erp_mirror_cust_shipto', ['geocoded_at'])
+    # Idempotent form: these columns already exist in databases where a prior partial
+    # migration attempt added them before Alembic could record the revision.
+    # IF NOT EXISTS ensures this migration succeeds whether or not the columns are present.
+    op.execute("ALTER TABLE erp_mirror_cust_shipto ADD COLUMN IF NOT EXISTS lat NUMERIC(9,6)")
+    op.execute("ALTER TABLE erp_mirror_cust_shipto ADD COLUMN IF NOT EXISTS lon NUMERIC(9,6)")
+    op.execute("ALTER TABLE erp_mirror_cust_shipto ADD COLUMN IF NOT EXISTS geocoded_at TIMESTAMP")
+    op.execute("ALTER TABLE erp_mirror_cust_shipto ADD COLUMN IF NOT EXISTS geocode_source VARCHAR(64)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_erp_mirror_cust_shipto_geocoded "
+        "ON erp_mirror_cust_shipto (geocoded_at)"
+    )
 
 
 def downgrade():

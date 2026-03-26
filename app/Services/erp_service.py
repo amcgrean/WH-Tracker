@@ -403,6 +403,37 @@ class ERPService:
                 states[so] = 'Pick Printed'
         return states
 
+    def _get_pick_states_by_shipment(self, so_numbers=None):
+        """
+        Like _get_local_pick_states but keys on (so_number, shipment_num) so that
+        individual shipments of the same SO can have independent pick states.
+        Returns a dict mapping (so_number, shipment_num) -> state.
+        Picks with no shipment_num are keyed as (so_number, None).
+        """
+        from app.Models.models import Pick
+        from app.extensions import db
+
+        query = db.session.query(
+            Pick.barcode_number,
+            Pick.shipment_num,
+            func.bool_or(Pick.start_time.isnot(None) & Pick.completed_time.is_(None)).label('has_active'),
+            func.bool_or(Pick.completed_time.isnot(None)).label('has_completed'),
+        )
+        if so_numbers:
+            query = query.filter(Pick.barcode_number.in_(so_numbers))
+        rows = query.group_by(Pick.barcode_number, Pick.shipment_num).all()
+
+        states = {}
+        for so, shipment, has_active, has_completed in rows:
+            key = (str(so), str(shipment) if shipment else None)
+            if has_active:
+                states[key] = 'Picking'
+            elif has_completed:
+                states[key] = 'Picking Complete'
+            else:
+                states[key] = 'Pick Printed'
+        return states
+
     def _get_latest_audit_event_map(self, event_type, so_numbers=None):
         """Return the latest audit timestamp for each SO for a given event type."""
         from app.Models.models import AuditEvent
@@ -816,47 +847,29 @@ class ERPService:
             return cached
 
         if self.central_db_mode:
-            backorder_expr = self._mirror_so_detail_backorder_expr()
-            rows = self._mirror_query(
-                f"""
-                SELECT
-                    soh.so_id,
-                    c.cust_name,
-                    cs.address_1,
-                    cs.city,
-                    soh.reference,
-                    COUNT(sod.sequence) AS line_count,
-                    ARRAY_REMOVE(ARRAY_AGG(DISTINCT ib.handling_code), NULL) AS handling_codes
-                FROM erp_mirror_so_detail sod
-                JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id
-                   AND soh.so_id = sod.so_id
-                LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id
-                   AND ib.item_ptr = sod.item_ptr
-                LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND c.cust_key = soh.cust_key
-                LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND cs.cust_key = soh.cust_key
-                   AND cs.seq_num = soh.shipto_seq_num
-                WHERE soh.is_deleted = false
-                  AND soh.so_status = 'K'
-                  AND COALESCE({backorder_expr}, 0) = 0
-                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference
-                ORDER BY soh.so_id
-                """
-            )
+            # Reuse the vw_board_open_orders view and aggregate to SO level
+            per_code = self.get_open_so_summary()
+            so_map = {}
+            for item in per_code:
+                so_num = item['so_number']
+                if so_num not in so_map:
+                    so_map[so_num] = {
+                        'so_number': so_num,
+                        'customer_name': item['customer_name'],
+                        'address': item['address'],
+                        'reference': item['reference'],
+                        'line_count': 0,
+                        'handling_codes': set(),
+                    }
+                so_map[so_num]['line_count'] += int(item.get('line_count') or 0)
+                handling_code = item.get('handling_code')
+                if handling_code:
+                    so_map[so_num]['handling_codes'].add(handling_code)
 
-            summary = [{
-                'so_number': str(row['so_id']),
-                'customer_name': row['cust_name'] or 'Unknown',
-                'address': f"{row['address_1']}, {row['city']}" if row['address_1'] else 'No Address',
-                'reference': row['reference'],
-                'line_count': int(row['line_count']) if row['line_count'] is not None else 0,
-                'handling_codes': sorted(row['handling_codes'] or []),
-            } for row in rows]
+            summary = []
+            for data in so_map.values():
+                data['handling_codes'] = sorted(list(data['handling_codes']))
+                summary.append(data)
         else:
             # Legacy fallback: reuse per-handling summary and aggregate in Python.
             per_code_summary = self.get_open_so_summary()
@@ -892,36 +905,17 @@ class ERPService:
 
     def _get_open_so_summary_inner(self):
         if self.central_db_mode:
-            backorder_expr = self._mirror_so_detail_backorder_expr()
             rows = self._mirror_query(
-                f"""
+                """
                 SELECT
-                    soh.so_id,
-                    c.cust_name,
-                    cs.address_1,
-                    cs.city,
-                    soh.reference,
-                    ib.handling_code,
-                    COUNT(sod.sequence) AS line_count
-                FROM erp_mirror_so_detail sod
-                JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id
-                   AND soh.so_id = sod.so_id
-                LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id
-                   AND ib.item_ptr = sod.item_ptr
-                LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND c.cust_key = soh.cust_key
-                LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND cs.cust_key = soh.cust_key
-                   AND cs.seq_num = soh.shipto_seq_num
-                WHERE soh.is_deleted = false
-                  AND soh.so_status = 'K'
-                  AND COALESCE({backorder_expr}, 0) = 0
-                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
-                ORDER BY ib.handling_code, soh.so_id
+                    so_id,
+                    cust_name,
+                    address_1,
+                    city,
+                    reference,
+                    handling_code,
+                    line_count
+                FROM vw_board_open_orders
                 """
             )
             summary = [{
@@ -1024,7 +1018,7 @@ class ERPService:
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id
-                   AND soh.so_id = sod.so_id
+                   AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id
                    AND ib.item_ptr = sod.item_ptr
@@ -1034,7 +1028,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id
                    AND cs.cust_key = soh.cust_key
-                   AND cs.seq_num = soh.shipto_seq_num
+                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 WHERE soh.is_deleted = false AND {' AND '.join(filters)}
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 """,
@@ -1141,11 +1135,11 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
+                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                    ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
-                  AND soh.so_id = :so_number
+                  AND CAST(soh.so_id AS TEXT) = :so_number
                 ORDER BY sh.ship_date DESC NULLS LAST, sh.invoice_date DESC NULLS LAST
                 LIMIT 1
                 """,
@@ -1236,7 +1230,6 @@ class ERPService:
         Fetches all line items for a specific Sales Order.
         """
         if self.central_db_mode:
-            backorder_expr = self._mirror_so_detail_backorder_expr()
             rows = self._mirror_query(
                 """
                 SELECT
@@ -1247,15 +1240,11 @@ class ERPService:
                     ib.handling_code,
                     sod.qty_ordered
                 FROM erp_mirror_so_detail sod
-                JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id AND soh.so_id = sod.so_id
                 LEFT JOIN erp_mirror_item i
                     ON i.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
-                WHERE soh.is_deleted = false
-                  AND soh.so_id = :so_number
-                  AND COALESCE(""" + backorder_expr + """, 0) = 0
+                WHERE CAST(sod.so_id AS TEXT) = :so_number
                 ORDER BY ib.handling_code NULLS LAST, sod.sequence
                 """,
                 {"so_number": str(so_number)},
@@ -1275,7 +1264,7 @@ class ERPService:
             cursor = conn.cursor()
             
             query = """
-                SELECT 
+                SELECT
                     soh.so_id,
                     sod.sequence,
                     i.item,
@@ -1287,7 +1276,6 @@ class ERPService:
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 WHERE soh.so_id = ?
-                  AND sod.bo = 0
                 ORDER BY ib.handling_code, sod.sequence
             """
             
@@ -1847,7 +1835,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
                   AND COALESCE(soh.expect_date, soh.source_updated_at, soh.synced_at) >= :since
                   AND UPPER(COALESCE(soh.so_status, '')) = 'O'
@@ -1952,9 +1940,9 @@ class ERPService:
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
-                    AND cs.seq_num = soh.shipto_seq_num
+                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.synced_at) DESC NULLS LAST, soh.so_id DESC
@@ -2081,7 +2069,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                    ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE {' AND '.join(clauses)}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(COALESCE(sh.invoice_date, soh.expect_date)) DESC NULLS LAST, soh.so_id DESC
@@ -2239,7 +2227,7 @@ class ERPService:
                      FROM erp_mirror_so_detail sod
                      JOIN erp_mirror_item_branch ib
                          ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
-                     WHERE sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                     WHERE sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                     ) AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
@@ -2251,7 +2239,7 @@ class ERPService:
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
                     AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC NULLS LAST, soh.so_id DESC

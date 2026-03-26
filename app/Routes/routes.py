@@ -18,6 +18,11 @@ import pytz
 # Create a Blueprint
 main = Blueprint('main', __name__)
 
+@main.get("/healthz")
+def root_health():
+    return jsonify({"ok": True, "service": "wh-tracker"})
+
+
 # ── Pick type constants ───────────────────────────────────────────────────────
 WILL_CALL_TYPE_ID = 6
 CHUNK_SIZE = 900  # SQL Server IN-clause variable limit
@@ -415,6 +420,8 @@ def api_pickers_picks():
             start_time_localized = localize_to_cst(pick.start_time)
             data.append({
                 'barcode_number': pick.barcode_number,
+                'shipment_num': pick.shipment_num,
+                'order_url': url_for('main.pick_detail', so_number=pick.barcode_number),
                 'start_time': start_time_localized.strftime('%Y-%m-%d %I:%M %p %Z'),
                 'elapsed_time': format_elapsed_time(start_time_localized),
                 'picker_name': picker.name,
@@ -480,10 +487,12 @@ def api_picks():
 
         picks_data = [{
             'barcode_number': pick.barcode_number,
-            'start_time': localize_to_cst(pick.start_time).strftime('%Y-%m-%d %I:%M %p %Z'),  # Localizing and formatting time
+            'shipment_num': pick.shipment_num,
+            'order_url': url_for('main.pick_detail', so_number=pick.barcode_number),
+            'start_time': localize_to_cst(pick.start_time).strftime('%Y-%m-%d %I:%M %p %Z'),
             'elapsed_time': calculate_business_elapsed_time(pick.start_time),
             'picker_name': picker.name,
-            'pick_type': get_pick_type_name(pick.pick_type_id)  # Using function to get pick type name
+            'pick_type': get_pick_type_name(pick.pick_type_id)
         } for pick in open_picks]
 
         data.extend(picks_data)
@@ -648,6 +657,8 @@ def picker_details(picker_id):
 
         updated_picks.append({
             'barcode_number': pick.barcode_number,
+            'shipment_num': pick.shipment_num,
+            'order_url': url_for('main.pick_detail', so_number=pick.barcode_number),
             'customer_name': erp_info.get('customer_name', 'Unknown'),
             'reference': erp_info.get('reference', ''),
             'start_time': start_time_cst.strftime('%Y-%m-%d %I:%M %p %Z'),
@@ -995,21 +1006,48 @@ def board_orders():
     assignments = {
         a.so_number: a.picker_id
         for a in PickAssignment.query.filter(PickAssignment.so_number.in_(so_numbers)).all()
-    }
-    picker_ids = [picker_id for picker_id in assignments.values() if picker_id]
+    } if so_numbers else {}
+    picker_ids = [pid for pid in assignments.values() if pid]
     pickers = {
         p.id: p
         for p in Pickster.query.filter(
             Pickster.user_type == 'picker',
             Pickster.id.in_(picker_ids),
         ).all()
-    }
-    
+    } if picker_ids else {}
+
     for item in order_summary:
         picker_id = assignments.get(item['so_number'])
         item['assigned_picker'] = pickers.get(picker_id) if picker_id else None
-        
+
     return render_template('warehouse/order_board.html', orders=order_summary)
+
+
+@main.route('/api/board/orders')
+def api_board_orders():
+    """JSON endpoint for the order board — lightweight alternative to the full HTML render."""
+    erp = ERPService()
+    order_summary = erp.get_open_order_board_summary()
+
+    so_numbers = [item['so_number'] for item in order_summary]
+    assignments = {
+        a.so_number: a.picker_id
+        for a in PickAssignment.query.filter(PickAssignment.so_number.in_(so_numbers)).all()
+    } if so_numbers else {}
+    picker_ids = [pid for pid in assignments.values() if pid]
+    picker_map = {
+        p.id: p.name
+        for p in Pickster.query.filter(
+            Pickster.user_type == 'picker',
+            Pickster.id.in_(picker_ids),
+        ).all()
+    } if picker_ids else {}
+
+    for item in order_summary:
+        picker_id = assignments.get(item['so_number'])
+        item['assigned_picker'] = picker_map.get(picker_id) if picker_id else None
+
+    return jsonify(order_summary)
 
 @main.route('/warehouse/board/tv/<handling_code>')
 def board_tv(handling_code):
@@ -1465,7 +1503,7 @@ def sales_delivery_tracker(branch=None):
             'speed_mph': v.get('speed') or 0,
             'heading': v.get('heading') or 0,
             'time': v.get('located_at', ''),
-            'address': '',
+            'address': v.get('address') or '',
         }
         for v in gps_payload.get('vehicles', [])
     ]

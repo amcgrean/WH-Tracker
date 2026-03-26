@@ -16,37 +16,33 @@
     </div>
     <div class="row">
         <div class="col-md-6">
-            <!-- <h2>Column 1</h2> -->
             <table class="table table-hover">
                 <thead>
                     <tr>
                         <th>Order #</th>
-                        <th>Picker Name</th>
+                        <th>Shpmt</th>
+                        <th>Picker</th>
                         <th>Start Time</th>
-                        <th>Elapsed Time</th>
-                        <th>Pick Type</th>
+                        <th>Elapsed</th>
+                        <th>Type</th>
                     </tr>
                 </thead>
-                <tbody id="picksTableBody1">
-                    <!-- Rows will be dynamically added by JavaScript -->
-                </tbody>
+                <tbody id="picksTableBody1"></tbody>
             </table>
         </div>
         <div class="col-md-6">
-           <!--  <h2>Column 2</h2> -->
             <table class="table table-hover">
                 <thead>
                     <tr>
                         <th>Order #</th>
-                        <th>Picker Name</th>
+                        <th>Shpmt</th>
+                        <th>Picker</th>
                         <th>Start Time</th>
-                        <th>Elapsed Time</th>
-                        <th>Pick Type</th>
+                        <th>Elapsed</th>
+                        <th>Type</th>
                     </tr>
                 </thead>
-                <tbody id="picksTableBody2">
-                    <!-- Rows will be dynamically added by JavaScript -->
-                </tbody>
+                <tbody id="picksTableBody2"></tbody>
             </table>
         </div>
     </div>
@@ -80,17 +76,22 @@ document.addEventListener("DOMContentLoaded", function() {
                 data.picks.forEach((pick, index) => {
                     const formattedDate = new Date(pick.start_time).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
                     const formattedTime = new Date(pick.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    const orderLink = pick.order_url
+                        ? `<a href="${pick.order_url}" target="_blank">${pick.barcode_number}</a>`
+                        : pick.barcode_number;
+                    const shipment = pick.shipment_num ? `<span class="badge badge-secondary">${pick.shipment_num}</span>` : '—';
                     const row = `<tr>
-                                    <td>${pick.barcode_number}</td>
+                                    <td>${orderLink}</td>
+                                    <td>${shipment}</td>
                                     <td>${pick.picker_name}</td>
                                     <td>${formattedDate} ${formattedTime}</td>
                                     <td>${pick.elapsed_time}</td>
                                     <td>${pick.pick_type}</td>
                                  </tr>`;
                     if (index % 2 === 0) {
-                        tbody1.innerHTML += row;  // Add the new row to the first table
+                        tbody1.innerHTML += row;
                     } else {
-                        tbody2.innerHTML += row;  // Add the new row to the second table
+                        tbody2.innerHTML += row;
                     }
                 });
             })

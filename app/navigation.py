@@ -6,128 +6,23 @@ from typing import Iterable
 from flask import current_app, request, session, url_for
 
 
+# ---------------------------------------------------------------------------
+# Navigation Sections
+# ---------------------------------------------------------------------------
+# Roles: "*" = everyone. Add more specific roles to restrict access.
+# coming_soon=True   → section renders with a placeholder (no items required).
+# ---------------------------------------------------------------------------
+
 NAV_SECTIONS = [
+    # ------------------------------------------------------------------
+    # DISPATCH
+    # ------------------------------------------------------------------
     {
-        "id": "workspace",
-        "label": "Workspace",
-        "icon": "fas fa-th-large",
-        "roles": ["*"],
-        "items": [
-            {
-                "id": "work_center",
-                "label": "App Home",
-                "endpoint": "main.work_center",
-                "icon": "fas fa-home",
-                "description": "Choose the workflow that matches the job at hand.",
-                "roles": ["*"],
-                "permissions": ["nav.home"],
-            },
-            {
-                "id": "pick_tracker",
-                "label": "Pick Tracker",
-                "endpoint": "main.index",
-                "icon": "fas fa-barcode",
-                "description": "Launch picker workflows and barcode entry.",
-                "roles": ["ops", "warehouse", "supervisor"],
-                "permissions": ["pick.view"],
-            },
-            {
-                "id": "open_picks",
-                "label": "Open Picks",
-                "endpoint": "main.pickers_picks",
-                "icon": "fas fa-clipboard-list",
-                "description": "Monitor live open picks and throughput.",
-                "roles": ["ops", "warehouse", "supervisor"],
-                "permissions": ["pick.monitor"],
-            },
-            {
-                "id": "historical_stats",
-                "label": "Historical Stats",
-                "endpoint": "main.picker_stats",
-                "icon": "fas fa-chart-line",
-                "description": "Review completed picking performance.",
-                "roles": ["ops", "warehouse", "supervisor"],
-                "permissions": ["pick.analytics"],
-            },
-        ],
-    },
-    {
-        "id": "operations",
-        "label": "Operations",
-        "icon": "fas fa-warehouse",
-        "roles": ["ops", "warehouse", "production", "supervisor"],
-        "items": [
-            {
-                "id": "warehouse_hub",
-                "label": "Warehouse Hub",
-                "endpoint": "main.warehouse_select",
-                "icon": "fas fa-boxes",
-                "description": "Choose handling views before drilling into the floor boards.",
-                "roles": ["warehouse", "ops", "supervisor"],
-                "permissions": ["warehouse.view"],
-            },
-            {
-                "id": "warehouse_grouping",
-                "label": "Dept Grouping View",
-                "endpoint": "main.warehouse_board",
-                "icon": "fas fa-stream",
-                "description": "See open work grouped by department or handling code.",
-                "roles": ["warehouse", "ops", "supervisor"],
-                "permissions": ["warehouse.board"],
-            },
-            {
-                "id": "warehouse_orders",
-                "label": "Full Order View",
-                "endpoint": "main.board_orders",
-                "icon": "fas fa-layer-group",
-                "description": "View complete sales orders with assignment context.",
-                "roles": ["warehouse", "ops", "supervisor"],
-                "permissions": ["warehouse.orders"],
-            },
-            {
-                "id": "work_orders",
-                "label": "Work Order Tracker",
-                "endpoint": "main.work_orders",
-                "icon": "fas fa-hammer",
-                "description": "Start and complete production work orders.",
-                "roles": ["production", "ops", "supervisor"],
-                "permissions": ["work_orders.view"],
-            },
-            {
-                "id": "supervisor_dashboard",
-                "label": "Supervisor Dashboard",
-                "endpoint": "main.supervisor_dashboard",
-                "icon": "fas fa-user-shield",
-                "description": "See live team status and current assignments.",
-                "roles": ["supervisor", "ops", "warehouse"],
-                "permissions": ["supervisor.dashboard"],
-            },
-            {
-                "id": "work_order_board",
-                "label": "Work Order Board",
-                "endpoint": "main.supervisor_work_orders",
-                "icon": "fas fa-tasks",
-                "description": "Assign production jobs from a supervisor board.",
-                "roles": ["supervisor", "production", "ops"],
-                "permissions": ["supervisor.work_orders"],
-            },
-        ],
-    },
-    {
-        "id": "delivery",
-        "label": "Delivery",
-        "icon": "fas fa-truck",
+        "id": "dispatch",
+        "label": "Dispatch",
+        "icon": "fas fa-route",
         "roles": ["delivery", "dispatch", "sales", "ops"],
         "items": [
-            {
-                "id": "delivery_tracker",
-                "label": "Delivery Tracker",
-                "endpoint": "main.sales_delivery_tracker",
-                "icon": "fas fa-shipping-fast",
-                "description": "Track scheduled deliveries and branch status.",
-                "roles": ["delivery", "dispatch", "sales", "ops"],
-                "permissions": ["delivery.view"],
-            },
             {
                 "id": "dispatch_console",
                 "label": "Dispatch Console",
@@ -138,17 +33,26 @@ NAV_SECTIONS = [
                 "permissions": ["dispatch.view"],
             },
             {
+                "id": "delivery_tracker",
+                "label": "Delivery Tracker",
+                "endpoint": "main.sales_delivery_tracker",
+                "icon": "fas fa-shipping-fast",
+                "description": "Track scheduled deliveries and branch status.",
+                "roles": ["delivery", "dispatch", "sales", "ops"],
+                "permissions": ["delivery.view"],
+            },
+            {
                 "id": "fleet_map",
                 "label": "Fleet Map",
                 "endpoint": "main.delivery_map",
                 "icon": "fas fa-map-marked-alt",
-                "description": "Open the live fleet GPS board.",
+                "description": "Live fleet GPS board.",
                 "roles": ["delivery", "dispatch", "sales", "ops"],
                 "permissions": ["delivery.map"],
             },
             {
                 "id": "credits",
-                "label": "RMA Credit Images",
+                "label": "RMA Credits",
                 "endpoint": "main.credits_search",
                 "icon": "fas fa-file-image",
                 "description": "Search and review credit and RMA image uploads.",
@@ -157,6 +61,9 @@ NAV_SECTIONS = [
             },
         ],
     },
+    # ------------------------------------------------------------------
+    # SALES
+    # ------------------------------------------------------------------
     {
         "id": "sales",
         "label": "Sales",
@@ -237,6 +144,112 @@ NAV_SECTIONS = [
             },
         ],
     },
+    # ------------------------------------------------------------------
+    # INVENTORY  (warehouse operations + picking workflows)
+    # ------------------------------------------------------------------
+    {
+        "id": "inventory",
+        "label": "Inventory",
+        "icon": "fas fa-boxes",
+        "roles": ["ops", "warehouse", "supervisor", "production"],
+        "items": [
+            {
+                "id": "pick_tracker",
+                "label": "Pick Tracker",
+                "endpoint": "main.index",
+                "icon": "fas fa-barcode",
+                "description": "Launch picker workflows and barcode entry.",
+                "roles": ["ops", "warehouse", "supervisor"],
+                "permissions": ["pick.view"],
+            },
+            {
+                "id": "open_picks",
+                "label": "Open Picks",
+                "endpoint": "main.pickers_picks",
+                "icon": "fas fa-clipboard-list",
+                "description": "Monitor live open picks and throughput.",
+                "roles": ["ops", "warehouse", "supervisor"],
+                "permissions": ["pick.monitor"],
+            },
+            {
+                "id": "historical_stats",
+                "label": "Historical Stats",
+                "endpoint": "main.picker_stats",
+                "icon": "fas fa-chart-line",
+                "description": "Review completed picking performance.",
+                "roles": ["ops", "warehouse", "supervisor"],
+                "permissions": ["pick.analytics"],
+            },
+            {
+                "id": "warehouse_hub",
+                "label": "Warehouse Hub",
+                "endpoint": "main.warehouse_select",
+                "icon": "fas fa-warehouse",
+                "description": "Choose handling views before drilling into the floor boards.",
+                "roles": ["warehouse", "ops", "supervisor"],
+                "permissions": ["warehouse.view"],
+            },
+            {
+                "id": "warehouse_grouping",
+                "label": "Dept Grouping",
+                "endpoint": "main.warehouse_board",
+                "icon": "fas fa-stream",
+                "description": "See open work grouped by department or handling code.",
+                "roles": ["warehouse", "ops", "supervisor"],
+                "permissions": ["warehouse.board"],
+            },
+            {
+                "id": "warehouse_orders",
+                "label": "Full Order View",
+                "endpoint": "main.board_orders",
+                "icon": "fas fa-layer-group",
+                "description": "View complete sales orders with assignment context.",
+                "roles": ["warehouse", "ops", "supervisor"],
+                "permissions": ["warehouse.orders"],
+            },
+            {
+                "id": "work_orders",
+                "label": "Work Order Tracker",
+                "endpoint": "main.work_orders",
+                "icon": "fas fa-hammer",
+                "description": "Start and complete production work orders.",
+                "roles": ["production", "ops", "supervisor"],
+                "permissions": ["work_orders.view"],
+            },
+            {
+                "id": "supervisor_dashboard",
+                "label": "Supervisor Dashboard",
+                "endpoint": "main.supervisor_dashboard",
+                "icon": "fas fa-user-shield",
+                "description": "See live team status and current assignments.",
+                "roles": ["supervisor", "ops", "warehouse"],
+                "permissions": ["supervisor.dashboard"],
+            },
+            {
+                "id": "work_order_board",
+                "label": "Work Order Board",
+                "endpoint": "main.supervisor_work_orders",
+                "icon": "fas fa-tasks",
+                "description": "Assign production jobs from a supervisor board.",
+                "roles": ["supervisor", "production", "ops"],
+                "permissions": ["supervisor.work_orders"],
+            },
+        ],
+    },
+    # ------------------------------------------------------------------
+    # PURCHASING  (future)
+    # ------------------------------------------------------------------
+    {
+        "id": "purchasing",
+        "label": "Purchasing",
+        "icon": "fas fa-shopping-cart",
+        "roles": ["purchasing", "ops", "admin"],
+        "coming_soon": True,
+        "items": [],
+    },
+    # ------------------------------------------------------------------
+    # ADMIN
+    # ------------------------------------------------------------------
     {
         "id": "admin",
         "label": "Admin",
@@ -244,20 +257,38 @@ NAV_SECTIONS = [
         "roles": ["admin"],
         "items": [
             {
+                "id": "work_center",
+                "label": "App Home",
+                "endpoint": "main.work_center",
+                "icon": "fas fa-home",
+                "description": "Choose the workflow that matches the job at hand.",
+                "roles": ["*"],
+                "permissions": ["nav.home"],
+            },
+            {
                 "id": "admin_users",
                 "label": "User & Role Management",
                 "endpoint": "main.admin",
                 "icon": "fas fa-users-cog",
-                "description": "Manage people and role assignments.",
+                "description": "Manage warehouse pickers and role assignments.",
                 "roles": ["admin"],
                 "permissions": ["admin.users"],
+            },
+            {
+                "id": "auth_users",
+                "label": "Login Accounts",
+                "endpoint": "auth.manage_users",
+                "icon": "fas fa-id-badge",
+                "description": "Add users, assign rep IDs, and control access roles.",
+                "roles": ["admin"],
+                "permissions": ["admin.auth"],
             },
             {
                 "id": "legacy_dashboard",
                 "label": "Legacy Dashboard",
                 "endpoint": "main.dashboard",
                 "icon": "fas fa-columns",
-                "description": "Keep legacy operational dashboards reachable from the shared nav.",
+                "description": "Keep legacy operational dashboards reachable.",
                 "roles": ["admin", "ops"],
                 "permissions": ["dashboard.view"],
             },
@@ -309,7 +340,8 @@ def build_navigation(user_roles: Iterable[str] | None = None) -> list[dict]:
             item["is_active"] = active_endpoint == item["endpoint"]
             visible_items.append(item)
 
-        if visible_items:
+        # Include section if it has visible items OR is marked coming_soon
+        if visible_items or section.get("coming_soon"):
             section["items"] = visible_items
             section["has_active_item"] = any(item["is_active"] for item in visible_items)
             sections.append(section)
