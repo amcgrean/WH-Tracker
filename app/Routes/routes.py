@@ -1,6 +1,7 @@
 import os
 import json
 import hmac
+import re
 from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort, current_app
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
@@ -326,19 +327,31 @@ def start_pick(picker_id, pick_type_id):
         flash('Invalid pick type selected.', 'error')
         return redirect(url_for('main.index'))
 
-    barcode = request.form.get('barcode', '').strip()
-    if not barcode:
+    raw_barcode = request.form.get('barcode', '').strip()
+    if not raw_barcode:
         flash('Barcode is required.', 'error')
         return redirect(url_for('main.index'))
-    if not barcode.isalnum() or len(barcode) > 50:
+    # Allow digits, spaces, and hyphens (matching frontend validation)
+    if not re.match(r'^[0-9\s\-]+$', raw_barcode) or len(raw_barcode) > 50:
         flash('Invalid barcode format.', 'error')
         return redirect(url_for('main.index'))
+
+    # Parse barcode: format may be "SO_NUMBER-SHIPMENT_SEQ" (e.g. "0001463004-001")
+    # The suffix after the hyphen is the shipment sequence from erp_mirror_shipments_header
+    shipment_num = None
+    if '-' in raw_barcode:
+        parts = raw_barcode.split('-', 1)
+        barcode = parts[0].strip()
+        shipment_num = parts[1].strip() or None
+    else:
+        barcode = raw_barcode.replace(' ', '')
 
     start_time = datetime.utcnow()
     completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None
 
     new_pick = Pick(
         barcode_number=barcode,
+        shipment_num=shipment_num,
         start_time=start_time,
         completed_time=completed_time,
         picker_id=picker.id,

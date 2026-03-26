@@ -4,35 +4,201 @@
 
 {% block head %}
 {{ super() }}
-<meta http-equiv="refresh" content="300"> <!-- This line adds the auto-refresh feature -->
+<meta http-equiv="refresh" content="120">
 <style>
-    .card {
-        cursor: pointer;
-        transition: transform .2s; /* Animation */
+    /* Kiosk mode: hide sidebar, footer, topbar */
+    .app-sidebar,
+    .app-sidebar-overlay,
+    .footer-ops {
+        display: none !important;
     }
-    .card:hover {
-        transform: scale(1.05); /* Slightly increase size */
-        background-color: #f8f9fa; /* Change background color */
+
+    /* Topbar: hidden by default, slides down on hover at top edge */
+    .app-topbar {
+        transform: translateY(-100%);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    /* Invisible hover zone at the very top of the page */
+    .kiosk-hover-zone {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 18px;
+        z-index: 1050;
+        cursor: default;
+    }
+
+    .kiosk-hover-zone:hover ~ .app-main-shell .app-topbar,
+    .app-topbar:hover,
+    .app-topbar.kiosk-revealed {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Full-screen content without sidebar gap */
+    .app-shell {
+        display: block !important;
+    }
+
+    .main-content {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Picker card styles */
+    .kiosk-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .kiosk-header h1 {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--beisser-green);
+    }
+
+    .kiosk-header p {
+        color: var(--text-muted);
+        font-size: 1rem;
+    }
+
+    .picker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1.25rem;
+        max-width: 1200px;
+        width: 100%;
+    }
+
+    .picker-card {
+        background: white;
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: var(--border-radius-md);
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .picker-card:hover {
+        transform: translateY(-4px) scale(1.03);
+        box-shadow: var(--shadow-lg);
+        border-color: var(--beisser-green-light);
+    }
+
+    .picker-card a {
+        text-decoration: none;
+        color: var(--dark-charcoal);
+        font-weight: 700;
+        font-size: 1.1rem;
+        display: block;
+    }
+
+    .picker-card .picker-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--beisser-green), var(--beisser-green-light));
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        margin-bottom: 0.75rem;
     }
 </style>
 {% endblock %}
-{% block content %}
-<div class="container mt-4">
-    <h1>Select your name from the list below</h1>
-    <div class="row">
-        {% for picker in pickers %}
-        <div class="col-md-4 mb-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <a href="{{ url_for('main.confirm_picker', picker_id=picker.id) }}" class="stretched-link" style="text-decoration: none; color: inherit;">
-                            {{ picker.name }}
-                        </a>
-                    </h5>
+
+{% block navbar %}
+<!-- Invisible hover zone to reveal toolbar -->
+<div class="kiosk-hover-zone" id="kioskHoverZone"></div>
+<header class="app-topbar navbar-ops sticky-top px-4 py-2" id="kioskTopbar">
+    <div class="d-flex align-items-center justify-content-between w-100">
+        <div class="d-flex align-items-center">
+            <button class="app-nav-toggle btn btn-link text-dark mr-3" type="button" id="sidebarToggleButton">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div>
+                <h5 class="mb-0 font-weight-bold">BEISSER <span class="font-weight-normal text-muted">OPS</span></h5>
+            </div>
+        </div>
+        {% block search_nav %}
+        <div class="search-wrapper ml-auto">
+            <div class="input-group glass-panel rounded-pill p-1 shadow-sm" style="background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.05);">
+                <div class="input-group-prepend border-0">
+                    <span class="input-group-text bg-transparent border-0">
+                        <i class="fas fa-search text-muted" style="font-size:0.85rem;"></i>
+                    </span>
+                </div>
+                <input type="text" id="searchInput" class="form-control bg-transparent border-0 shadow-none text-dark"
+                    placeholder="Search orders &amp; customers…" style="width: 260px; font-size: 0.875rem; font-weight: 500;"
+                    autocomplete="off" aria-label="Search orders and customers">
+                <div class="input-group-append border-0">
+                    <span class="input-group-text bg-transparent border-0 px-2" id="searchClearBtn" title="Clear search" role="button" aria-label="Clear search">
+                        <i class="fas fa-times" style="font-size:0.75rem;"></i>
+                    </span>
                 </div>
             </div>
+            <div id="searchResultsContainer" class="glass-card shadow-lg animate-fade-in"></div>
+        </div>
+        {% endblock %}
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="container d-flex flex-column align-items-center justify-content-center py-5">
+    <div class="kiosk-header">
+        <i class="fas fa-cubes fa-2x mb-3" style="color: var(--beisser-green);"></i>
+        <h1>Select Your Name</h1>
+        <p>Tap your name to start picking</p>
+    </div>
+    <div class="picker-grid">
+        {% for picker in pickers %}
+        <div class="picker-card">
+            <a href="{{ url_for('main.confirm_picker', picker_id=picker.id) }}">
+                <div class="picker-icon">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>{{ picker.name }}</div>
+            </a>
         </div>
         {% endfor %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Kiosk toolbar reveal: keep visible while hovering toolbar itself
+    (function() {
+        var topbar = document.getElementById('kioskTopbar');
+        var zone = document.getElementById('kioskHoverZone');
+        var hideTimer = null;
+
+        function showToolbar() {
+            clearTimeout(hideTimer);
+            topbar.classList.add('kiosk-revealed');
+        }
+
+        function scheduleHide() {
+            hideTimer = setTimeout(function() {
+                topbar.classList.remove('kiosk-revealed');
+            }, 800);
+        }
+
+        zone.addEventListener('mouseenter', showToolbar);
+        zone.addEventListener('mouseleave', scheduleHide);
+        topbar.addEventListener('mouseenter', showToolbar);
+        topbar.addEventListener('mouseleave', scheduleHide);
+    })();
+</script>
 {% endblock %}

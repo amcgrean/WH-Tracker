@@ -17,6 +17,7 @@ class Pick(db.Model):
     start_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     completed_time = db.Column(db.DateTime, index=True)
     barcode_number = db.Column(db.String(120), nullable=False)
+    shipment_num = db.Column(db.String(64), nullable=True)
     picker_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=False)
     pick_type_id = db.Column(db.Integer, db.ForeignKey('PickTypes.pick_type_id'))
     notes = db.Column(db.Text)
