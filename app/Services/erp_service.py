@@ -836,6 +836,91 @@ class ERPService:
         self._cache_set(cache_key, result)
         return result
 
+    def get_open_order_board_summary(self):
+        """
+        Fetches Open Sales Orders grouped at the SO level for /warehouse/board/orders.
+        Returns: List of dicts {so_number, customer_name, address, reference, line_count, handling_codes}
+        """
+        cache_key = 'open_order_board_summary'
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        if self.central_db_mode:
+            backorder_expr = self._mirror_so_detail_backorder_expr()
+            rows = self._mirror_query(
+                f"""
+                SELECT
+                    soh.so_id,
+                    c.cust_name,
+                    cs.address_1,
+                    cs.city,
+                    soh.reference,
+                    COUNT(sod.sequence) AS line_count,
+                    ARRAY_REMOVE(ARRAY_AGG(DISTINCT ib.handling_code), NULL) AS handling_codes
+                FROM erp_mirror_so_detail sod
+                JOIN erp_mirror_so_header soh
+                    ON soh.system_id = sod.system_id
+                   AND soh.so_id = sod.so_id
+                LEFT JOIN erp_mirror_item_branch ib
+                    ON ib.system_id = sod.system_id
+                   AND ib.item_ptr = sod.item_ptr
+                LEFT JOIN erp_mirror_cust c
+                    ON c.system_id = soh.system_id
+                   AND c.cust_key = soh.cust_key
+                LEFT JOIN erp_mirror_cust_shipto cs
+                    ON cs.system_id = soh.system_id
+                   AND cs.cust_key = soh.cust_key
+                   AND cs.seq_num = soh.shipto_seq_num
+                WHERE soh.is_deleted = false
+                  AND soh.so_status = 'K'
+                  AND COALESCE({backorder_expr}, 0) = 0
+                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference
+                ORDER BY soh.so_id
+                """
+            )
+
+            summary = [{
+                'so_number': str(row['so_id']),
+                'customer_name': row['cust_name'] or 'Unknown',
+                'address': f"{row['address_1']}, {row['city']}" if row['address_1'] else 'No Address',
+                'reference': row['reference'],
+                'line_count': int(row['line_count']) if row['line_count'] is not None else 0,
+                'handling_codes': sorted(row['handling_codes'] or []),
+            } for row in rows]
+        else:
+            # Legacy fallback: reuse per-handling summary and aggregate in Python.
+            per_code_summary = self.get_open_so_summary()
+            so_map = {}
+            for item in per_code_summary:
+                so_num = item['so_number']
+                if so_num not in so_map:
+                    so_map[so_num] = {
+                        'so_number': so_num,
+                        'customer_name': item['customer_name'],
+                        'address': item['address'],
+                        'reference': item['reference'],
+                        'line_count': 0,
+                        'handling_codes': set(),
+                    }
+                so_map[so_num]['line_count'] += int(item.get('line_count') or 0)
+                handling_code = item.get('handling_code')
+                if handling_code:
+                    so_map[so_num]['handling_codes'].add(handling_code)
+
+            summary = []
+            for data in so_map.values():
+                data['handling_codes'] = sorted(list(data['handling_codes']))
+                summary.append(data)
+
+        so_numbers = [s['so_number'] for s in summary]
+        local_states = self._get_local_pick_states(so_numbers)
+        for item in summary:
+            item['local_pick_state'] = local_states.get(item['so_number'], 'Pick Printed')
+
+        self._cache_set(cache_key, summary)
+        return summary
+
     def _get_open_so_summary_inner(self):
         if self.central_db_mode:
             rows = self._mirror_query(

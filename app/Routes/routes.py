@@ -999,35 +999,22 @@ def board_orders():
     Main Order Board: Aggregates multiple handling codes into a single SO card.
     """
     erp = ERPService()
-    raw_summary = erp.get_open_so_summary()
-    
-    # Aggregate by SO Number
-    so_map = {}
-    for item in raw_summary:
-        so_num = item['so_number']
-        if so_num not in so_map:
-            so_map[so_num] = {
-                'so_number': so_num,
-                'customer_name': item['customer_name'],
-                'address': item['address'],
-                'reference': item['reference'],
-                'line_count': 0,
-                'handling_codes': set()
-            }
-        
-        so_map[so_num]['line_count'] += item['line_count']
-        if item['handling_code']:
-            so_map[so_num]['handling_codes'].add(item['handling_code'])
-    
-    # Convert sets to sorted lists for template
-    order_summary = []
-    for so_num, data in so_map.items():
-        data['handling_codes'] = sorted(list(data['handling_codes']))
-        order_summary.append(data)
+    order_summary = erp.get_open_order_board_summary()
     
     # Fetch assignments (SO level)
-    assignments = {a.so_number: a.picker_id for a in PickAssignment.query.all()}
-    pickers = {p.id: p for p in Pickster.query.filter_by(user_type='picker').all()}
+    so_numbers = [item['so_number'] for item in order_summary]
+    assignments = {
+        a.so_number: a.picker_id
+        for a in PickAssignment.query.filter(PickAssignment.so_number.in_(so_numbers)).all()
+    }
+    picker_ids = [picker_id for picker_id in assignments.values() if picker_id]
+    pickers = {
+        p.id: p
+        for p in Pickster.query.filter(
+            Pickster.user_type == 'picker',
+            Pickster.id.in_(picker_ids),
+        ).all()
+    }
     
     for item in order_summary:
         picker_id = assignments.get(item['so_number'])
