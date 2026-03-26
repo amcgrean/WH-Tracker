@@ -838,36 +838,17 @@ class ERPService:
 
     def _get_open_so_summary_inner(self):
         if self.central_db_mode:
-            backorder_expr = self._mirror_so_detail_backorder_expr()
             rows = self._mirror_query(
-                f"""
+                """
                 SELECT
-                    soh.so_id,
-                    c.cust_name,
-                    cs.address_1,
-                    cs.city,
-                    soh.reference,
-                    ib.handling_code,
-                    COUNT(sod.sequence) AS line_count
-                FROM erp_mirror_so_detail sod
-                JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id
-                   AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
-                LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id
-                   AND ib.item_ptr = sod.item_ptr
-                LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND c.cust_key = soh.cust_key
-                LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND cs.cust_key = soh.cust_key
-                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
-                WHERE soh.is_deleted = false
-                  AND soh.so_status = 'K'
-                  AND COALESCE({backorder_expr}, 0) = 0
-                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
-                ORDER BY ib.handling_code, soh.so_id
+                    so_id,
+                    cust_name,
+                    address_1,
+                    city,
+                    reference,
+                    handling_code,
+                    line_count
+                FROM vw_board_open_orders
                 """
             )
             summary = [{
