@@ -1182,7 +1182,6 @@ class ERPService:
         Fetches all line items for a specific Sales Order.
         """
         if self.central_db_mode:
-            backorder_expr = self._mirror_so_detail_backorder_expr()
             rows = self._mirror_query(
                 """
                 SELECT
@@ -1193,15 +1192,11 @@ class ERPService:
                     ib.handling_code,
                     sod.qty_ordered
                 FROM erp_mirror_so_detail sod
-                JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
                 LEFT JOIN erp_mirror_item i
                     ON i.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
-                WHERE soh.is_deleted = false
-                  AND soh.so_id = :so_number
-                  AND COALESCE(""" + backorder_expr + """, 0) = 0
+                WHERE CAST(sod.so_id AS TEXT) = :so_number
                 ORDER BY ib.handling_code NULLS LAST, sod.sequence
                 """,
                 {"so_number": str(so_number)},
@@ -1221,7 +1216,7 @@ class ERPService:
             cursor = conn.cursor()
             
             query = """
-                SELECT 
+                SELECT
                     soh.so_id,
                     sod.sequence,
                     i.item,
@@ -1233,7 +1228,6 @@ class ERPService:
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 WHERE soh.so_id = ?
-                  AND sod.bo = 0
                 ORDER BY ib.handling_code, sod.sequence
             """
             
