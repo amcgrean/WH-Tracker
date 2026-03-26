@@ -182,6 +182,8 @@ class SamsaraService:
                 vehicle_id = str(row.get('id') or '')
                 meta = meta_map.get(vehicle_id, {})
                 name = row.get('name') or meta.get('name') or (meta.get('externalIds') or {}).get('shortId') or 'Vehicle'
+                reverse_geo = loc.get('reverseGeo') or {}
+                address = reverse_geo.get('formattedLocation') or ''
                 normalized = {
                     'id': vehicle_id,
                     'name': name,
@@ -191,6 +193,7 @@ class SamsaraService:
                     'heading': loc.get('heading'),
                     'speed': loc.get('speed'),
                     'located_at': loc.get('time'),
+                    'address': address,
                     'tags': [tag.get('name') for tag in (meta.get('tags') or []) if isinstance(tag, dict) and tag.get('name')],
                 }
                 vehicles.append(normalized)
