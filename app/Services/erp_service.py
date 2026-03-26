@@ -821,7 +821,7 @@ class ERPService:
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id
-                   AND soh.so_id = sod.so_id
+                   AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id
                    AND ib.item_ptr = sod.item_ptr
@@ -831,7 +831,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id
                    AND cs.cust_key = soh.cust_key
-                   AND cs.seq_num = soh.shipto_seq_num
+                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 WHERE soh.is_deleted = false
                   AND soh.so_status = 'K'
                   AND COALESCE({backorder_expr}, 0) = 0
@@ -939,7 +939,7 @@ class ERPService:
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id
-                   AND soh.so_id = sod.so_id
+                   AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id
                    AND ib.item_ptr = sod.item_ptr
@@ -949,7 +949,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id
                    AND cs.cust_key = soh.cust_key
-                   AND cs.seq_num = soh.shipto_seq_num
+                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 WHERE soh.is_deleted = false AND {' AND '.join(filters)}
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 """,
@@ -1056,7 +1056,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND cs.seq_num = soh.shipto_seq_num
+                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
                 WHERE soh.is_deleted = false
@@ -1163,7 +1163,7 @@ class ERPService:
                     sod.qty_ordered
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id AND soh.so_id = sod.so_id
+                    ON soh.system_id = sod.system_id AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
                 LEFT JOIN erp_mirror_item i
                     ON i.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_item_branch ib
@@ -1762,7 +1762,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
                   AND COALESCE(soh.expect_date, soh.source_updated_at, soh.synced_at) >= :since
                   AND UPPER(COALESCE(soh.so_status, '')) = 'O'
@@ -1867,9 +1867,9 @@ class ERPService:
                     ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
-                    AND cs.seq_num = soh.shipto_seq_num
+                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.synced_at) DESC NULLS LAST, soh.so_id DESC
@@ -2154,7 +2154,7 @@ class ERPService:
                      FROM erp_mirror_so_detail sod
                      JOIN erp_mirror_item_branch ib
                          ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
-                     WHERE sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                     WHERE sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                     ) AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
@@ -2166,7 +2166,7 @@ class ERPService:
                     ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
                     AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
                 LEFT JOIN erp_mirror_so_detail sod
-                    ON sod.system_id = soh.system_id AND sod.so_id = soh.so_id
+                    ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC NULLS LAST, soh.so_id DESC
