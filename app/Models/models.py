@@ -100,6 +100,7 @@ class AuditEvent(db.Model):
     entity_id = db.Column(db.Integer)
     so_number = db.Column(db.String(128), index=True)
     actor_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=True)
+    actor = db.relationship('Pickster', backref=db.backref('audit_events', lazy=True))
     notes = db.Column(db.Text)
     occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
@@ -145,9 +146,6 @@ class OTPCode(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False, nullable=False, index=True)
-
-    actor = db.relationship('Pickster', backref=db.backref('audit_events', lazy=True))
-
 
 class ERPSyncState(db.Model):
     __tablename__ = 'erp_sync_state'
