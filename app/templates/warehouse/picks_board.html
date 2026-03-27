@@ -16,7 +16,7 @@
                 <span class="badge badge-success mr-2">{{ summary|length - unassigned_total }} Assigned</span>
                 <small class="text-muted mr-3">| Total Records: {{ summary|length }}</small>
                 <span class="branch-all-indicator">
-                    <i class="fas fa-code-branch"></i> Showing all branches
+                    <i class="fas fa-code-branch"></i> {{ selected_branch_label|default('All Branches') }}
                 </span>
             </div>
         </div>

@@ -2,7 +2,7 @@ import os
 import json
 import hmac
 import re
-from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort, current_app
+from flask import render_template, request, redirect, url_for, flash, Blueprint, jsonify, send_from_directory, abort, current_app, session
 from app.Services.erp_service import ERPService
 from app.Services.samsara_service import SamsaraService
 from app.branch_utils import normalize_branch, branch_label, is_valid_branch, expand_branch, BRANCH_CODES
@@ -18,6 +18,14 @@ import pytz
 
 # Create a Blueprint
 main = Blueprint('main', __name__)
+
+
+def _get_branch():
+    """Read branch from URL param > session > None (all branches)."""
+    raw = request.args.get('branch', '').strip()
+    if raw:
+        return normalize_branch(raw) or None
+    return normalize_branch(session.get('selected_branch', '')) or None
 
 @main.get("/healthz")
 def root_health():
@@ -977,7 +985,7 @@ def warehouse_list():
 @main.route('/warehouse/board')
 def warehouse_board():
     erp = ERPService()
-    summary = erp.get_open_so_summary()
+    summary = erp.get_open_so_summary(branch=_get_branch())
     
     assignments = PickAssignment.query.all()
     assignment_map = {a.so_number: a.picker_id for a in assignments}
@@ -1000,8 +1008,8 @@ def board_orders():
     Main Order Board: Aggregates multiple handling codes into a single SO card.
     """
     erp = ERPService()
-    order_summary = erp.get_open_order_board_summary()
-    
+    order_summary = erp.get_open_order_board_summary(branch=_get_branch())
+
     # Fetch assignments (SO level)
     so_numbers = [item['so_number'] for item in order_summary]
     assignments = {
@@ -1028,7 +1036,7 @@ def board_orders():
 def api_board_orders():
     """JSON endpoint for the order board — lightweight alternative to the full HTML render."""
     erp = ERPService()
-    order_summary = erp.get_open_order_board_summary()
+    order_summary = erp.get_open_order_board_summary(branch=_get_branch())
 
     so_numbers = [item['so_number'] for item in order_summary]
     assignments = {
@@ -1057,8 +1065,8 @@ def board_tv(handling_code):
     Designed for large displays.
     """
     erp = ERPService()
-    raw_summary = erp.get_open_so_summary()
-    
+    raw_summary = erp.get_open_so_summary(branch=_get_branch())
+
     # Filter for specific handling code
     filtered_summary = [item for item in raw_summary if item['handling_code'] and item['handling_code'].upper() == handling_code.upper()]
     
@@ -1643,10 +1651,10 @@ def _kiosk_context(branch_code):
 @main.route('/kiosk/<branch>/pickers')
 def kiosk_pickers(branch):
     ctx = _kiosk_context(branch)
-    # NOTE: Pickster has no branch_code — showing all pickers.
-    # True branch filtering requires a future data model migration.
+    normalized = ctx['kiosk_branch']
     pickers = Pickster.query.filter(
-        (Pickster.user_type == 'picker') | (Pickster.user_type == None)
+        (Pickster.user_type == 'picker') | (Pickster.user_type == None),
+        (Pickster.branch_code == normalized) | (Pickster.branch_code == None),
     ).order_by(Pickster.name).all()
     return render_template('kiosk/pickers.html', pickers=pickers, **ctx)
 
@@ -1679,7 +1687,8 @@ def kiosk_input_pick(branch, picker_id, pick_type_id):
                 start_time=start_time,
                 completed_time=completed_time,
                 picker_id=picker.id,
-                pick_type_id=pick_type_id
+                pick_type_id=pick_type_id,
+                branch_code=ctx['kiosk_branch'],
             )
             db.session.add(new_pick)
             db.session.flush()
@@ -1724,8 +1733,11 @@ def kiosk_complete_pick(branch, pick_id):
 @main.route('/kiosk/<branch>/work-orders')
 def kiosk_work_orders(branch):
     ctx = _kiosk_context(branch)
-    # NOTE: Pickster has no branch_code — showing all door builders.
-    pickers = Pickster.query.filter_by(user_type='door_builder').order_by(Pickster.name).all()
+    normalized = ctx['kiosk_branch']
+    pickers = Pickster.query.filter(
+        Pickster.user_type == 'door_builder',
+        (Pickster.branch_code == normalized) | (Pickster.branch_code == None),
+    ).order_by(Pickster.name).all()
     return render_template('kiosk/wo_user_selection.html', pickers=pickers, **ctx)
 
 
@@ -1787,7 +1799,7 @@ def kiosk_complete_work_order(branch, wo_id):
 
 @main.route('/kiosk/<branch>/work-orders/start', methods=['POST'])
 def kiosk_start_work_orders(branch):
-    _kiosk_context(branch)  # validate branch
+    ctx = _kiosk_context(branch)
     user_id = request.form.get('user_id', type=int)
     selected_items = request.form.getlist('selected_items')
 
@@ -1822,7 +1834,8 @@ def kiosk_start_work_orders(branch):
             description=payload['description'],
             status='Assigned',
             assigned_to_id=user_id,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
+            branch_code=ctx['kiosk_branch'],
         )
         db.session.add(new_wo)
         created += 1
@@ -1853,12 +1866,13 @@ def _tv_context(branch_code):
 def tv_open_picks(branch):
     """Open picks TV display for a specific branch."""
     ctx = _tv_context(branch)
-    # NOTE: Pick/PickAssignment have no branch_code — showing all picks.
-    # True branch filtering requires a future data model migration.
+    normalized = ctx['tv_branch']
     erp = ERPService()
-    summary = erp.get_open_so_summary()
+    summary = erp.get_open_so_summary(branch=normalized)
 
-    assignments = PickAssignment.query.all()
+    assignments = PickAssignment.query.filter(
+        (PickAssignment.branch_code == normalized) | (PickAssignment.branch_code == None)
+    ).all()
     assignment_map = {a.so_number: a.picker_id for a in assignments}
     pickers = Pickster.query.filter_by(user_type='picker').order_by(Pickster.name).all()
     picker_map = {p.id: p for p in pickers}
@@ -1874,13 +1888,16 @@ def tv_open_picks(branch):
 def tv_board_branch(branch, handling_code):
     """Department TV board for a specific branch + handling code."""
     ctx = _tv_context(branch)
+    normalized = ctx['tv_branch']
     erp = ERPService()
-    raw_summary = erp.get_open_so_summary()
+    raw_summary = erp.get_open_so_summary(branch=normalized)
 
     filtered = [item for item in raw_summary
                 if item.get('handling_code') and item['handling_code'].upper() == handling_code.upper()]
 
-    assignments = {a.so_number: a.picker_id for a in PickAssignment.query.all()}
+    assignments = {a.so_number: a.picker_id for a in PickAssignment.query.filter(
+        (PickAssignment.branch_code == normalized) | (PickAssignment.branch_code == None)
+    ).all()}
     pickers = {p.id: p for p in Pickster.query.filter_by(user_type='picker').all()}
 
     for item in filtered:

@@ -7,6 +7,7 @@ class Pickster(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), unique=True, nullable=False)
     user_type = db.Column(db.String(50), default='picker') # 'picker', 'door_builder', etc.
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
     picks = db.relationship('Pick', backref='pickster', lazy=True)
     # 'picks' establishes a relationship to the Pick model, with a back-reference to 'pickster'
     # 'lazy=True' specifies that the related objects are loaded as necessary
@@ -21,6 +22,7 @@ class Pick(db.Model):
     picker_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=False)
     pick_type_id = db.Column(db.Integer, db.ForeignKey('PickTypes.pick_type_id'))
     notes = db.Column(db.Text)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
 
 class PickTypes(db.Model):
     __tablename__ = 'PickTypes'
@@ -65,6 +67,7 @@ class WorkOrderAssignment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
 
     assigned_to = db.relationship('Pickster', foreign_keys=[assigned_to_id], backref=db.backref('wo_assignments', lazy=True))
     completed_by = db.relationship('Pickster', foreign_keys=[completed_by_id], backref=db.backref('completed_wo_assignments', lazy=True))
@@ -82,7 +85,8 @@ class PickAssignment(db.Model):
     handling_code = db.Column(db.String(50), nullable=True) # Optional: Assign per code?
     picker_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=False)
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+
     picker = db.relationship('Pickster', backref=db.backref('assignments', lazy=True))
 
 

@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from sqlalchemy import bindparam, create_engine, func, inspect, text
-from app.branch_utils import normalize_branch, expand_branch_filter
+from app.branch_utils import normalize_branch, expand_branch, expand_branch_filter
 from app.runtime_settings import (
     build_sql_connection_strings,
     env_bool,
@@ -794,33 +794,34 @@ class ERPService:
             print(f"ERP Connection Error (Picks): {e}")
             return []
 
-    def get_open_so_summary(self):
+    def get_open_so_summary(self, branch=None):
         """
         Fetches a summary of Open Sales Orders (Status 'K'), grouped by Handling Code.
+        Optional *branch* filters by system_id (expanded via branch_utils).
         Returns: List of dicts {so_number, customer_name, address, reference, handling_code, line_count}
         """
-        cache_key = 'open_so_summary'
+        cache_key = f'open_so_summary_{branch or "all"}'
         cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
 
-        result = self._get_open_so_summary_inner()
+        result = self._get_open_so_summary_inner(branch=branch)
         self._cache_set(cache_key, result)
         return result
 
-    def get_open_order_board_summary(self):
+    def get_open_order_board_summary(self, branch=None):
         """
         Fetches Open Sales Orders grouped at the SO level for /warehouse/board/orders.
         Returns: List of dicts {so_number, customer_name, address, reference, line_count, handling_codes}
         """
-        cache_key = 'open_order_board_summary'
+        cache_key = f'open_order_board_summary_{branch or "all"}'
         cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
 
         if self.central_db_mode:
-            # Reuse the vw_board_open_orders view and aggregate to SO level
-            per_code = self.get_open_so_summary()
+            # Reuse per-handling-code summary and aggregate to SO level
+            per_code = self.get_open_so_summary(branch=branch)
             so_map = {}
             for item in per_code:
                 so_num = item['so_number']
@@ -844,7 +845,7 @@ class ERPService:
                 summary.append(data)
         else:
             # Legacy fallback: reuse per-handling summary and aggregate in Python.
-            per_code_summary = self.get_open_so_summary()
+            per_code_summary = self.get_open_so_summary(branch=branch)
             so_map = {}
             for item in per_code_summary:
                 so_num = item['so_number']
@@ -875,23 +876,58 @@ class ERPService:
         self._cache_set(cache_key, summary)
         return summary
 
-    def _get_open_so_summary_inner(self):
+    def _get_open_so_summary_inner(self, branch=None):
         if self.central_db_mode:
+            backorder_expr = self._mirror_so_detail_backorder_expr()
+            filters = [
+                "soh.so_status = 'K'",
+                f"COALESCE({backorder_expr}, 0) = 0",
+            ]
+            params = {}
+            expanding = set()
+
+            # Optional branch filter — expand DSM etc.
+            if branch:
+                branch_ids = expand_branch(branch)
+                if branch_ids:
+                    filters.append("soh.system_id IN :branch_ids")
+                    params["branch_ids"] = branch_ids
+                    expanding.add("branch_ids")
+
+            where_clause = " AND ".join(filters)
+
             rows = self._mirror_query(
-                """
+                f"""
                 SELECT
-                    so_id,
-                    cust_name,
-                    address_1,
-                    city,
-                    reference,
-                    handling_code,
-                    line_count
-                FROM vw_board_open_orders
-                """
+                    soh.so_id,
+                    soh.system_id,
+                    c.cust_name,
+                    cs.address_1,
+                    cs.city,
+                    soh.reference,
+                    ib.handling_code,
+                    COUNT(sod.sequence) AS line_count
+                FROM erp_mirror_so_detail sod
+                JOIN erp_mirror_so_header soh
+                    ON CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT) AND sod.system_id = soh.system_id
+                JOIN erp_mirror_item_branch ib
+                    ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
+                LEFT JOIN erp_mirror_cust c
+                    ON TRIM(c.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
+                LEFT JOIN erp_mirror_cust_shipto cs
+                    ON TRIM(cs.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
+                WHERE {where_clause}
+                GROUP BY soh.so_id, soh.system_id, c.cust_name, cs.address_1, cs.city,
+                         soh.reference, ib.handling_code
+                ORDER BY ib.handling_code, soh.so_id
+                """,
+                params=params,
+                expanding=expanding,
             )
             summary = [{
                 'so_number': str(row['so_id']),
+                'system_id': row['system_id'],
                 'customer_name': row['cust_name'] or 'Unknown',
                 'address': f"{row['address_1']}, {row['city']}" if row['address_1'] else 'No Address',
                 'reference': row['reference'],
