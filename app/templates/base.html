@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{% endblock %} - Beisser Ops</title>
+    <meta name="theme-color" content="#004526">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
 
     <!-- Premium Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -436,6 +438,14 @@
         });
     </script>
     {% block scripts %}{% endblock %}
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/service-worker.js')
+                .catch(function(err) { console.log('SW registration failed:', err); });
+        }
+    </script>
 </body>
 
 </html>

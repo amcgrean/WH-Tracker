@@ -1,99 +1,99 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container">
-    <h1>Picker Stats</h1>
-    <div class="btn-group" role="group">
-        <a href="?period=7days" class="btn btn-secondary">Last 7 Days</a>
-        <a href="?period=30days" class="btn btn-secondary">Last 30 Days</a>
-        <a href="?period=ytd" class="btn btn-secondary">Year to Date</a>
-    </div>
-    <form id="dateFilterForm" action="" method="get" style="display:inline;">
-        <label class="mr-1">Pick Date From <input type="date" name="start_date" value="{{ start_date }}" class="form-control-sm"></label>
-        <label class="mr-1">Pick Date To <input type="date" name="end_date" value="{{ end_date }}" class="form-control-sm"></label>
-        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-    </form>
-    <br><br>
-
-    <!-- New Stats Overview -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-white bg-primary mb-3">
-                <div class="card-header">Total Picks</div>
-                <div class="card-body">
-                    <h2 class="card-title">{{ total_picks }}</h2>
-                    <p class="card-text">Avg Time: {{ avg_time }} min</p>
+<div class="container-fluid mt-4 pb-5 px-lg-5">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 animate-fade-in">
+        <div>
+            <h1 class="display-4 font-weight-bold mb-0 text-gradient">Picker Stats</h1>
+            <p class="text-muted lead mb-0">Team performance and pick metrics</p>
+        </div>
+        <div class="mt-3 mt-md-0 d-flex flex-wrap align-items-center">
+            <div class="btn-group btn-group-sm period-btn-group mr-3 mb-2 mb-md-0">
+                <a href="?period=7days" class="btn btn-{% if period == '7days' %}ops-primary{% else %}outline-dark{% endif %}">Last 7 Days</a>
+                <a href="?period=30days" class="btn btn-{% if period == '30days' %}ops-primary{% else %}outline-dark{% endif %}">Last 30 Days</a>
+                <a href="?period=ytd" class="btn btn-{% if period == 'ytd' %}ops-primary{% else %}outline-dark{% endif %}">Year to Date</a>
+            </div>
+            <form id="dateFilterForm" action="" method="get" class="d-flex align-items-end flex-wrap">
+                <div class="mr-2 mb-2 mb-md-0">
+                    <label class="small font-weight-bold text-muted text-uppercase d-block mb-1">From</label>
+                    <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-sm" style="border-radius:8px;">
                 </div>
+                <div class="mr-2 mb-2 mb-md-0">
+                    <label class="small font-weight-bold text-muted text-uppercase d-block mb-1">To</label>
+                    <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-sm" style="border-radius:8px;">
+                </div>
+                <button type="submit" class="btn btn-ops-primary btn-sm mb-2 mb-md-0" style="padding:0.4rem 1rem;">Apply</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="row mb-4 animate-fade-in delay-1">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
+                <div class="h2 font-weight-bold text-primary mb-0">{{ total_picks }}</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Total Picks</div>
+                <div class="small text-muted mt-1">Avg: {{ avg_time }} min</div>
             </div>
         </div>
-
-        <div class="col-md-5">
-            <div class="card mb-3">
-                <div class="card-header">Breakdown by Type</div>
-                <ul class="list-group list-group-flush">
-                    {% for type in type_stats %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ type.name }}
-                        <span>
-                            <span class="badge badge-primary badge-pill">{{ type.count }}</span>
-                            <small class="text-muted ml-2">({{ type.avg_time }} min)</small>
-                        </span>
-                    </li>
-                    {% endfor %}
-                </ul>
+        <div class="col-md-5 col-6 mb-3">
+            <div class="glass-card p-3">
+                <div class="small font-weight-bold text-muted text-uppercase mb-2 px-1">Breakdown by Type</div>
+                {% for type in type_stats %}
+                <div class="d-flex justify-content-between align-items-center py-1 px-1 border-bottom" style="border-color:rgba(0,0,0,0.05) !important;">
+                    <span class="small font-weight-bold">{{ type.name }}</span>
+                    <span>
+                        <span class="badge badge-pill" style="background: rgba(0,69,38,0.1); color: var(--beisser-green);">{{ type.count }}</span>
+                        <small class="text-muted ml-1">({{ type.avg_time }} min)</small>
+                    </span>
+                </div>
+                {% endfor %}
             </div>
         </div>
-
-        <div class="col-md-4">
-            <div class="card mb-3">
-                <div class="card-header">Top Pickers</div>
-                <ul class="list-group list-group-flush">
-                    {% for picker in top_pickers %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ picker.name }}
-                        <span class="badge badge-success badge-pill">{{ picker.pick_count }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
+        <div class="col-md-4 mb-3">
+            <div class="glass-card p-3">
+                <div class="small font-weight-bold text-muted text-uppercase mb-2 px-1">Top Pickers</div>
+                {% for picker in top_pickers %}
+                <div class="d-flex justify-content-between align-items-center py-1 px-1 border-bottom" style="border-color:rgba(0,0,0,0.05) !important;">
+                    <span class="small font-weight-bold">{{ picker.name }}</span>
+                    <span class="badge badge-success badge-pill">{{ picker.pick_count }}</span>
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th><a
-                        href="?sort=picker_id&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Picker
-                        ID</a></th>
-                <th><a
-                        href="?sort=name&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Picker
-                        Name</a></th>
-                <th><a
-                        href="?sort=yard_picks&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Number
-                        of Yard Picks</a></th>
-                <th><a
-                        href="?sort=will_call_picks&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Number
-                        of Will Calls</a></th>
-                <th><a
-                        href="?sort=avg_pick_time&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Average
-                        Pick Time (HH:MM)</a></th>
-                <th><a
-                        href="?sort=avg_picks_per_day&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}">Average
-                        Picks per Day</a></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for stat in stats %}
-            <tr>
-                <td>{{ stat.id }}</td>
-                <td><a href="{{ url_for('main.picker_details', picker_id=stat.id) }}">{{ stat.name }}</a></td>
-                <td>{{ stat.yard_picks }}</td>
-                <td>{{ stat.will_call_picks }}</td>
-                <td>{{ stat.avg_pick_time }}</td>
-                <td>{{ stat.avg_picks_per_day }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <!-- Full Stats Table -->
+    <div class="glass-card animate-fade-in delay-2">
+        <div class="card-header-ops">
+            <i class="fas fa-table mr-2"></i> Detailed Stats
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th><a href="?sort=picker_id&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}" class="text-dark">Picker ID</a></th>
+                        <th><a href="?sort=name&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}" class="text-dark">Picker Name</a></th>
+                        <th><a href="?sort=yard_picks&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}" class="text-dark">Yard Picks</a></th>
+                        <th><a href="?sort=will_call_picks&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}" class="text-dark">Will Calls</a></th>
+                        <th><a href="?sort=avg_pick_time&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}" class="text-dark">Avg Pick Time</a></th>
+                        <th><a href="?sort=avg_picks_per_day&order={{ 'asc' if order == 'desc' else 'desc' }}&start_date={{ start_date }}&end_date={{ end_date }}&period={{ period }}" class="text-dark">Avg Picks/Day</a></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in stats %}
+                    <tr>
+                        <td class="text-muted">{{ stat.id }}</td>
+                        <td><a href="{{ url_for('main.picker_details', picker_id=stat.id) }}" class="font-weight-bold text-primary">{{ stat.name }}</a></td>
+                        <td>{{ stat.yard_picks }}</td>
+                        <td>{{ stat.will_call_picks }}</td>
+                        <td><span class="badge badge-light border">{{ stat.avg_pick_time }}</span></td>
+                        <td><span class="font-weight-bold">{{ stat.avg_picks_per_day }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock %}

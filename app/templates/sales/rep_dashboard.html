@@ -2,9 +2,9 @@
 {% block title %}Sales Rep Dashboard{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4 pb-5">
+<div class="container-fluid mt-4 pb-5 px-lg-5">
 
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="breadcrumb" class="mb-3 animate-fade-in">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
             <li class="breadcrumb-item active">Rep Dashboard</li>
@@ -12,64 +12,64 @@
     </nav>
 
     <!-- Header with period selector -->
-    <div class="row align-items-center mb-4">
+    <div class="row align-items-center mb-4 animate-fade-in">
         <div class="col">
-            <h1 class="h2 font-weight-bold text-danger mb-0">
+            <h1 class="h2 font-weight-bold text-gradient mb-0">
                 <i class="fas fa-tachometer-alt mr-2"></i> Sales Rep Dashboard
             </h1>
             <p class="text-muted mb-0">{% if rep_name %}{{ rep_name }}'s activity{% else %}Team activity{% endif %} — last {{ period_days }} days</p>
         </div>
         <div class="col-auto">
-            <div class="btn-group btn-group-sm">
+            <div class="btn-group btn-group-sm period-btn-group">
                 <a href="{{ url_for('sales.rep_dashboard', period=7) }}"
-                   class="btn btn-{% if period_days==7 %}danger{% else %}outline-danger{% endif %}">7d</a>
+                   class="btn btn-{% if period_days==7 %}ops-primary{% else %}outline-dark{% endif %}">7d</a>
                 <a href="{{ url_for('sales.rep_dashboard', period=30) }}"
-                   class="btn btn-{% if period_days==30 %}danger{% else %}outline-danger{% endif %}">30d</a>
+                   class="btn btn-{% if period_days==30 %}ops-primary{% else %}outline-dark{% endif %}">30d</a>
                 <a href="{{ url_for('sales.rep_dashboard', period=90) }}"
-                   class="btn btn-{% if period_days==90 %}danger{% else %}outline-danger{% endif %}">90d</a>
+                   class="btn btn-{% if period_days==90 %}ops-primary{% else %}outline-dark{% endif %}">90d</a>
             </div>
         </div>
     </div>
 
     <!-- KPI Row -->
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-4">
+    <div class="row mb-4 animate-fade-in delay-1">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
                 {% set total_orders = status_breakdown | sum(attribute='count') %}
-                <div class="h2 font-weight-bold text-danger mb-0">{{ total_orders }}</div>
-                <div class="small text-muted">Total Orders (Period)</div>
+                <div class="h2 font-weight-bold text-primary mb-0">{{ total_orders }}</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Total Orders (Period)</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-4">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
                 {% set open_count = namespace(val=0) %}
                 {% for s in status_breakdown %}{% if s.so_status == 'O' %}{% set open_count.val = s.count %}{% endif %}{% endfor %}
                 <div class="h2 font-weight-bold text-success mb-0">{{ open_count.val }}</div>
-                <div class="small text-muted">Open Orders</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Open Orders</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-4">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
                 <div class="h2 font-weight-bold text-info mb-0">{{ top_customers|length }}</div>
-                <div class="small text-muted">Active Customers</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Active Customers</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-4">
-                <div class="h2 font-weight-bold text-warning mb-0">{{ branch_counts|length }}</div>
-                <div class="small text-muted">Active Handling Codes</div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
+                <div class="h2 font-weight-bold mb-0" style="color: var(--beisser-gold);">{{ branch_counts|length }}</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Active Handling Codes</div>
             </div>
         </div>
     </div>
 
     <div class="row">
         <!-- Top Customers -->
-        <div class="col-md-7 mb-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white font-weight-bold border-bottom">
-                    <i class="fas fa-star mr-1 text-warning"></i> Top Customers (by order count)
+        <div class="col-md-7 mb-4 animate-fade-in delay-2">
+            <div class="glass-card h-100">
+                <div class="p-3 border-bottom font-weight-bold">
+                    <i class="fas fa-star mr-1" style="color: var(--beisser-gold);"></i> Top Customers (by order count)
                 </div>
-                <div class="card-body py-2">
+                <div class="card-body py-3">
                     {% if top_customers %}
                         {% set max_count = top_customers[0].order_count %}
                         {% for cust in top_customers %}
@@ -80,13 +80,13 @@
                                     <span class="font-weight-bold">{{ cust.customer_name or '—' }}</span>
                                     <span class="text-muted">{{ cust.order_count }} orders</span>
                                 </div>
-                                <div class="progress mt-1" style="height:5px;">
-                                    <div class="progress-bar bg-danger"
-                                         style="width:{{ (cust.order_count / max_count * 100)|int }}%"></div>
+                                <div class="progress mt-1" style="height:5px;border-radius:3px;">
+                                    <div class="progress-bar"
+                                         style="width:{{ (cust.order_count / max_count * 100)|int }}%;background:var(--beisser-green);"></div>
                                 </div>
                             </div>
                             <a href="{{ url_for('sales.customer_profile', customer_number=cust.customer_name) }}"
-                               class="btn btn-xs btn-outline-danger">View</a>
+                               class="btn btn-xs btn-outline-secondary" style="border-radius:8px;">View</a>
                         </div>
                         {% endfor %}
                     {% else %}
@@ -100,13 +100,13 @@
         <div class="col-md-5">
 
             <!-- Status Breakdown -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white font-weight-bold border-bottom">
-                    <i class="fas fa-chart-pie mr-1 text-danger"></i> Status Breakdown
+            <div class="glass-card mb-4 animate-fade-in delay-2">
+                <div class="p-3 border-bottom font-weight-bold">
+                    <i class="fas fa-chart-pie mr-1 text-primary"></i> Status Breakdown
                 </div>
                 <div class="card-body py-2">
                     {% for s in status_breakdown %}
-                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="border-color:rgba(0,0,0,0.05) !important;">
                         <span class="small">
                             {% if s.so_status == 'O' %}<span class="badge badge-success">Open</span>
                             {% elif s.so_status == 'I' %}<span class="badge badge-info">Invoiced</span>
@@ -123,15 +123,15 @@
             </div>
 
             <!-- Handling Code Breakdown -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white font-weight-bold border-bottom">
-                    <i class="fas fa-tags mr-1 text-danger"></i> Orders by Handling Code
+            <div class="glass-card animate-fade-in delay-3">
+                <div class="p-3 border-bottom font-weight-bold">
+                    <i class="fas fa-tags mr-1 text-primary"></i> Orders by Handling Code
                 </div>
                 <div class="card-body py-2">
                     {% for b in branch_counts %}
-                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="border-color:rgba(0,0,0,0.05) !important;">
                         <span class="small font-weight-bold">{{ b.handling_code or 'None' }}</span>
-                        <span class="badge badge-pill badge-danger">{{ b.order_count }}</span>
+                        <span class="badge badge-pill" style="background: rgba(0,69,38,0.1); color: var(--beisser-green);">{{ b.order_count }}</span>
                     </div>
                     {% else %}
                     <div class="text-muted text-center py-3 small">No data.</div>
@@ -142,8 +142,8 @@
         </div>
     </div>
 
-    <!-- Future Rep Selector (stub) -->
-    <div class="alert alert-light border mt-3 small">
+    <!-- Future Rep Selector -->
+    <div class="alert alert-light border-0 glass-panel mt-3 small animate-fade-in delay-3">
         <i class="fas fa-info-circle mr-1 text-muted"></i>
         <strong>Coming soon:</strong> Rep-level filtering by sales rep name or territory once rep assignment data is
         synced from Agility to the central database. Use <code>?rep=Name</code> in the URL to pre-filter.

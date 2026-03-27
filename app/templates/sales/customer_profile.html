@@ -2,10 +2,10 @@
 {% block title %}Customer Profile — {{ customer_name }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4 pb-5">
+<div class="container-fluid mt-4 pb-5 px-lg-5">
 
     <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="breadcrumb" class="mb-3 animate-fade-in">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
             <li class="breadcrumb-item active">Customer Profile</li>
@@ -13,29 +13,27 @@
     </nav>
 
     <!-- Customer Header Card -->
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
-                         style="width:64px;height:64px;font-size:1.6rem;">
-                        <i class="fas fa-building"></i>
-                    </div>
+    <div class="glass-card p-4 mb-4 animate-fade-in">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width:64px;height:64px;font-size:1.6rem;background:rgba(0,69,38,0.1);color:var(--beisser-green);">
+                    <i class="fas fa-building"></i>
                 </div>
-                <div class="col">
-                    <h2 class="font-weight-bold mb-0">{{ customer_name }}</h2>
-                    <span class="text-muted small">Customer # {{ customer_number }}</span>
-                </div>
-                <div class="col-auto d-flex flex-wrap gap-2">
-                    <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
-                       class="btn btn-outline-secondary btn-sm mr-2">
-                        <i class="fas fa-sticky-note mr-1"></i> Notes ({{ notes|length }})
-                    </a>
-                    <a href="{{ url_for('sales.customer_statement', customer_number=customer_number) }}"
-                       class="btn btn-outline-primary btn-sm">
-                        <i class="fas fa-file-alt mr-1"></i> Statement / AR
-                    </a>
-                </div>
+            </div>
+            <div class="col">
+                <h2 class="font-weight-bold mb-0">{{ customer_name }}</h2>
+                <span class="text-muted small">Customer # {{ customer_number }}</span>
+            </div>
+            <div class="col-auto d-flex flex-wrap">
+                <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
+                   class="btn btn-outline-secondary btn-sm mr-2 mb-1">
+                    <i class="fas fa-sticky-note mr-1"></i> Notes ({{ notes|length }})
+                </a>
+                <a href="{{ url_for('sales.customer_statement', customer_number=customer_number) }}"
+                   class="btn btn-ops-primary btn-sm mb-1" style="padding: 0.4rem 1rem;">
+                    <i class="fas fa-file-alt mr-1"></i> Statement / AR
+                </a>
             </div>
         </div>
     </div>
@@ -43,30 +41,30 @@
     <div class="row">
         <!-- Left: KPI tiles -->
         <div class="col-md-4">
-            <div class="row mb-3">
+            <div class="row mb-3 animate-fade-in delay-1">
                 <div class="col-6">
-                    <div class="card border-0 shadow-sm text-center py-3">
+                    <div class="glass-card text-center p-4 border-0">
                         <div class="h3 font-weight-bold text-primary mb-0">{{ order_numbers|length }}</div>
-                        <div class="small text-muted">Total Orders</div>
+                        <div class="small text-muted font-weight-bold text-uppercase">Total Orders</div>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="card border-0 shadow-sm text-center py-3">
+                    <div class="glass-card text-center p-4 border-0">
                         <div class="h3 font-weight-bold text-success mb-0">
                             {{ customer_rows|selectattr('so_status','eq','O')|list|length }}
                         </div>
-                        <div class="small text-muted">Open Orders</div>
+                        <div class="small text-muted font-weight-bold text-uppercase">Open Orders</div>
                     </div>
                 </div>
             </div>
 
             <!-- Award Level Placeholder -->
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-header bg-warning text-white font-weight-bold border-0">
+            <div class="glass-card mb-3 animate-fade-in delay-2">
+                <div class="card-header-ops" style="background: linear-gradient(135deg, var(--beisser-gold), var(--beisser-gold-light));">
                     <i class="fas fa-trophy mr-1"></i> Award &amp; Loyalty Status
                 </div>
                 <div class="card-body text-center py-4">
-                    <div class="text-warning" style="font-size:2.5rem;"><i class="fas fa-award"></i></div>
+                    <div style="font-size:2.5rem;color:var(--beisser-gold);"><i class="fas fa-award"></i></div>
                     <div class="font-weight-bold mt-2">Award data will sync</div>
                     <p class="text-muted small mb-0">
                         Award tiers and loyalty points will populate here once the central DB
@@ -75,9 +73,9 @@
                 </div>
             </div>
 
-            <!-- Account Info Placeholder -->
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-header bg-white font-weight-bold border-bottom">
+            <!-- Account Info -->
+            <div class="glass-card mb-3 animate-fade-in delay-2">
+                <div class="p-3 border-bottom font-weight-bold">
                     <i class="fas fa-id-card mr-1 text-primary"></i> Account Details
                 </div>
                 <div class="card-body py-2 small">
@@ -111,10 +109,10 @@
         <div class="col-md-8">
 
             <!-- Recent Orders -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between align-items-center">
+            <div class="glass-card mb-4 animate-fade-in delay-1">
+                <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-box-open mr-1 text-primary"></i> Recent Orders</span>
-                    <a href="{{ url_for('sales.order_history', q=customer_number) }}" class="small text-primary">View all</a>
+                    <a href="{{ url_for('sales.order_history', q=customer_number) }}" class="small text-primary font-weight-bold">View all</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover table-sm mb-0">
@@ -162,77 +160,75 @@
                 </div>
             </div>
 
-            <div class="tab-content" id="pills-tabContent">
-                <div class="tab-pane fade show active" id="pills-orders" role="tabpanel">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                            <span class="font-weight-bold">Last 10 Sync Records</span>
-                            <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
-                                class="btn btn-xs btn-link text-info">View All History</a>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead class="thead-light">
-                                    <tr>
-                                        <th>SO #</th>
-                                        <th>Expected</th>
-                                        <th>Status</th>
-                                        <th class="text-right">Synced At</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for row in recent_orders %}
-                                    <tr>
-                                        <td class="font-weight-bold text-info">{{ row.so_number }}</td>
-                                        <td>{{ row.expect_date or '—' }}</td>
-                                        <td>
-                                            <span
-                                                class="badge badge-pill badge-{% if row.so_status == 'O' %}info{% elif row.so_status == 'I' %}success{% else %}secondary{% endif %}">
-                                                {{ row.so_status }}
-                                            </span>
-                                        </td>
-                                        <td class="text-right small text-muted">{{ row.synced_at_display }}</td>
-                                        <td class="text-right">
-                                            <a href="{{ url_for('main.pick_detail', so_number=row.so_number) }}"
-                                                class="btn btn-xs btn-outline-secondary">Details</a>
-                                        </td>
-                                    </tr>
-                                    {% else %}
-                                    <tr>
-                                        <td colspan="5" class="text-center py-4 text-muted">No records found for this
-                                            customer number.</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="card border-0 shadow-sm mt-4">
-                        <div class="card-header bg-white font-weight-bold d-flex justify-content-between">
-                            <span>Recent Notes</span>
-                            <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
-                                class="btn btn-xs btn-outline-info">Add Note</a>
-                        </div>
-                        <div class="list-group list-group-flush small">
-                            {% for note in notes[:3] %}
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <span class="font-weight-bold text-info">{{ note.note_type }}</span>
-                                    <span class="text-muted">{{ note.created_at.strftime('%m/%d') }}</span>
-                                </div>
-                                <small class="text-muted">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') if note.created_at else '' }}</small>
-                                <p class="mb-0 mt-1 small">{{ note.body }}</p>
-                            </div>
+            <!-- Last 10 Sync Records -->
+            <div class="glass-card mb-4 animate-fade-in delay-2">
+                <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+                    <span class="font-weight-bold">Last 10 Sync Records</span>
+                    <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
+                        class="btn btn-xs btn-link text-primary font-weight-bold">View All History</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>SO #</th>
+                                <th>Expected</th>
+                                <th>Status</th>
+                                <th class="text-right">Synced At</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in recent_orders %}
+                            <tr>
+                                <td class="font-weight-bold text-primary">{{ row.so_number }}</td>
+                                <td>{{ row.expect_date or '—' }}</td>
+                                <td>
+                                    <span
+                                        class="badge badge-pill badge-{% if row.so_status == 'O' %}success{% elif row.so_status == 'I' %}info{% else %}secondary{% endif %}">
+                                        {{ row.so_status }}
+                                    </span>
+                                </td>
+                                <td class="text-right small text-muted">{{ row.synced_at_display }}</td>
+                                <td class="text-right">
+                                    <a href="{{ url_for('main.pick_detail', so_number=row.so_number) }}"
+                                        class="btn btn-xs btn-outline-secondary">Details</a>
+                                </td>
+                            </tr>
                             {% else %}
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-sticky-note fa-2x mb-2 d-block"></i>
-                                No notes yet. <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}">Add the first one.</a>
-                            </div>
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No records found for this
+                                    customer number.</td>
+                            </tr>
                             {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recent Notes -->
+            <div class="glass-card animate-fade-in delay-3">
+                <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between">
+                    <span>Recent Notes</span>
+                    <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
+                        class="btn btn-xs btn-outline-primary">Add Note</a>
+                </div>
+                <div class="list-group list-group-flush small">
+                    {% for note in notes[:3] %}
+                    <div class="list-group-item bg-transparent">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="font-weight-bold text-primary">{{ note.note_type }}</span>
+                            <span class="text-muted">{{ note.created_at.strftime('%m/%d') }}</span>
                         </div>
+                        <small class="text-muted">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') if note.created_at else '' }}</small>
+                        <p class="mb-0 mt-1 small">{{ note.body }}</p>
                     </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-sticky-note fa-2x mb-2 d-block" style="opacity:0.2;"></i>
+                        No notes yet. <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}">Add the first one.</a>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
 

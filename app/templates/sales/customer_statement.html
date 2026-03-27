@@ -2,9 +2,9 @@
 {% block title %}Statement — {{ customer_name }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4 pb-5">
+<div class="container-fluid mt-4 pb-5 px-lg-5">
 
-    <nav aria-label="breadcrumb" class="mb-3">
+    <nav aria-label="breadcrumb" class="mb-3 animate-fade-in">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
             <li class="breadcrumb-item">
@@ -14,55 +14,55 @@
         </ol>
     </nav>
 
-    <div class="row align-items-center mb-4">
+    <div class="row align-items-center mb-4 animate-fade-in">
         <div class="col">
-            <h1 class="h2 font-weight-bold mb-0 text-primary">
+            <h1 class="h2 font-weight-bold mb-0 text-gradient">
                 <i class="fas fa-file-alt mr-2"></i> Account Statement
             </h1>
             <p class="text-muted mb-0">{{ customer_name }} &mdash; Open AR &amp; order history</p>
         </div>
         <div class="col-auto">
-            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()" style="border-radius: 8px;">
                 <i class="fas fa-print mr-1"></i> Print
             </button>
         </div>
     </div>
 
-    <!-- AR Summary Cards (placeholder until AR data syncs) -->
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-3">
+    <!-- AR Summary Cards -->
+    <div class="row mb-4 animate-fade-in delay-1">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
                 <div class="h3 font-weight-bold text-primary mb-0">{{ open_orders|length }}</div>
-                <div class="small text-muted">Open Orders</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Open Orders</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-3">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
                 <div class="h3 font-weight-bold text-success mb-0">{{ invoiced_orders|length }}</div>
-                <div class="small text-muted">Invoiced Orders</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Invoiced Orders</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-3">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
                 <div class="h3 font-weight-bold text-warning mb-0">
                     <i class="fas fa-sync-alt fa-spin small"></i>
                 </div>
-                <div class="small text-muted">Outstanding Balance</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Outstanding Balance</div>
                 <div class="text-muted" style="font-size:0.7rem;">Pending AR sync</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm text-center py-3">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="glass-card text-center p-4 border-0">
                 <div class="h3 font-weight-bold text-info mb-0">
                     <i class="fas fa-sync-alt fa-spin small"></i>
                 </div>
-                <div class="small text-muted">Credit Limit</div>
+                <div class="small text-muted font-weight-bold text-uppercase">Credit Limit</div>
                 <div class="text-muted" style="font-size:0.7rem;">Pending AR sync</div>
             </div>
         </div>
     </div>
 
-    <div class="alert alert-info border-0 shadow-sm mb-4">
+    <div class="alert alert-info border-0 glass-panel shadow-sm mb-4 animate-fade-in delay-1">
         <i class="fas fa-database mr-1"></i>
         <strong>AR data coming soon:</strong> Balance, credit limit, and payment terms will display here once the
         central database sync includes the Agility AR/Customer tables.
@@ -70,8 +70,8 @@
     </div>
 
     <!-- Open Orders -->
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between">
+    <div class="glass-card mb-4 animate-fade-in delay-2">
+        <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between">
             <span><i class="fas fa-box-open mr-1 text-success"></i> Open Orders</span>
             <span class="badge badge-success badge-pill">{{ open_orders|length }}</span>
         </div>
@@ -120,8 +120,8 @@
     </div>
 
     <!-- Invoiced Orders -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white font-weight-bold border-bottom d-flex justify-content-between">
+    <div class="glass-card animate-fade-in delay-3">
+        <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between">
             <span><i class="fas fa-file-invoice-dollar mr-1 text-info"></i> Invoiced / Closed Orders</span>
             <span class="badge badge-info badge-pill">{{ invoiced_orders|length }}</span>
         </div>

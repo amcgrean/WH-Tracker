@@ -352,3 +352,203 @@ h1, h2, h3, h4, .navbar-brand {
     color: #334155;
 }
 .branch-badge .fas { color: var(--beisser-green, #004526); }
+
+/* ── Card Header (shared across supervisor, warehouse) ─────────────────── */
+.card-header-ops {
+    background: linear-gradient(135deg, var(--beisser-green), var(--beisser-green-light));
+    color: #fff;
+    font-weight: 700;
+    padding: 1rem 1.5rem;
+    font-size: 0.95rem;
+}
+
+/* ── Supervisor WO Board ──────────────────────────────────────────────── */
+.so-card-ops {
+    border-radius: var(--border-radius-md);
+    border: 1px solid rgba(0,0,0,0.06);
+    transition: all var(--transition-fast);
+    background: #fff;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+.so-card-ops:hover {
+    box-shadow: var(--shadow-md);
+    border-color: rgba(0,0,0,0.12);
+}
+.so-card-ops .so-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding: 0.9rem 1.25rem;
+}
+.so-card-ops .wo-row {
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid #f5f5f5;
+    transition: background var(--transition-fast);
+}
+.so-card-ops .wo-row:last-child { border-bottom: none; }
+.so-card-ops .wo-row:hover { background-color: #fcfcfc; }
+
+.status-badge-ops {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.status-badge-ops.open { background: #e9ecef; color: #495057; }
+.status-badge-ops.assigned { background: #e7f5ff; color: #1c7ed6; }
+
+.dept-badge-ops {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--beisser-green);
+    color: #fff;
+}
+
+/* ── Warehouse Picks/Order Board ──────────────────────────────────────── */
+.handling-section-ops {
+    margin-bottom: 2rem;
+    background: var(--glass-bg);
+    padding: 1.5rem;
+    border-radius: var(--border-radius-md);
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: var(--shadow-sm);
+}
+.handling-section-ops .handling-header {
+    border-bottom: 2px solid var(--beisser-green);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.wh-card {
+    border-radius: var(--border-radius-md);
+    border: 1px solid rgba(0,0,0,0.06);
+    transition: all var(--transition-fast);
+    background: #fff;
+    position: relative;
+    overflow: hidden;
+}
+.wh-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: rgba(0,0,0,0.12);
+}
+.wh-card .status-indicator {
+    position: absolute; top: 0; left: 0; width: 6px; height: 100%;
+}
+.wh-card .status-indicator.unassigned { background: #ffc107; }
+.wh-card .status-indicator.assigned { background: #28a745; }
+.wh-card .cust-name {
+    font-weight: 700;
+    color: var(--dark-charcoal);
+    display: block;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wh-card .cust-addr { color: var(--text-muted); font-size: 0.72rem; }
+
+.action-btn-ops {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: 1px solid #dee2e6;
+    background: white; color: #495057;
+    transition: all var(--transition-fast); padding: 0;
+}
+.action-btn-ops:hover {
+    background: #f8f9fa; color: var(--beisser-green); border-color: var(--beisser-green);
+}
+
+.line-badge-ops {
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 0.75rem;
+}
+
+.line-count-badge-ops {
+    background: var(--dark-charcoal); color: #fff;
+    padding: 2px 10px; border-radius: 6px;
+    font-size: 0.8rem; font-weight: 700;
+}
+
+.code-pill-ops {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 50px;
+    background: #f1f3f5; color: #495057;
+    margin-right: 4px; margin-bottom: 4px;
+    border: 1px solid #dee2e6;
+}
+
+/* ── Warehouse Select Handling (kiosk-style buttons) ──────────────────── */
+.handling-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+}
+.handling-grid__btn {
+    display: flex; align-items: center; justify-content: center;
+    padding: 2.5rem;
+    font-size: 1.4rem; font-weight: 800; color: #fff;
+    text-decoration: none;
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-fast);
+}
+.handling-grid__btn:hover {
+    transform: translateY(-4px); text-decoration: none; color: #fff;
+    box-shadow: var(--shadow-lg);
+}
+
+/* ── Warehouse View Picks ─────────────────────────────────────────────── */
+.big-checkbox-ops {
+    width: 28px; height: 28px;
+    cursor: pointer; accent-color: var(--beisser-green);
+}
+.table-warehouse td { vertical-align: middle; font-size: 1.05rem; }
+
+/* ── "All branches" indicator ─────────────────────────────────────────── */
+.branch-all-indicator {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 8px;
+    background: rgba(108, 117, 125, 0.08);
+    color: var(--text-muted);
+    font-size: 0.75rem; font-weight: 700;
+}
+
+/* ── Legacy page refresh (dashboard, admin, picker pages) ─────────────── */
+.legacy-stat-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
+    text-align: center;
+    transition: var(--transition-fast);
+}
+.legacy-stat-card:hover { box-shadow: var(--shadow-md); }
+.legacy-stat-card .stat-value {
+    font-size: 2rem; font-weight: 800; color: var(--beisser-green);
+}
+.legacy-stat-card .stat-label {
+    font-size: 0.78rem; text-transform: uppercase; font-weight: 700;
+    color: var(--text-muted); letter-spacing: 0.04em;
+}
+
+/* Admin table row hover */
+.admin-row:hover {
+    background-color: rgba(197, 160, 89, 0.1);
+    transition: background var(--transition-fast);
+}
+
+/* Picker stats period buttons */
+.period-btn-group .btn { border-radius: var(--border-radius-md); font-weight: 700; }

@@ -2,86 +2,99 @@
 
 {% block title %}Admin Panel{% endblock %}
 
-{% block head %}
-{{ super() }}
-<style>
-    /* Custom hover style for table rows */
-    .hover-golden:hover {
-        background-color: gold;
-        /* Change to a goldish color upon hover */
-        transform: scale(1.05);
-        /* Enlarge by 5% */
-        transition: transform .2s, background-color .2s;
-        /* Smooth transition for both scale and color */
-    }
-</style>
-{% endblock %}
-
 {% block content %}
+<div class="container-fluid mt-4 pb-5 px-lg-5">
+    <div class="mb-5 animate-fade-in">
+        <h1 class="display-4 font-weight-bold mb-0 text-gradient">Admin Console</h1>
+        <p class="text-muted lead mb-0">Manage warehouse staff and system settings</p>
+    </div>
 
-<h2>Manage Pickers</h2>
-<br>
-<!-- Add Picker Form -->
-
-<form action="/add_picker" method="post">
-    <label for="picker_name">
-        <h6>Add New Picker:</h6>
-    </label>
-    <input type="text" id="picker_name" name="picker_name" placeholder="Picker Name" required>
-    <select name="user_type" id="user_type">
-        <option value="picker">Picker</option>
-        <option value="door_builder">Door Builder</option>
-    </select>
-    <button type="submit" class="btn btn-primary">Add Picker</button>
-</form>
-
-<!-- List of Pickers -->
-<h3>Current Pickers</h3>
-<table class="table table-hover">
-    <thead>
-        <tr>
-            <th scope="col">Picker Name</th>
-            <th scope="col">Type</th>
-            <th scope="col">Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for picker in pickers %}
-        <tr class="hover-golden">
-            <td>{{ picker.name }}</td>
-            <td>{{ picker.user_type }}</td>
-            <td>
-                <a href="/edit_picker/{{ picker.id }}" class="btn btn-warning btn-sm">Edit</a>
-                <button type="button" class="btn btn-danger btn-sm" data-toggle="modal"
-                    data-target="#deletePickerModal{{ picker.id }}">Delete</button>
-
-                <!-- Modal -->
-                <div class="modal fade" id="deletePickerModal{{ picker.id }}" tabindex="-1" role="dialog"
-                    aria-labelledby="deletePickerLabel{{ picker.id }}" aria-hidden="true">
-                    <div class="modal-dialog" role="document">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="deletePickerLabel{{ picker.id }}">Confirm Delete</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div class="modal-body">
-                                <form action="/delete_picker/{{ picker.id }}" method="post">
-                                    <div class="form-group">
-                                        <label>Enter password to confirm:</label>
-                                        <input type="password" name="password" class="form-control" required>
-                                    </div>
-                                    <button type="submit" class="btn btn-danger">Confirm Delete</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
+    <!-- Add Picker Form -->
+    <div class="glass-card mb-4 animate-fade-in delay-1">
+        <div class="card-header-ops">
+            <i class="fas fa-user-plus mr-2"></i> Add New Staff Member
+        </div>
+        <div class="card-body p-4">
+            <form action="/add_picker" method="post" class="d-flex flex-column flex-md-row align-items-md-end">
+                <div class="form-group mr-md-3 mb-3 mb-md-0 flex-grow-1">
+                    <label class="small font-weight-bold text-muted text-uppercase">Name</label>
+                    <input type="text" id="picker_name" name="picker_name" placeholder="Staff name" required
+                           class="form-control" style="border-radius: var(--border-radius-md);">
                 </div>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+                <div class="form-group mr-md-3 mb-3 mb-md-0">
+                    <label class="small font-weight-bold text-muted text-uppercase">Role</label>
+                    <select name="user_type" id="user_type" class="form-control custom-select" style="border-radius: var(--border-radius-md);">
+                        <option value="picker">Picker</option>
+                        <option value="door_builder">Door Builder</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-ops-primary shadow-sm">
+                    <i class="fas fa-plus mr-1"></i> Add Staff
+                </button>
+            </form>
+        </div>
+    </div>
 
+    <!-- Picker List -->
+    <div class="glass-card animate-fade-in delay-2">
+        <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-users mr-2 text-primary"></i> Current Staff</span>
+            <span class="badge badge-light border badge-pill">{{ pickers|length }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for picker in pickers %}
+                    <tr class="admin-row">
+                        <td class="font-weight-bold">{{ picker.name }}</td>
+                        <td><span class="badge badge-light border">{{ picker.user_type }}</span></td>
+                        <td>
+                            <a href="/edit_picker/{{ picker.id }}" class="btn btn-sm btn-outline-warning mr-1" style="border-radius:8px;">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger" style="border-radius:8px;" data-toggle="modal"
+                                data-target="#deletePickerModal{{ picker.id }}">
+                                <i class="fas fa-trash mr-1"></i>Delete
+                            </button>
+
+                            <!-- Delete Modal -->
+                            <div class="modal fade" id="deletePickerModal{{ picker.id }}" tabindex="-1" role="dialog"
+                                aria-labelledby="deletePickerLabel{{ picker.id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered" role="document">
+                                    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--border-radius-lg);">
+                                        <div class="modal-header border-0" style="background: linear-gradient(135deg, #dc3545, #c82333); border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;">
+                                            <h5 class="modal-title text-white font-weight-bold" id="deletePickerLabel{{ picker.id }}">Confirm Delete</h5>
+                                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                                <span aria-hidden="true">&times;</span>
+                                            </button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <form action="/delete_picker/{{ picker.id }}" method="post">
+                                                <div class="form-group">
+                                                    <label class="small font-weight-bold text-muted text-uppercase">Enter password to confirm:</label>
+                                                    <input type="password" name="password" class="form-control" required style="border-radius: var(--border-radius-md);">
+                                                </div>
+                                                <button type="submit" class="btn btn-danger w-100" style="border-radius: var(--border-radius-md);">
+                                                    <i class="fas fa-trash mr-1"></i> Confirm Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 {% endblock %}
