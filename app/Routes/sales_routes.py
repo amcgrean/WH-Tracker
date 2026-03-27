@@ -1,9 +1,18 @@
-from flask import Blueprint, render_template, request, flash, redirect, url_for
+from flask import Blueprint, render_template, request, flash, redirect, url_for, session
 from ..Models.models import CustomerNote
 from sqlalchemy import desc
 from datetime import datetime
 from ..Services.erp_service import ERPService
 from ..extensions import db
+from ..branch_utils import normalize_branch
+
+
+def _get_branch():
+    """Read branch from URL param > session > empty (all branches)."""
+    raw = request.args.get('branch', '').strip()
+    if raw:
+        return normalize_branch(raw) or ''
+    return normalize_branch(session.get('selected_branch', '')) or ''
 
 sales = Blueprint('sales', __name__, url_prefix='/sales')
 erp = ERPService()
@@ -149,7 +158,7 @@ def customer_profile(customer_number):
 def order_status():
     """Searchable/filterable view of all open orders."""
     q = request.args.get('q', '').strip()
-    branch = request.args.get('branch', '').strip()
+    branch = _get_branch()
     orders = [_normalize_order_row(r) for r in erp.get_sales_order_status(q=q, limit=100, branch=branch)]
     return render_template('sales/order_status.html', orders=orders, q=q, branch=branch)
 
@@ -198,7 +207,7 @@ def invoice_lookup():
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     status = request.args.get('status', '')
-    branch = request.args.get('branch', '').strip()
+    branch = _get_branch()
     searched = bool(q or date_from or date_to or status or branch)
 
     invoices = []
@@ -227,7 +236,7 @@ def products():
 def reports():
     """Sales analytics and territory reports."""
     period_days = request.args.get('period', 30, type=int)
-    branch = request.args.get('branch', '').strip()
+    branch = _get_branch()
     report_data = erp.get_sales_reports(period_days=period_days, branch=branch)
     daily_orders = [_normalize_daily_order(r) for r in report_data['daily_orders']]
     top_customers = [_normalize_top_customer(r) for r in report_data['top_customers']]
@@ -279,7 +288,7 @@ def order_history(customer_number):
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     status = request.args.get('status', '')
-    branch = request.args.get('branch', '').strip()
+    branch = _get_branch()
     page = request.args.get('page', 1, type=int)
     page = max(1, page)
     searched = bool(customer_number or q or date_from or date_to or status or branch)
@@ -313,7 +322,7 @@ def api_orders():
     """JSON endpoint for order status — supports AJAX filtering without full page reload."""
     from flask import jsonify
     q = request.args.get('q', '').strip()
-    branch = request.args.get('branch', '').strip()
+    branch = _get_branch()
     limit = min(int(request.args.get('limit', 100)), 500)
     orders = [_normalize_order_row(r) for r in erp.get_sales_order_status(q=q, limit=limit, branch=branch)]
     return jsonify(orders)

@@ -29,17 +29,14 @@
                 <input type="text" id="statusSearchInput" class="form-control border-left-0"
                        placeholder="SO number or customer name…" value="{{ q }}" autofocus
                        autocomplete="off">
-                <div class="input-group-append">
-                    <select id="branchFilter" class="custom-select border-left-0" style="max-width:160px;">
-                        <option value="" {% if not branch %}selected{% endif %}>All Branches</option>
-                        <option value="20GR" {% if branch == '20GR' %}selected{% endif %}>Grimes (20GR)</option>
-                        <option value="25BW" {% if branch == '25BW' %}selected{% endif %}>Birchwood (25BW)</option>
-                        <option value="10FD" {% if branch == '10FD' %}selected{% endif %}>Fort Dodge (10FD)</option>
-                        <option value="40CV" {% if branch == '40CV' %}selected{% endif %}>Coralville (40CV)</option>
-                    </select>
-                </div>
             </div>
-            <div id="searchStatus" class="small text-muted mt-1 ml-1" style="min-height:1.2em;"></div>
+            <div id="searchStatus" class="small text-muted mt-1 ml-1" style="min-height:1.2em;">
+                {% if selected_branch %}
+                <span class="badge badge-light border font-weight-bold">
+                    <i class="fas fa-filter mr-1 text-primary"></i>Filtering: {{ selected_branch_label }}
+                </span>
+                {% endif %}
+            </div>
         </div>
     </div>
 
@@ -126,9 +123,10 @@
 <script>
 (function () {
     const input = document.getElementById('statusSearchInput');
-    const branchSel = document.getElementById('branchFilter');
     const container = document.getElementById('resultsContainer');
     const status = document.getElementById('searchStatus');
+    // Branch comes from global sidebar filter (passed via URL/session)
+    const globalBranch = '{{ selected_branch or "" }}';
     let debounce = null;
 
     function statusBadge(s) {
@@ -192,14 +190,13 @@
     }
 
     function search(q) {
-        const branch = branchSel ? branchSel.value : '';
         if (!q || q.length < 2) {
-            if (!branch) { container.innerHTML = ''; status.textContent = ''; return; }
+            if (!globalBranch) { container.innerHTML = ''; status.textContent = ''; return; }
         }
         status.textContent = 'Searching…';
         const params = new URLSearchParams({ limit: 50 });
         if (q) params.set('q', q);
-        if (branch) params.set('branch', branch);
+        if (globalBranch) params.set('branch', globalBranch);
         fetch(`/sales/api/orders?${params.toString()}`)
             .then(r => r.json())
             .then(data => {
@@ -208,7 +205,6 @@
                 // Update browser URL without reload
                 const url = new URL(window.location);
                 if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
-                if (branch) url.searchParams.set('branch', branch); else url.searchParams.delete('branch');
                 window.history.replaceState({}, '', url);
             })
             .catch(() => {
@@ -231,12 +227,9 @@
         }
     });
 
-    // Branch filter change triggers new search
-    if (branchSel) {
-        branchSel.addEventListener('change', function () {
-            clearTimeout(debounce);
-            search(input.value.trim());
-        });
+    // If global branch is set, trigger an initial search on load to apply the filter
+    if (globalBranch && !input.value.trim()) {
+        search('');
     }
 })();
 </script>

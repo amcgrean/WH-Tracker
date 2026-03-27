@@ -11,6 +11,7 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 import qrcode
+from app.branch_utils import expand_branch_filter
 from app.runtime_settings import build_sql_connection_strings, sql_connection_configured
 
 try:
@@ -249,14 +250,7 @@ class DispatchService:
             params.append(driver)
 
         if branches:
-            raw_branches = [item.strip().upper() for item in branches.split(",") if item.strip()]
-            expanded: List[str] = []
-            for branch in raw_branches:
-                if branch in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
-                    expanded.extend(["20GR", "25BW"])
-                else:
-                    expanded.append(branch)
-            expanded = sorted(set(expanded))
+            expanded = expand_branch_filter(branches)
             if expanded:
                 filters.append(f"hdr.system_id IN ({','.join('?' for _ in expanded)})")
                 params.extend(expanded)

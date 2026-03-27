@@ -1,0 +1,70 @@
+{% extends "kiosk_base.html" %}
+{% block title %}{{ picker.name }} — Picks{% endblock %}
+
+{% block content %}
+<h2 class="text-center mb-4" style="font-weight:800; color:#004526;">
+    <i class="fas fa-user-check mr-2"></i>{{ picker.name }}
+</h2>
+
+{% if incomplete_picks %}
+<div class="mb-4">
+    <h4 class="font-weight-bold mb-3">Incomplete Picks</h4>
+    <div class="table-responsive">
+        <table class="table" style="font-size:1.1rem;">
+            <thead class="thead-light">
+                <tr>
+                    <th>Barcode</th>
+                    <th>Pick Type</th>
+                    <th>Started</th>
+                    <th style="width:160px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pick in incomplete_picks %}
+                <tr>
+                    <td class="font-weight-bold">{{ pick.barcode_number }}</td>
+                    <td>{{ pick.pick_type_id }}</td>
+                    <td>{{ pick.start_time.strftime('%m/%d/%y %H:%M') }}</td>
+                    <td>
+                        <form action="{{ url_for('main.kiosk_complete_pick', branch=kiosk_branch, pick_id=pick.id) }}" method="post" style="display:inline;">
+                            <button type="submit" class="kiosk-btn kiosk-btn-success" style="min-width:120px; min-height:48px; font-size:1rem;">
+                                <i class="fas fa-check mr-1"></i> Complete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<h4 class="font-weight-bold mb-3">Start New Pick</h4>
+<div class="row justify-content-center">
+    <div class="col-md-4 col-sm-6 mb-3">
+        <a href="{{ url_for('main.kiosk_input_pick', branch=kiosk_branch, picker_id=picker.id, pick_type_id=1) }}"
+           class="kiosk-btn kiosk-btn-primary d-block text-center">
+            <i class="fas fa-box-open mr-2"></i>New Pick
+        </a>
+    </div>
+    <div class="col-md-4 col-sm-6 mb-3">
+        <a href="{{ url_for('main.kiosk_input_pick', branch=kiosk_branch, picker_id=picker.id, pick_type_id=6) }}"
+           class="kiosk-btn kiosk-btn-info d-block text-center">
+            <i class="fas fa-phone-volume mr-2"></i>Will Call
+        </a>
+    </div>
+    <div class="col-md-4 col-sm-6 mb-3">
+        <a href="{{ url_for('main.kiosk_input_pick', branch=kiosk_branch, picker_id=picker.id, pick_type_id=2) }}"
+           class="kiosk-btn kiosk-btn-warning d-block text-center">
+            <i class="fas fa-door-open mr-2"></i>Door 1
+        </a>
+    </div>
+</div>
+
+<div class="text-center mt-4">
+    <a href="{{ url_for('main.kiosk_pickers', branch=kiosk_branch) }}" class="text-muted font-weight-bold" style="font-size:1.1rem;">
+        <i class="fas fa-arrow-left mr-1"></i> Back to Picker List
+    </a>
+</div>
+{% endblock %}

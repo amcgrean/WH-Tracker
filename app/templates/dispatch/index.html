@@ -10,12 +10,12 @@
   .dispatch-console-page { padding: 1.5rem; }
   .dispatch-console-shell { display:grid; grid-template-columns: var(--dispatch-sidebar-width) var(--divider-width) 1fr; min-height: calc(100vh - 17rem); background:#fff; border-radius: 1.25rem; overflow:hidden; box-shadow: var(--shadow-md); }
   body.dense { font-size: 13px; }
-  .dispatch-console-shell .sidebar { overflow:hidden; display:flex; flex-direction:column; border-right:1px solid #ddd; background:#fff; }
+  .dispatch-console-shell .sidebar { overflow:hidden; display:flex; flex-direction:column; border-right:1px solid #ddd; background:#fff; min-height:0; }
   .dispatch-console-shell .toolbar { display:flex; align-items:center; gap:12px; padding:8px 10px; border-bottom:1px solid #eee; flex-wrap:wrap; background:#fafafa; }
   .dispatch-console-shell .toolbar input[type="date"], .dispatch-console-shell .toolbar select, .dispatch-console-shell .toolbar input[type="text"] { padding:4px 6px; }
   .swatch { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:middle; border:1px solid rgba(0,0,0,0.15); }
   .filter-chip { display:inline-flex; align-items:center; gap:6px; margin-right:12px; }
-  .gridwrap { overflow:auto; }
+  .gridwrap { flex:1; overflow-y:auto; min-height:0; }
   .dispatch-console-shell table { width:100%; border-collapse:collapse; }
   .dispatch-console-shell th, .dispatch-console-shell td { padding:6px 8px; border-bottom:1px solid #eee; text-align:left; }
   .dispatch-console-shell th { position:sticky; top:0; background:#f7f7f7; cursor:pointer; }
@@ -48,22 +48,68 @@
   .btn-icon { border:0; background:transparent; cursor:pointer; padding:4px 6px; }
   .btn-primary { background:#1f77b4; color:#fff; padding:6px 10px; border:0; border-radius:6px; cursor:pointer; }
 
+  /* Mobile tab navigation */
+  .dispatch-tabs { display:none; }
+
   @media (max-width: 1199.98px) {
-    .dispatch-console-shell { grid-template-columns: 1fr; }
+    .dispatch-console-shell { grid-template-columns: 1fr; min-height: auto; }
     #divider { display: none; }
-    .mapwrap,
-    #map { min-height: 520px; }
+    .dispatch-tabs {
+      display: flex;
+      background: #fff;
+      border-bottom: 2px solid #eee;
+      border-radius: 1.25rem 1.25rem 0 0;
+      overflow: hidden;
+    }
+    .dispatch-tabs button {
+      flex: 1;
+      padding: 12px 8px;
+      border: none;
+      background: transparent;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.15s;
+      border-bottom: 3px solid transparent;
+    }
+    .dispatch-tabs button.active {
+      color: #1f77b4;
+      border-bottom-color: #1f77b4;
+      background: rgba(31,119,180,0.05);
+    }
+    .dispatch-console-shell .sidebar,
+    .dispatch-console-shell .mapwrap {
+      display: none;
+    }
+    .dispatch-console-shell .sidebar.tab-active,
+    .dispatch-console-shell .mapwrap.tab-active {
+      display: flex;
+      flex-direction: column;
+    }
+    .dispatch-console-shell .mapwrap.tab-active {
+      display: block;
+      min-height: 60vh;
+    }
+    .mapwrap #map { min-height: 60vh; }
   }
 
   @media (max-width: 767.98px) {
-    .dispatch-console-page { padding: 1rem; }
-    .dispatch-console-shell { min-height: auto; }
+    .dispatch-console-page { padding: 0.75rem; }
+    .dispatch-console-shell .toolbar { gap:6px; padding:6px 8px; }
+    .dispatch-console-shell .toolbar label { font-size:0.8rem; }
+    .dispatch-console-shell .toolbar input,
+    .dispatch-console-shell .toolbar select { font-size:0.85rem; }
+    .dispatch-console-shell th, .dispatch-console-shell td { padding:8px 6px; font-size:0.85rem; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<script>window.DISPATCH_API_BASE = "{{ url_for('dispatch.index')[:-1] }}";</script>
+<script>
+window.DISPATCH_API_BASE = "{{ url_for('dispatch.index')[:-1] }}";
+window.GLOBAL_BRANCH = "{{ selected_branch or '' }}";
+</script>
 <div class="dispatch-console-page">
   <div class="d-flex justify-content-between align-items-center flex-wrap mb-3 px-1">
     <div>
@@ -71,8 +117,12 @@
       <p class="text-muted mb-0">The dispatch workspace now uses the same shared sidebar navigation as the rest of the site.</p>
     </div>
   </div>
+  <div class="dispatch-tabs" id="dispatchTabs">
+    <button class="active" data-tab="orders"><i class="fas fa-list mr-1"></i>Orders</button>
+    <button data-tab="map"><i class="fas fa-map mr-1"></i>Map</button>
+  </div>
   <div id="app" class="dispatch-console-shell">
-    <div class="sidebar">
+    <div class="sidebar tab-active">
       <div class="toolbar">
         <label>Exp. Date Start <input id="startDate" type="date"></label>
         <label>Exp. Date End <input id="endDate" type="date"></label>

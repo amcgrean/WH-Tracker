@@ -1,0 +1,54 @@
+{% extends "tv_base.html" %}
+{% block title %}Open Picks — {{ tv_branch_label }}{% endblock %}
+
+{% block header_title %}OPEN PICKS{% endblock %}
+{% block header_subtitle %}
+    <span class="tv-count-badge">{{ summary|length }} Active Orders</span>
+{% endblock %}
+
+{% block content %}
+<div class="row" style="overflow:hidden;">
+    {% for item in summary %}
+    <div class="col-lg-4 col-md-6">
+        <div class="tv-card {{ 'assigned' if item.assigned_picker }}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="tv-so-num">#{{ item.so_number }}</span>
+                    <span class="tv-line-badge text-uppercase">{{ item.line_count }} Lines</span>
+                </div>
+                <div class="tv-cust-name mb-1">{{ item.customer_name }}</div>
+                <div class="text-muted mb-3 font-italic" style="font-size:0.9rem;">
+                    Ref: {{ item.reference or 'NONE' }}
+                </div>
+                <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:0.75rem;" class="d-flex justify-content-between">
+                    {% if item.assigned_picker %}
+                    <div class="tv-status-assigned">
+                        <i class="fas fa-check-circle mr-2"></i>{{ item.assigned_picker.name }}
+                    </div>
+                    {% else %}
+                    <div class="tv-status-pending">
+                        <i class="fas fa-clock mr-2"></i>PENDING ASSIGNMENT
+                    </div>
+                    {% endif %}
+                    {% if item.handling_code %}
+                    <span class="tv-line-badge" style="font-size:0.85rem;">{{ item.handling_code }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="tv-empty">
+            <h1>NO OPEN PICKS</h1>
+            <p>Waiting for new orders...</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<p style="position:fixed; bottom:1vh; left:2vw; font-size:0.75rem; color:rgba(255,255,255,0.25);">
+    <i class="fas fa-info-circle mr-1"></i>
+    Showing all picks. Per-branch pick filtering requires a future data model update.
+</p>
+{% endblock %}

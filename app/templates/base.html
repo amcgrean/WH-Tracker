@@ -96,6 +96,26 @@
                 </div>
             </div>
 
+            <!-- Branch Selector -->
+            <div class="app-sidebar__branch px-3 pt-2 pb-2" style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+                <label class="d-block small font-weight-bold text-uppercase text-muted mb-1" style="font-size:0.65rem; letter-spacing:0.5px;">
+                    <i class="fas fa-code-branch mr-1 opacity-50"></i>Branch Filter
+                </label>
+                <select id="globalBranchSelect" class="custom-select custom-select-sm"
+                    style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.2);color:#333;font-size:0.82rem;font-weight:600;border-radius:8px;">
+                    {% for choice in branch_choices %}
+                    <option value="{{ choice.code }}" {% if choice.code == (selected_branch or '') %}selected{% endif %}>
+                        {{ choice.label }}{% if choice.code %} ({{ choice.code }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if selected_branch %}
+                <div class="branch-active-indicator mt-1">
+                    <i class="fas fa-filter"></i>Filtering: {{ selected_branch_label }}
+                </div>
+                {% endif %}
+            </div>
+
             <div class="app-sidebar__content">
                 {% for section in nav_sections %}
                 <section class="nav-section mb-1" data-section-id="{{ section['id'] }}">
@@ -354,6 +374,36 @@
                     const sectionId = $section.data('section-id');
                     localStorage.setItem('navSection_' + sectionId, e.type === 'show' ? '1' : '0');
                 }
+            });
+
+            // Global branch selector
+            const $branchSelect = $('#globalBranchSelect');
+            // Restore from localStorage if no URL param or session override
+            const urlBranch = new URLSearchParams(window.location.search).get('branch');
+            const storedBranch = localStorage.getItem('beisser_selected_branch');
+            if (!urlBranch && storedBranch && $branchSelect.val() === '') {
+                $branchSelect.val(storedBranch);
+            }
+            $branchSelect.on('change', function () {
+                const branch = $(this).val();
+                localStorage.setItem('beisser_selected_branch', branch);
+                // Persist to session
+                $.ajax({
+                    url: '/api/set-branch',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ branch: branch }),
+                    success: function () {
+                        // Update URL param and reload
+                        const url = new URL(window.location);
+                        if (branch) {
+                            url.searchParams.set('branch', branch);
+                        } else {
+                            url.searchParams.delete('branch');
+                        }
+                        window.location.href = url.toString();
+                    }
+                });
             });
 
             // Sidebar nav filter — expands matching sections automatically

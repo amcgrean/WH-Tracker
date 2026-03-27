@@ -11,6 +11,7 @@ from .Routes.auth_routes import auth as auth_blueprint
 from .runtime_settings import env_bool, get_database_url, is_fly_runtime, is_pooled_postgres_url
 from .navigation import build_navigation, get_current_user_roles
 from .auth import get_current_user
+from .branch_utils import normalize_branch, sidebar_branch_choices, branch_label, expand_branch
 
 
 def _resolve_branched_alembic_state(app):
@@ -111,11 +112,20 @@ def create_app():
 
     @app.context_processor
     def inject_navigation():
+        from flask import request, session
         current_roles = get_current_user_roles()
+
+        # Branch precedence: URL param > session > None
+        raw_branch = request.args.get("branch") or session.get("selected_branch") or ""
+        selected_branch = normalize_branch(raw_branch)
+
         return {
             "nav_sections": build_navigation(current_roles),
             "current_user_roles": current_roles,
             "current_user": get_current_user(),
+            "selected_branch": selected_branch,
+            "selected_branch_label": branch_label(selected_branch),
+            "branch_choices": sidebar_branch_choices(),
         }
 
     @app.before_request
@@ -137,6 +147,15 @@ def create_app():
             return
         if not session.get("user_id"):
             return redirect(url_for("auth.login", next=request.url))
+
+    @app.route("/api/set-branch", methods=["POST"])
+    def api_set_branch():
+        from flask import jsonify, request, session
+        data = request.get_json(silent=True) or {}
+        raw = data.get("branch", "")
+        branch = normalize_branch(raw)
+        session["selected_branch"] = branch or ""
+        return jsonify({"ok": True, "branch": branch or "", "label": branch_label(branch)})
 
     fly_runtime = is_fly_runtime()
 

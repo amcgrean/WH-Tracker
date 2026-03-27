@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from sqlalchemy import bindparam, create_engine, func, inspect, text
+from app.branch_utils import normalize_branch, expand_branch_filter
 from app.runtime_settings import (
     build_sql_connection_strings,
     env_bool,
@@ -86,39 +87,12 @@ class ERPService:
 
     @staticmethod
     def _normalize_branch_system_id(branch_id):
-        if not branch_id:
-            return None
-        normalized = str(branch_id).strip()
-        if not normalized:
-            return None
-
-        branch_map = {
-            'all': None,
-            '20gr': '20GR',
-            'grimes': '20GR',
-            'grimesarea': '20GR',
-            '25bw': '25BW',
-            'birchwood': '25BW',
-            '10fd': '10FD',
-            'fortdodge': '10FD',
-            '40cv': '40CV',
-            'coralville': '40CV',
-        }
-        compact = normalized.lower().replace('-', '').replace('_', '').replace(' ', '').strip()
-        return branch_map.get(compact, normalized.upper())
+        """Delegate to shared branch_utils.normalize_branch."""
+        return normalize_branch(branch_id)
 
     def _expand_branch_filters(self, branches):
-        if not branches:
-            return []
-        raw_branches = [item.strip() for item in branches.split(",") if item.strip()]
-        expanded = []
-        for branch in raw_branches:
-            normalized = self._normalize_branch_system_id(branch)
-            if normalized == '20GR' and str(branch).strip().upper() in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
-                expanded.extend(["20GR", "25BW"])
-            elif normalized:
-                expanded.append(normalized)
-        return sorted(set(expanded))
+        """Delegate to shared branch_utils.expand_branch_filter."""
+        return expand_branch_filter(branches)
 
     def _mirror_so_detail_backorder_expr(self):
         columns = set(self._mirror_columns("erp_mirror_so_detail"))
@@ -1449,14 +1423,7 @@ class ERPService:
                 params.append(driver)
 
             if branches:
-                raw_branches = [item.strip().upper() for item in branches.split(",") if item.strip()]
-                expanded = []
-                for branch in raw_branches:
-                    if branch in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
-                        expanded.extend(["20GR", "25BW"])
-                    else:
-                        expanded.append(branch)
-                expanded = sorted(set(expanded))
+                expanded = expand_branch_filter(branches)
                 if expanded:
                     filters.append(f"hdr.system_id IN ({','.join('?' for _ in expanded)})")
                     params.extend(expanded)
