@@ -1107,9 +1107,12 @@ class ERPService:
                     sh.status_flag_delivery
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON c.system_id = soh.system_id
+                    AND TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON cs.system_id = soh.system_id
+                    AND TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
@@ -1345,9 +1348,12 @@ class ERPService:
                     soh.system_id AS branch
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON c.system_id = soh.system_id
+                    AND TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON cs.system_id = soh.system_id
+                    AND TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE {' AND '.join(filters)}
@@ -1363,6 +1369,10 @@ class ERPService:
             results = []
             for row in rows:
                 obj = dict(row)
+                for text_key in ("shipto_name", "customer_name", "shipto_address", "address"):
+                    value = obj.get(text_key)
+                    if isinstance(value, str):
+                        obj[text_key] = value.strip()
                 # Coerce Decimal lat/lon from DB to float
                 if obj.get("lat") is not None:
                     obj["lat"] = float(obj["lat"])
@@ -1370,6 +1380,10 @@ class ERPService:
                     obj["lon"] = float(obj["lon"])
                 # Use DB ship-to/customer values even when GPS is still unresolved
                 if not obj.get("shipto_name") and obj.get("customer_name"):
+                    obj["shipto_name"] = obj["customer_name"]
+                if not obj.get("customer_name"):
+                    obj["customer_name"] = "Unknown Customer"
+                if not obj.get("shipto_name"):
                     obj["shipto_name"] = obj["customer_name"]
                 if not obj.get("address") and obj.get("shipto_address"):
                     obj["address"] = obj["shipto_address"]
