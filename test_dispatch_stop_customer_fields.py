@@ -72,6 +72,46 @@ def test_get_dispatch_stops_central_keeps_db_name_and_address_without_gps(monkey
     assert rows[0]["address"] == "123 Main St Des Moines IA 50309"
 
 
+def test_get_dispatch_stops_central_trims_and_falls_back_when_names_are_blank(monkeypatch):
+    service = ERPService()
+    service.central_db_mode = True
+
+    def fake_query(sql, params, expanding=None):
+        return [{
+            "id": "1003",
+            "doc_kind": "delivery",
+            "expected_date": "2026-03-23",
+            "lat": None,
+            "lon": None,
+            "address": "   ",
+            "so_status": "K",
+            "so_type": "SO",
+            "shipto_name": "   ",
+            "shipto_address": "  789 Elm St Des Moines IA 50310  ",
+            "customer_name": "   ",
+            "customer_code": "ACME",
+            "ship_to_number": "3",
+            "shipment_num": 12,
+            "route_id": "R3",
+            "driver": "Driver C",
+            "branch": "20GR",
+        }]
+
+    monkeypatch.setattr(service, "_mirror_query", fake_query)
+    monkeypatch.setattr(service, "_load_dispatch_gps_map", lambda: {})
+    monkeypatch.setattr(service, "_aggregate_dispatch_details", lambda so_ids: {})
+
+    rows = service.get_dispatch_stops(
+        start=date(2026, 3, 20),
+        end=date(2026, 3, 24),
+        include_no_gps=True,
+    )
+
+    assert rows[0]["customer_name"] == "Unknown Customer"
+    assert rows[0]["shipto_name"] == "Unknown Customer"
+    assert rows[0]["address"] == "789 Elm St Des Moines IA 50310"
+
+
 def test_dispatch_service_get_stops_falls_back_to_db_name_and_address_without_gps(monkeypatch):
     rows = [
         (
