@@ -1,7 +1,7 @@
-# Next Agent Prompt: Post-Overhaul Cleanup & Kiosk/TV Wiring
+# Next Agent Prompt: Kiosk/TV Branch Filtering, PWA Icons & Cleanup
 
 ## Context
-You are working on a Flask warehouse management app for Beisser Lumber. The full 8-phase UI/UX overhaul (Phases 0-7) is **COMPLETE** as of 2026-03-27 on `main-fly`. All shell templates use a glassmorphic design system, inline styles have been extracted to `style.css`, and a PWA shell (manifest + service worker) is in place.
+You are working on a Flask warehouse management app for Beisser Lumber. The full 8-phase UI/UX overhaul (Phases 0-7) is **COMPLETE** on `main-fly`. A critical customer-name/address bug was also fixed (all central_db_mode queries now use TRIM on cust_key/seq_num joins).
 
 **Read the memory files first** at the path shown in `MEMORY.md`. Key files:
 - `project_ui_overhaul_status.md` — All phases done, deferred items listed
@@ -12,9 +12,10 @@ You are working on a Flask warehouse management app for Beisser Lumber. The full
 Also read `docs/NEXT_AGENT_HANDOFF_2026-03-27.md` for the full session record.
 
 ## What's Done (DO NOT redo)
-Everything in Phases 0-7. See the handoff doc above. Key landmarks:
-- `app/branch_utils.py` — Centralized branch logic (normalize, expand, validate, DSM→[20GR,25BW])
-- `app/static/css/style.css` — Full design system (~355 lines) with glassmorphism, buttons, cards, animations
+- **Phases 0-7 UI/UX overhaul** — all complete
+- **Customer name/address TRIM fix** (commit `9c86671`) — All 12 central_db_mode mirror queries in `erp_service.py` now use `TRIM(c.cust_key) = TRIM(soh.cust_key)` and `TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))`. This fixed blank customer names across delivery tracker, picks, order board, staged orders, sales orders, invoices, dashboard, and work orders.
+- `app/branch_utils.py` — Centralized branch logic (normalize, expand, validate, DSM->[20GR,25BW])
+- `app/static/css/style.css` — Full design system (~355 lines)
 - `app/templates/base.html` — Sidebar with branch selector, search, PWA manifest/SW registration
 - `app/templates/kiosk_base.html` / `tv_base.html` — Standalone shells (no sidebar)
 - All kiosk routes (`/kiosk/<branch>/...`) and TV routes (`/tv/<branch>/...`) exist in `app/Routes/routes.py`
@@ -23,7 +24,7 @@ Everything in Phases 0-7. See the handoff doc above. Key landmarks:
 
 ---
 
-## Task 1: PWA Icons (quick, ~5 min)
+## Task 1: PWA Icons (quick)
 
 Create two PNG icons and place in `app/static/icons/`:
 - `icon-192.png` (192x192)
@@ -66,7 +67,7 @@ from app.branch_utils import normalize_branch, expand_branch_filter
 # For WorkOrder queries:
 branch = ctx['kiosk_branch']  # Already normalized by _kiosk_context
 if branch:
-    branch_list = expand_branch_filter(branch)  # DSM → ['20GR', '25BW']
+    branch_list = expand_branch_filter(branch)  # DSM -> ['20GR', '25BW']
     query = query.filter(WorkOrder.branch_code.in_(branch_list))
 
 # For ERP service queries:
@@ -90,7 +91,17 @@ There's a `app/templates/warehouse/tv_board.html` that's a legacy duplicate of `
 
 ---
 
-## Task 4: Smoke Test All Routes
+## Task 4: UPLOAD_FOLDER Durability
+
+The app uses local disk storage for uploads (`UPLOAD_FOLDER`). This is not durable across Fly machine replacement. Options:
+- Mount a Fly Volume to persist uploads
+- Switch to object storage (S3/R2)
+
+Check `app/__init__.py` and config for how `UPLOAD_FOLDER` is set up. Evaluate the simplest fix (likely a Fly Volume mount in `fly.toml`).
+
+---
+
+## Task 5: Smoke Test All Routes
 
 After completing Tasks 2-3, verify that these URLs don't 500-error (you can check by reading the route code for obvious issues — you won't have a running server):
 - `/kiosk/20GR/pickers`
@@ -109,13 +120,15 @@ After completing Tasks 2-3, verify that these URLs don't 500-error (you can chec
 5. **Use CSS custom properties** from `style.css` `:root` — don't hardcode colors/sizes
 6. **Branch precedence for shell pages:** URL param > localStorage > session > None
 7. **Branch identity for kiosk/TV:** URL path IS the branch. No session, no localStorage.
+8. **TRIM joins** — All central_db_mode mirror queries MUST use `TRIM()` on `cust_key` and `seq_num` joins (already done — don't regress)
 
 ## Known Pitfalls
 1. **Edit tool requires Read first** — always Read files before editing. Batch-read in parallel.
 2. **Merge conflicts on push** — `app/__init__.py` and `app/templates/base.html` are hot files. `git fetch origin main-fly && git rebase origin/main-fly` before pushing.
 3. **fly.toml has unstaged changes** — don't accidentally stage it.
 4. **WorkOrder model** — Check `app/models.py` for the exact `branch_code` column name and any existing filter methods before writing queries.
-5. **ERP service** — `app/Services/erp_service.py` has existing branch filtering patterns. Follow them. Note the CAST workarounds for integer/varchar drift.
+5. **ERP service** — `app/Services/erp_service.py` has existing branch filtering patterns. Follow them. All mirror queries now use TRIM on cust_key/seq_num — maintain this pattern for any new queries.
+6. **Schema drift** — `so_id` and `seq_num` have integer vs varchar drift between mirror tables and ERP source. Always use CAST/TRIM in joins.
 
 ## Output Format
 When done, provide:

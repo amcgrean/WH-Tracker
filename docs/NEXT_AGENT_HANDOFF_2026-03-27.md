@@ -57,6 +57,27 @@ New shared classes added:
 
 ---
 
+### Bug Fix: Blank Customer Names/Addresses (commit `9c86671`)
+
+**Root cause:** PR #69 (commit `697c13e`) applied `TRIM()` to `cust_key` and `seq_num` joins in only 2 methods (`get_so_header` and `get_dispatch_stops`). The remaining 10 central_db_mode PostgreSQL mirror queries still used bare `c.cust_key = soh.cust_key` comparisons. When ERP-synced key fields had trailing whitespace, LEFT JOINs silently failed — returning NULL for `cust_name`, `address_1`, `city`, etc.
+
+**Fix:** Applied `TRIM()` consistently to all 12 mirror-table customer/ship-to joins across `erp_service.py`:
+- `get_todays_picks()` — picks board
+- `get_order_board()` — order board
+- `get_staged_orders()` — staged orders view
+- `_get_sales_rep_metrics_inner()` — sales rep dashboard
+- `get_sales_orders()` (two variants) — sales order lists
+- `get_recent_invoices()` — invoice history
+- `get_sales_dashboard_data()` — top customers widget
+- `get_work_orders()` — work order board
+- `get_sales_delivery_tracker()` — delivery tracker (the primary reported symptom)
+
+Pattern used: `TRIM(c.cust_key) = TRIM(soh.cust_key)` and `TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))`
+
+SQL Server legacy-path queries were NOT changed — they use different type handling (TRY_CAST, nvarchar) and are unaffected by this issue.
+
+---
+
 ## Fly Deployment
 - App: `wh-tracker-fly` on Fly.io (`ord` region)
 - Status: **running and healthy**
@@ -79,7 +100,7 @@ New shared classes added:
 ### Nice-to-have
 4. **Pick module branch migration** — Add `branch_code` to Pickster, Pick, PickAssignment, WorkOrderAssignment (DB migration required, out of scope for UI pass)
 5. **Schema drift cleanup** — ALTER COLUMN `erp_mirror_so_detail.so_id` and `erp_mirror_cust_shipto.seq_num` to varchar if safe
-6. **Customer query fix** — Merged from PR #69 (blank dispatch customer/ship-to names) — rebased into this session's work
+6. ~~**Customer query fix**~~ — **DONE** (commit `9c86671`). TRIM fix applied to all 12 central_db_mode mirror queries, not just the 2 from PR #69.
 
 ### Branch status
 - `main-fly` is ahead of `main` — ready for PR/merge when user is ready for production cutover
