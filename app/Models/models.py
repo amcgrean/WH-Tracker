@@ -311,6 +311,7 @@ class ERPMirrorSalesOrderHeader(db.Model, MirrorSyncMetadataMixin):
     ship_via = db.Column(db.String(128), nullable=True)
     terms = db.Column(db.String(64), nullable=True)
     salesperson = db.Column(db.String(64), nullable=True)
+    order_writer = db.Column(db.String(64), nullable=True)
     po_number = db.Column(db.String(128), nullable=True)
     branch_code = db.Column(db.String(32), nullable=True, index=True)
     __table_args__ = (

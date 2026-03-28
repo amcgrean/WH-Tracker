@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Product Pricing Reference{% endblock %}
+{% block title %}Products & Stock{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5 px-lg-5">
@@ -13,9 +13,9 @@
     <div class="row align-items-center mb-4 animate-fade-in">
         <div class="col">
             <h1 class="h2 font-weight-bold mb-0" style="color:#6f42c1;">
-                <i class="fas fa-tags mr-2"></i> Product Pricing Quick Reference
+                <i class="fas fa-boxes mr-2"></i> Products & Stock
             </h1>
-            <p class="text-muted mb-0">Search the item catalog for descriptions and pricing synced from the central DB</p>
+            <p class="text-muted mb-0">Search the item catalog for descriptions and stock levels</p>
         </div>
     </div>
 
@@ -43,7 +43,6 @@
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between mb-2">
                         <span class="badge badge-light border">{{ item.item_number }}</span>
-                        <span class="font-weight-bold" style="color:#6f42c1;">$1.00</span>
                     </div>
                     <h6 class="font-weight-bold mb-3">{{ item.description }}</h6>
                     <div class="d-flex justify-content-between small border-top pt-2">
@@ -52,7 +51,7 @@
                     </div>
                 </div>
                 <div class="card-footer bg-transparent border-top-0 d-flex p-3">
-                    <a href="{{ url_for('sales.order_history', customer_number='', q=item.item_number) }}"
+                    <a href="{{ url_for('sales.history', q=item.item_number) }}"
                         class="btn btn-xs btn-block btn-outline-secondary" style="border-radius: 8px;">Recent Usage</a>
                 </div>
             </div>
