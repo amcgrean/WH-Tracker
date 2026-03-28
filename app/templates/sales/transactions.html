@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Sales Transactions{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5 px-lg-5">
+
+    <!-- Header + Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb bg-transparent px-0 mb-2">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">Transactions</li>
+        </ol>
+    </nav>
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+        <div>
+            <h2 class="font-weight-bold mb-0">Sales Transactions</h2>
+            <p class="text-muted mb-0">Search, filter, and act on orders across all statuses</p>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="glass-card p-4 border-0 mb-4">
+        <form method="GET" id="txnFilterForm">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <label class="small font-weight-bold text-muted">Search</label>
+                    <input type="text" name="q" class="form-control" placeholder="SO#, customer, PO#, reference..." value="{{ q }}" id="txnSearchInput">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="small font-weight-bold text-muted">Status</label>
+                    <select name="status" class="form-control">
+                        <option value="" {% if not status %}selected{% endif %}>Open (default)</option>
+                        <option value="O" {% if status == 'O' %}selected{% endif %}>Open</option>
+                        <option value="I" {% if status == 'I' %}selected{% endif %}>Invoiced</option>
+                        <option value="C" {% if status == 'C' %}selected{% endif %}>Closed</option>
+                        <option value="I,C" {% if status == 'I,C' %}selected{% endif %}>Invoiced & Closed</option>
+                        <option value="H" {% if status == 'H' %}selected{% endif %}>On Hold</option>
+                        <option value="O,I,C,H" {% if status == 'O,I,C,H' %}selected{% endif %}>All Statuses</option>
+                    </select>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="small font-weight-bold text-muted">Date From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="small font-weight-bold text-muted">Date To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                </div>
+                <div class="col-md-3 mb-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-ops-primary mr-2">
+                        <i class="fas fa-search mr-1"></i> Search
+                    </button>
+                    <a href="{{ url_for('sales.transactions') }}" class="btn btn-outline-secondary">Reset</a>
+                </div>
+            </div>
+            {% if my_orders %}
+            <input type="hidden" name="my_orders" value="1">
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Status Summary Bar -->
+    {% if orders %}
+    <div class="d-flex flex-wrap mb-3">
+        <span class="mr-3 small text-muted">
+            <strong>{{ orders|length }}{% if has_next %}+{% endif %}</strong> results
+            {% if page > 1 %} &mdash; page {{ page }}{% endif %}
+        </span>
+        {% for s_code, s_count in status_counts.items() %}
+        <span class="mr-3 small">
+            {% if s_code == 'O' %}<span class="badge badge-success">Open</span>
+            {% elif s_code == 'I' %}<span class="badge badge-info">Invoiced</span>
+            {% elif s_code == 'C' %}<span class="badge badge-secondary">Closed</span>
+            {% elif s_code == 'H' %}<span class="badge badge-warning">Hold</span>
+            {% else %}<span class="badge badge-light">{{ s_code }}</span>{% endif %}
+            {{ s_count }}
+        </span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Results Table -->
+    <div class="glass-card border-0 p-0">
+        {% if orders %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="txnTable">
+                <thead class="thead-light">
+                    <tr class="small text-uppercase text-muted">
+                        <th>SO #</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Expect Date</th>
+                        <th>PO #</th>
+                        <th>Sale Type</th>
+                        <th>Ship Via</th>
+                        <th>Agent</th>
+                        <th class="text-center">Lines</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for o in orders %}
+                    <tr>
+                        <td class="font-weight-bold">{{ o.so_number }}</td>
+                        <td>
+                            {% if o.customer_code %}
+                            <a href="{{ url_for('sales.customer_profile', customer_number=o.customer_code) }}" class="text-dark">
+                                {{ o.customer_name[:30] }}{% if o.customer_name|length > 30 %}...{% endif %}
+                            </a>
+                            <div class="small text-muted">{{ o.customer_code }}</div>
+                            {% else %}
+                            {{ o.customer_name }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if o.so_status == 'O' %}
+                            <span class="badge badge-success">Open</span>
+                            {% elif o.so_status == 'I' %}
+                            <span class="badge badge-info">Invoiced</span>
+                            {% elif o.so_status == 'C' %}
+                            <span class="badge badge-secondary">Closed</span>
+                            {% elif o.so_status == 'H' %}
+                            <span class="badge badge-warning">Hold</span>
+                            {% else %}
+                            <span class="badge badge-light">{{ o.so_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ o.expect_date_display }}</td>
+                        <td class="small">{{ o.po_number }}</td>
+                        <td class="small">{{ o.sale_type }}</td>
+                        <td class="small">{{ o.ship_via }}</td>
+                        <td class="small">
+                            {% if o.salesperson %}{{ o.salesperson }}{% endif %}
+                            {% if o.order_writer and o.order_writer != o.salesperson %}
+                            <span class="text-muted">/ {{ o.order_writer }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ o.line_count }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                {% if o.customer_code %}
+                                <a href="{{ url_for('sales.customer_profile', customer_number=o.customer_code) }}" class="btn btn-outline-secondary btn-sm" title="Customer Workspace">
+                                    <i class="fas fa-user"></i>
+                                </a>
+                                <a href="{{ url_for('sales.history', customer_number=o.customer_code) }}" class="btn btn-outline-secondary btn-sm" title="Purchase History">
+                                    <i class="fas fa-history"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page > 1 or has_next %}
+        <div class="p-3 d-flex justify-content-between align-items-center border-top">
+            {% if page > 1 %}
+            <a href="{{ url_for('sales.transactions', q=q, status=status, date_from=date_from, date_to=date_to, page=page-1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-chevron-left mr-1"></i> Previous
+            </a>
+            {% else %}
+            <span></span>
+            {% endif %}
+            <span class="small text-muted">Page {{ page }}</span>
+            {% if has_next %}
+            <a href="{{ url_for('sales.transactions', q=q, status=status, date_from=date_from, date_to=date_to, page=page+1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
+                Next <i class="fas fa-chevron-right ml-1"></i>
+            </a>
+            {% else %}
+            <span></span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center p-5 text-muted">
+            <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
+            <p class="mb-1">{% if q or status or date_from or date_to %}No transactions match your filters.{% else %}Showing open orders. Use the filters above to search across all statuses.{% endif %}</p>
+            {% if q or status or date_from or date_to %}
+            <a href="{{ url_for('sales.transactions') }}" class="small">Clear all filters</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TODO: Future enhancements
+         - Saved views / configurable columns
+         - Export to CSV
+         - Inline order detail expansion (line items)
+         - Operational actions (hold, release, dispatch)
+         - Summary/detail toggle
+    -->
+
+</div>
+{% endblock %}

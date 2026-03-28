@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Customer Profile — {{ customer_name }}{% endblock %}
+{% block title %}{{ customer_name }} — Customer Workspace{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4 pb-5 px-lg-5">
 
     <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3 animate-fade-in">
+    <nav aria-label="breadcrumb" class="mb-2">
         <ol class="breadcrumb bg-transparent px-0">
             <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
-            <li class="breadcrumb-item active">Customer Profile</li>
+            <li class="breadcrumb-item active">Customer Workspace</li>
         </ol>
     </nav>
 
-    <!-- Customer Header Card -->
-    <div class="glass-card p-4 mb-4 animate-fade-in">
+    <!-- Customer Header -->
+    <div class="glass-card p-4 mb-4">
         <div class="row align-items-center">
             <div class="col-auto">
                 <div class="rounded-circle d-flex align-items-center justify-content-center"
@@ -23,58 +23,62 @@
             </div>
             <div class="col">
                 <h2 class="font-weight-bold mb-0">{{ customer_name }}</h2>
-                <span class="text-muted small">Customer # {{ customer_number }}</span>
-            </div>
-            <div class="col-auto d-flex flex-wrap">
-                <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
-                   class="btn btn-outline-secondary btn-sm mr-2 mb-1">
-                    <i class="fas fa-sticky-note mr-1"></i> Notes ({{ notes|length }})
-                </a>
-                <a href="{{ url_for('sales.customer_statement', customer_number=customer_number) }}"
-                   class="btn btn-ops-primary btn-sm mb-1" style="padding: 0.4rem 1rem;">
-                    <i class="fas fa-file-alt mr-1"></i> Statement / AR
-                </a>
+                <span class="text-muted">Customer # {{ customer_number }}</span>
+                {% if customer_details.get('phone') %}
+                <span class="ml-3 text-muted small"><i class="fas fa-phone mr-1"></i>{{ customer_details.phone }}</span>
+                {% endif %}
+                {% if customer_details.get('email') %}
+                <span class="ml-3 text-muted small"><i class="fas fa-envelope mr-1"></i>{{ customer_details.email }}</span>
+                {% endif %}
             </div>
         </div>
     </div>
 
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-auto mb-2">
+            <a href="{{ url_for('sales.transactions', q=customer_number) }}" class="btn btn-ops-primary">
+                <i class="fas fa-exchange-alt mr-1"></i> Active Transactions
+            </a>
+        </div>
+        <div class="col-auto mb-2">
+            <a href="{{ url_for('sales.history', customer_number=customer_number) }}" class="btn btn-outline-primary">
+                <i class="fas fa-history mr-1"></i> Purchase History
+            </a>
+        </div>
+        <div class="col-auto mb-2">
+            <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}" class="btn btn-outline-secondary">
+                <i class="fas fa-sticky-note mr-1"></i> Notes ({{ notes|length }})
+            </a>
+        </div>
+        <div class="col-auto mb-2">
+            <a href="{{ url_for('sales.customer_statement', customer_number=customer_number) }}" class="btn btn-outline-secondary">
+                <i class="fas fa-file-alt mr-1"></i> Statement / AR
+            </a>
+        </div>
+    </div>
+
     <div class="row">
-        <!-- Left: KPI tiles -->
-        <div class="col-md-4">
-            <div class="row mb-3 animate-fade-in delay-1">
+        <!-- Left Column: Account Details -->
+        <div class="col-lg-4">
+            <!-- KPI Cards -->
+            <div class="row mb-3">
                 <div class="col-6">
-                    <div class="glass-card text-center p-4 border-0">
+                    <div class="glass-card text-center p-3 border-0">
                         <div class="h3 font-weight-bold text-primary mb-0">{{ order_numbers|length }}</div>
                         <div class="small text-muted font-weight-bold text-uppercase">Total Orders</div>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="glass-card text-center p-4 border-0">
-                        <div class="h3 font-weight-bold text-success mb-0">
-                            {{ customer_rows|selectattr('so_status','eq','O')|list|length }}
-                        </div>
-                        <div class="small text-muted font-weight-bold text-uppercase">Open Orders</div>
+                    <div class="glass-card text-center p-3 border-0">
+                        <div class="h3 font-weight-bold text-success mb-0">{{ open_orders|length }}</div>
+                        <div class="small text-muted font-weight-bold text-uppercase">Open</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Award Level Placeholder -->
-            <div class="glass-card mb-3 animate-fade-in delay-2">
-                <div class="card-header-ops" style="background: linear-gradient(135deg, var(--beisser-gold), var(--beisser-gold-light));">
-                    <i class="fas fa-trophy mr-1"></i> Award &amp; Loyalty Status
-                </div>
-                <div class="card-body text-center py-4">
-                    <div style="font-size:2.5rem;color:var(--beisser-gold);"><i class="fas fa-award"></i></div>
-                    <div class="font-weight-bold mt-2">Award data will sync</div>
-                    <p class="text-muted small mb-0">
-                        Award tiers and loyalty points will populate here once the central DB
-                        receives award data from Agility.
-                    </p>
-                </div>
-            </div>
-
-            <!-- Account Info -->
-            <div class="glass-card mb-3 animate-fade-in delay-2">
+            <!-- Account Details -->
+            <div class="glass-card mb-3">
                 <div class="p-3 border-bottom font-weight-bold">
                     <i class="fas fa-id-card mr-1 text-primary"></i> Account Details
                 </div>
@@ -86,146 +90,182 @@
                         </div>
                     </div>
                     <div class="row py-2 border-bottom">
-                        <div class="col-5 text-muted">Handling</div>
-                        <div class="col-7">
-                            {% if customer_rows %}{{ customer_rows[0].handling_code or '—' }}{% else %}—{% endif %}
-                        </div>
-                    </div>
-                    <div class="row py-2 border-bottom">
                         <div class="col-5 text-muted">Sale Type</div>
                         <div class="col-7">
                             {% if customer_rows %}{{ customer_rows[0].sale_type or '—' }}{% else %}—{% endif %}
                         </div>
                     </div>
-                    <div class="row py-2">
+                    <div class="row py-2 border-bottom">
+                        <div class="col-5 text-muted">Terms</div>
+                        <div class="col-7">{{ customer_details.get('terms') or '—' }}</div>
+                    </div>
+                    <div class="row py-2 border-bottom">
                         <div class="col-5 text-muted">Credit Limit</div>
-                        <div class="col-7 text-muted fst-italic">Syncing from central DB</div>
+                        <div class="col-7">
+                            {% if customer_details.get('credit_limit') %}
+                            ${{ '{:,.0f}'.format(customer_details.credit_limit|float) }}
+                            {% else %}
+                            <span class="text-muted fst-italic">Pending sync</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row py-2">
+                        <div class="col-5 text-muted">Balance</div>
+                        <div class="col-7">
+                            {% if customer_details.get('balance') %}
+                            ${{ '{:,.2f}'.format(customer_details.balance|float) }}
+                            {% else %}
+                            <span class="text-muted fst-italic">Pending sync</span>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Ship-To Addresses -->
+            {% if ship_to_addresses %}
+            <div class="glass-card mb-3">
+                <div class="p-3 border-bottom font-weight-bold">
+                    <i class="fas fa-map-marker-alt mr-1 text-primary"></i> Ship-To Addresses ({{ ship_to_addresses|length }})
+                </div>
+                <div class="list-group list-group-flush small">
+                    {% for addr in ship_to_addresses[:5] %}
+                    <div class="list-group-item bg-transparent py-2">
+                        <div class="font-weight-bold">{{ addr.shipto_name or 'Ship-To #' ~ addr.seq_num }}</div>
+                        <div class="text-muted">
+                            {{ addr.address_1 or '' }}
+                            {% if addr.city %}, {{ addr.city }}{% endif %}
+                            {% if addr.state %} {{ addr.state }}{% endif %}
+                            {% if addr.zip %} {{ addr.zip }}{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if ship_to_addresses|length > 5 %}
+                    <div class="list-group-item bg-transparent text-center">
+                        <span class="text-muted small">+ {{ ship_to_addresses|length - 5 }} more addresses</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Future sections placeholder structure -->
+            <!-- TODO: Contacts (when synced from Agility) -->
+            <!-- TODO: Documents (when document storage available) -->
+            <!-- TODO: Route/Jobsite context -->
         </div>
 
-        <!-- Right: Recent Orders & Notes -->
-        <div class="col-md-8">
-
-            <!-- Recent Orders -->
-            <div class="glass-card mb-4 animate-fade-in delay-1">
+        <!-- Right Column: Orders & Notes -->
+        <div class="col-lg-8">
+            <!-- Open Orders -->
+            {% if open_orders %}
+            <div class="glass-card mb-4">
                 <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-box-open mr-1 text-primary"></i> Recent Orders</span>
-                    <a href="{{ url_for('sales.order_history', q=customer_number) }}" class="small text-primary font-weight-bold">View all</a>
+                    <span><i class="fas fa-box-open mr-1 text-success"></i> Open Orders ({{ open_orders|length }})</span>
+                    <a href="{{ url_for('sales.transactions', q=customer_number, status='O') }}" class="small font-weight-bold">View in Transactions</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover table-sm mb-0">
                         <thead class="thead-light">
-                            <tr>
+                            <tr class="small text-uppercase text-muted">
                                 <th>SO #</th>
-                                <th>Status</th>
-                                <th>Handling</th>
                                 <th>Expect Date</th>
+                                <th>Sale Type</th>
                                 <th>Ship Via</th>
-                                <th>Items</th>
+                                <th>PO #</th>
+                                <th class="text-center">Lines</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% set seen = [] %}
-                            {% for row in customer_rows %}
+                            {% for row in open_orders %}
                             {% if row.so_number not in seen %}
                             {% if seen.append(row.so_number) %}{% endif %}
                             <tr>
-                                <td>
-                                    <a href="{{ url_for('main.pick_detail', so_number=row.so_number) }}"
-                                       class="font-weight-bold text-primary">{{ row.so_number }}</a>
-                                </td>
-                                <td>
-                                    {% if row.so_status == 'O' %}
-                                        <span class="badge badge-success">Open</span>
-                                    {% elif row.so_status in ['I','C'] %}
-                                        <span class="badge badge-secondary">Invoiced</span>
-                                    {% else %}
-                                        <span class="badge badge-light text-muted">{{ row.so_status or '—' }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ row.handling_code or '—' }}</td>
-                                <td>{{ row.expect_date or '—' }}</td>
-                                <td>{{ row.ship_via or '—' }}</td>
-                                <td>{{ row.line_count or '—' }}</td>
+                                <td class="font-weight-bold">{{ row.so_number }}</td>
+                                <td class="small">{{ row.expect_date_display }}</td>
+                                <td class="small">{{ row.sale_type or '—' }}</td>
+                                <td class="small">{{ row.ship_via or '—' }}</td>
+                                <td class="small">{{ row.po_number or '—' }}</td>
+                                <td class="text-center">{{ row.line_count }}</td>
                             </tr>
                             {% endif %}
                             {% endfor %}
-                            {% if not customer_rows %}
-                            <tr><td colspan="6" class="text-center text-muted py-4">No orders found.</td></tr>
-                            {% endif %}
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endif %}
 
-            <!-- Last 10 Sync Records -->
-            <div class="glass-card mb-4 animate-fade-in delay-2">
-                <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-                    <span class="font-weight-bold">Last 10 Sync Records</span>
-                    <a href="{{ url_for('sales.order_history', customer_number=customer_number) }}"
-                        class="btn btn-xs btn-link text-primary font-weight-bold">View All History</a>
+            <!-- Recent Orders (all statuses) -->
+            <div class="glass-card mb-4">
+                <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-clock mr-1 text-primary"></i> Recent Orders</span>
+                    <a href="{{ url_for('sales.history', customer_number=customer_number) }}" class="small font-weight-bold">Full History</a>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover table-sm mb-0">
                         <thead class="thead-light">
-                            <tr>
+                            <tr class="small text-uppercase text-muted">
                                 <th>SO #</th>
-                                <th>Expected</th>
                                 <th>Status</th>
-                                <th class="text-right">Synced At</th>
-                                <th></th>
+                                <th>Date</th>
+                                <th>Reference</th>
+                                <th>Ship Via</th>
+                                <th class="text-center">Lines</th>
+                                <th class="text-right small">Synced</th>
                             </tr>
                         </thead>
                         <tbody>
+                            {% set seen = [] %}
                             {% for row in recent_orders %}
+                            {% if row.so_number not in seen %}
+                            {% if seen.append(row.so_number) %}{% endif %}
                             <tr>
-                                <td class="font-weight-bold text-primary">{{ row.so_number }}</td>
-                                <td>{{ row.expect_date or '—' }}</td>
+                                <td class="font-weight-bold">{{ row.so_number }}</td>
                                 <td>
-                                    <span
-                                        class="badge badge-pill badge-{% if row.so_status == 'O' %}success{% elif row.so_status == 'I' %}info{% else %}secondary{% endif %}">
-                                        {{ row.so_status }}
-                                    </span>
+                                    {% if row.so_status == 'O' %}<span class="badge badge-success">Open</span>
+                                    {% elif row.so_status == 'I' %}<span class="badge badge-info">Invoiced</span>
+                                    {% elif row.so_status == 'C' %}<span class="badge badge-secondary">Closed</span>
+                                    {% elif row.so_status == 'H' %}<span class="badge badge-warning">Hold</span>
+                                    {% else %}<span class="badge badge-light">{{ row.so_status }}</span>{% endif %}
                                 </td>
+                                <td class="small">{{ row.expect_date_display }}</td>
+                                <td class="small">{{ row.reference or '—' }}</td>
+                                <td class="small">{{ row.ship_via or '—' }}</td>
+                                <td class="text-center">{{ row.line_count }}</td>
                                 <td class="text-right small text-muted">{{ row.synced_at_display }}</td>
-                                <td class="text-right">
-                                    <a href="{{ url_for('main.pick_detail', so_number=row.so_number) }}"
-                                        class="btn btn-xs btn-outline-secondary">Details</a>
-                                </td>
                             </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">No records found for this
-                                    customer number.</td>
-                            </tr>
+                            {% endif %}
                             {% endfor %}
+                            {% if not recent_orders %}
+                            <tr><td colspan="7" class="text-center text-muted py-4">No orders found.</td></tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <!-- Recent Notes -->
-            <div class="glass-card animate-fade-in delay-3">
+            <div class="glass-card">
                 <div class="p-3 border-bottom font-weight-bold d-flex justify-content-between">
-                    <span>Recent Notes</span>
-                    <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}"
-                        class="btn btn-xs btn-outline-primary">Add Note</a>
+                    <span><i class="fas fa-comment-alt mr-1 text-primary"></i> Recent Notes</span>
+                    <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}" class="btn btn-sm btn-outline-primary">Add Note</a>
                 </div>
                 <div class="list-group list-group-flush small">
-                    {% for note in notes[:3] %}
+                    {% for note in notes[:5] %}
                     <div class="list-group-item bg-transparent">
                         <div class="d-flex justify-content-between mb-1">
-                            <span class="font-weight-bold text-primary">{{ note.note_type }}</span>
-                            <span class="text-muted">{{ note.created_at.strftime('%m/%d') }}</span>
+                            <span>
+                                <span class="badge badge-light mr-1">{{ note.note_type }}</span>
+                                {% if note.rep_name %}<span class="text-muted">{{ note.rep_name }}</span>{% endif %}
+                            </span>
+                            <span class="text-muted">{{ note.created_at.strftime('%m/%d/%Y') if note.created_at else '' }}</span>
                         </div>
-                        <small class="text-muted">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') if note.created_at else '' }}</small>
-                        <p class="mb-0 mt-1 small">{{ note.body }}</p>
+                        <p class="mb-0">{{ note.body[:200] }}{% if note.body|length > 200 %}...{% endif %}</p>
                     </div>
                     {% else %}
                     <div class="text-center text-muted py-4">
-                        <i class="fas fa-sticky-note fa-2x mb-2 d-block" style="opacity:0.2;"></i>
                         No notes yet. <a href="{{ url_for('sales.customer_notes', customer_number=customer_number) }}">Add the first one.</a>
                     </div>
                     {% endfor %}
@@ -234,5 +274,6 @@
 
         </div>
     </div>
+
 </div>
 {% endblock %}

@@ -4,210 +4,285 @@
 {% block content %}
 <div class="container-fluid mt-4 pb-5 px-lg-5">
 
-    <!-- Header Section -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 animate-fade-in">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 animate-fade-in">
         <div>
             <h1 class="display-4 font-weight-bold mb-0 text-gradient">Sales Hub</h1>
-            <p class="text-muted lead mb-0">Customer intelligence, order history & account analytics</p>
+            <p class="text-muted lead mb-0">
+                {% if rep_id %}Your sales workspace{% else %}Team sales workspace{% endif %}
+            </p>
         </div>
-        <div class="mt-3 mt-md-0">
-            <a href="{{ url_for('sales.order_status') }}" class="btn btn-ops-primary py-3 px-4 shadow-lg">
-                <i class="fas fa-search-plus mr-2"></i> Quick Order Lookup
+        <div class="mt-3 mt-md-0 d-flex">
+            <div class="btn-group mr-2">
+                {% for pd in [7, 30, 90] %}
+                <a href="{{ url_for('sales.hub', period=pd) }}"
+                   class="btn btn-sm {% if period_days == pd %}btn-dark{% else %}btn-outline-secondary{% endif %}">
+                    {{ pd }}d
+                </a>
+                {% endfor %}
+            </div>
+            <a href="{{ url_for('sales.transactions') }}" class="btn btn-ops-primary shadow-sm">
+                <i class="fas fa-search mr-1"></i> Search Orders
             </a>
         </div>
     </div>
 
-    <!-- Performance Snapshot -->
-    <div class="row mb-5 animate-fade-in delay-1">
-        <div class="col-md-3 mb-4">
+    <!-- My KPIs -->
+    <div class="row mb-4 animate-fade-in delay-1">
+        <div class="col-md-3 mb-3">
             <div class="glass-card text-center p-4 border-0">
-                <div class="small text-muted font-weight-bold text-uppercase letter-spacing-1 mb-2">Open Orders</div>
+                <div class="small text-muted font-weight-bold text-uppercase letter-spacing-1 mb-2">
+                    {% if rep_id %}My Open Orders{% else %}Open Orders{% endif %}
+                </div>
                 <div class="h2 font-weight-extrabold text-primary mb-0">{{ open_orders_count }}</div>
-                <div class="mt-2 text-success small font-weight-bold"><i class="fas fa-arrow-up mr-1"></i> 4% vs LW</div>
             </div>
         </div>
-        <div class="col-md-3 mb-4">
+        <div class="col-md-3 mb-3">
             <div class="glass-card text-center p-4 border-0">
-                <div class="small text-muted font-weight-bold text-uppercase letter-spacing-1 mb-2">Scheduled Today</div>
+                <div class="small text-muted font-weight-bold text-uppercase letter-spacing-1 mb-2">
+                    {% if rep_id %}My Orders Today{% else %}Orders Today{% endif %}
+                </div>
                 <div class="h2 font-weight-extrabold text-success mb-0">{{ total_orders_today }}</div>
-                <div class="mt-2 text-muted small">Updated 2m ago</div>
             </div>
         </div>
-        <div class="col-md-3 mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="glass-card text-center p-4 border-0">
+                <div class="small text-muted font-weight-bold text-uppercase letter-spacing-1 mb-2">Top Customers</div>
+                <div class="h2 font-weight-extrabold text-info mb-0">{{ top_customers|length }}</div>
+                <div class="mt-1 text-muted small">{{ period_days }}-day period</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
             <div class="glass-card text-center p-4 border-0">
                 <div class="small text-muted font-weight-bold text-uppercase letter-spacing-1 mb-2">Recent Notes</div>
-                <div class="h2 font-weight-extrabold text-info mb-0">{{ recent_notes|length }}</div>
-                <div class="mt-2 text-muted small">Last 24 hours</div>
-            </div>
-        </div>
-        <div class="col-md-3 mb-4">
-            <div class="glass-card text-center p-4 border-0" style="background: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(197, 160, 89, 0.1) 100%);">
-                <div class="small text-muted font-weight-bold text-uppercase letter-spacing-1 mb-2">Data Integrity</div>
-                <div class="h2 font-weight-extrabold text-warning mb-0">
-                    <i class="fas fa-shield-check"></i> 100%
-                </div>
-                <div class="mt-2 text-muted small">ERP Mirror Sync Active</div>
+                <div class="h2 font-weight-extrabold text-warning mb-0">{{ recent_notes|length }}</div>
             </div>
         </div>
     </div>
 
-    <!-- Feature Grid -->
-    <div class="row">
-        <!-- 1. Customer 360 -->
-        <div class="col-xl-4 col-md-6 mb-4 animate-fade-in delay-2">
+    <!-- Workspace Launchers -->
+    <div class="row mb-4 animate-fade-in delay-2">
+        <div class="col-xl-4 col-md-6 mb-3">
             <div class="glass-card h-100 p-4 border-0 d-flex flex-column">
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-primary-light p-3 rounded-lg mr-4 shadow-sm" style="background: rgba(0, 69, 38, 0.1);">
-                        <i class="fas fa-user-astronaut text-primary fa-2x"></i>
+                <div class="d-flex align-items-center mb-3">
+                    <div class="p-3 rounded-lg mr-3 shadow-sm" style="background: rgba(0, 69, 38, 0.1);">
+                        <i class="fas fa-user-tie text-primary fa-2x"></i>
                     </div>
                     <div>
-                        <h4 class="mb-0 font-weight-bold">Customer 360</h4>
-                        <span class="text-muted small">Full behavioral profile</span>
+                        <h5 class="mb-0 font-weight-bold">Customer Workspace</h5>
+                        <span class="text-muted small">Account overview, notes, ship-to</span>
                     </div>
                 </div>
-                <p class="text-muted mb-4 flex-grow-1">Holistic customer view: contact details, credit status, YTD spend, and loyalty tiers in one interface.</p>
-                <form action="{{ url_for('sales.customer_profile', customer_number='SEARCH') }}" method="get" 
-                      onsubmit="const v = this.querySelector('input').value; if(!v) return false; this.action='/sales/customer/' + v; return true;">
-                    <div class="input-group glass-panel rounded-pill p-1" style="background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05);">
-                        <input type="text" class="form-control bg-transparent border-0 shadow-none px-3" placeholder="Customer # or name...">
+                <p class="text-muted small mb-3 flex-grow-1">Look up a customer to see their account details, recent orders, notes, and navigate to their transactions or purchase history.</p>
+                <form action="{{ url_for('sales.customer_profile', customer_number='SEARCH') }}" method="get"
+                      onsubmit="const v=this.querySelector('input').value; if(!v) return false; this.action='/sales/customer/'+v; return true;">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Customer # or name...">
                         <div class="input-group-append">
-                            <button class="btn btn-ops-primary rounded-circle" type="submit" style="width: 38px; height: 38px; padding: 0;">
-                                <i class="fas fa-search"></i>
-                            </button>
+                            <button class="btn btn-ops-primary" type="submit"><i class="fas fa-search"></i></button>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
-
-        <!-- 2. Order History -->
-        <div class="col-xl-4 col-md-6 mb-4 animate-fade-in delay-2">
+        <div class="col-xl-4 col-md-6 mb-3">
             <div class="glass-card h-100 p-4 border-0 d-flex flex-column">
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-success-light p-3 rounded-lg mr-4 shadow-sm" style="background: rgba(40, 167, 69, 0.1);">
-                        <i class="fas fa-history text-success fa-2x"></i>
+                <div class="d-flex align-items-center mb-3">
+                    <div class="p-3 rounded-lg mr-3 shadow-sm" style="background: rgba(40, 167, 69, 0.1);">
+                        <i class="fas fa-exchange-alt text-success fa-2x"></i>
                     </div>
                     <div>
-                        <h4 class="mb-0 font-weight-bold">Order History</h4>
-                        <span class="text-muted small">Deep archive browser</span>
+                        <h5 class="mb-0 font-weight-bold">Sales Transactions</h5>
+                        <span class="text-muted small">Active orders, invoices, search</span>
                     </div>
                 </div>
-                <p class="text-muted mb-4 flex-grow-1">Search the entire order lifecycle — from quote to invoice. Filter by date, status, or branch across all historical data.</p>
-                <a href="{{ url_for('sales.order_history') }}" class="btn btn-ops-primary mb-0 mt-auto">
-                    <i class="fas fa-layer-group mr-2"></i> Browse Orders
+                <p class="text-muted small mb-3 flex-grow-1">Search and work with active sales orders, invoices, and quotes. Filter by status, date, customer, or PO number.</p>
+                <a href="{{ url_for('sales.transactions') }}" class="btn btn-ops-primary mt-auto">
+                    <i class="fas fa-th-list mr-1"></i> Open Transactions
                 </a>
             </div>
         </div>
-
-        <!-- 3. Invoice Lookup -->
-        <div class="col-xl-4 col-md-6 mb-4 animate-fade-in delay-2">
+        <div class="col-xl-4 col-md-6 mb-3">
             <div class="glass-card h-100 p-4 border-0 d-flex flex-column">
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-info-light p-3 rounded-lg mr-4 shadow-sm" style="background: rgba(23, 162, 184, 0.1);">
-                        <i class="fas fa-file-invoice-dollar text-info fa-2x"></i>
+                <div class="d-flex align-items-center mb-3">
+                    <div class="p-3 rounded-lg mr-3 shadow-sm" style="background: rgba(23, 162, 184, 0.1);">
+                        <i class="fas fa-history text-info fa-2x"></i>
                     </div>
                     <div>
-                        <h4 class="mb-0 font-weight-bold">Invoice Vault</h4>
-                        <span class="text-muted small">Fast billing retrieval</span>
+                        <h5 class="mb-0 font-weight-bold">Purchase History</h5>
+                        <span class="text-muted small">Past orders, pricing research</span>
                     </div>
                 </div>
-                <p class="text-muted mb-4 flex-grow-1">Instant retrieval of invoiced orders for rapid response to billing inquiries or tax-related document requests.</p>
-                <a href="{{ url_for('sales.invoice_lookup') }}" class="btn btn-ops-primary mt-auto" style="background: var(--dark-charcoal);">
-                    <i class="fas fa-search-dollar mr-2"></i> Find Invoice
+                <p class="text-muted small mb-3 flex-grow-1">Research historical purchases, check past pricing, and prepare for customer conversations about reorders or returns.</p>
+                <a href="{{ url_for('sales.history') }}" class="btn btn-ops-primary mt-auto" style="background: #17a2b8;">
+                    <i class="fas fa-archive mr-1"></i> Browse History
                 </a>
             </div>
         </div>
+    </div>
 
-        <!-- 4. Customer Awards -->
-        <div class="col-xl-4 col-md-6 mb-4 animate-fade-in delay-3">
-            <div class="glass-card h-100 p-4 border-0 d-flex flex-column">
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-warning-light p-3 rounded-lg mr-4 shadow-sm" style="background: rgba(197, 160, 89, 0.1);">
-                        <i class="fas fa-award text-warning fa-2x"></i>
-                    </div>
-                    <div>
-                        <h4 class="mb-0 font-weight-bold">Loyalty & Awards</h4>
-                        <span class="text-muted small">Status tracking</span>
-                    </div>
+    <!-- Two-column: Recent Orders + Status/Top Customers -->
+    <div class="row animate-fade-in delay-2">
+        <!-- Recent Orders -->
+        <div class="col-lg-7 mb-4">
+            <div class="glass-card p-4 border-0">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0 font-weight-bold">
+                        <i class="fas fa-clock mr-2 text-primary"></i>
+                        {% if rep_id %}My Recent Orders{% else %}Recent Orders{% endif %}
+                    </h5>
+                    <a href="{{ url_for('sales.transactions') }}" class="small font-weight-bold">View All <i class="fas fa-arrow-right ml-1"></i></a>
                 </div>
-                <p class="text-muted mb-4 flex-grow-1">Real-time sync of loyalty points and award tiers. Know your customer's value and standing before every interaction.</p>
-                <a href="{{ url_for('sales.awards') }}" class="btn btn-ops-gold mt-auto">
-                    <i class="fas fa-crown mr-2"></i> View Leaderboard
-                </a>
+                {% if recent_orders %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>SO #</th>
+                                <th>Customer</th>
+                                <th>Status</th>
+                                <th>Expect Date</th>
+                                <th>Lines</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for o in recent_orders[:12] %}
+                            <tr>
+                                <td class="font-weight-bold">{{ o.so_number }}</td>
+                                <td>{{ o.customer_name[:30] }}{% if o.customer_name|length > 30 %}...{% endif %}</td>
+                                <td>
+                                    {% if o.so_status == 'O' %}
+                                    <span class="badge badge-success">Open</span>
+                                    {% elif o.so_status == 'I' %}
+                                    <span class="badge badge-info">Invoiced</span>
+                                    {% elif o.so_status == 'C' %}
+                                    <span class="badge badge-secondary">Closed</span>
+                                    {% elif o.so_status == 'H' %}
+                                    <span class="badge badge-warning">Hold</span>
+                                    {% else %}
+                                    <span class="badge badge-light">{{ o.so_status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small">{{ o.expect_date_display }}</td>
+                                <td class="text-center">{{ o.line_count }}</td>
+                                <td>
+                                    {% if o.customer_code %}
+                                    <a href="{{ url_for('sales.customer_profile', customer_number=o.customer_code) }}" class="text-muted" title="Customer"><i class="fas fa-user"></i></a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center p-4 text-muted">
+                    <i class="fas fa-inbox fa-2x mb-2 opacity-25"></i>
+                    <p class="mb-0">No recent orders found.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- 5. Rep Dashboard -->
-        <div class="col-xl-4 col-md-6 mb-4 animate-fade-in delay-3">
-            <div class="glass-card h-100 p-4 border-0 d-flex flex-column">
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-danger-light p-3 rounded-lg mr-4 shadow-sm" style="background: rgba(220, 53, 69, 0.1);">
-                        <i class="fas fa-tachometer-alt-fast text-danger fa-2x"></i>
-                    </div>
-                    <div>
-                        <h4 class="mb-0 font-weight-bold">Rep Cockpit</h4>
-                        <span class="text-muted small">Personal performance</span>
-                    </div>
+        <!-- Sidebar: Status + Top Customers -->
+        <div class="col-lg-5 mb-4">
+            <!-- Status Breakdown -->
+            <div class="glass-card p-4 border-0 mb-4">
+                <h6 class="font-weight-bold mb-3"><i class="fas fa-chart-pie mr-2 text-muted"></i> Status Breakdown ({{ period_days }}d)</h6>
+                {% if status_breakdown %}
+                {% for s in status_breakdown %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>
+                        {% if s.so_status == 'O' %}<span class="badge badge-success mr-1">O</span> Open
+                        {% elif s.so_status == 'I' %}<span class="badge badge-info mr-1">I</span> Invoiced
+                        {% elif s.so_status == 'C' %}<span class="badge badge-secondary mr-1">C</span> Closed
+                        {% elif s.so_status == 'H' %}<span class="badge badge-warning mr-1">H</span> Hold
+                        {% else %}<span class="badge badge-light mr-1">{{ s.so_status }}</span> {{ s.so_status }}
+                        {% endif %}
+                    </span>
+                    <span class="font-weight-bold">{{ s.count }}</span>
                 </div>
-                <p class="text-muted mb-4 flex-grow-1">Personalized KPIs: sales volume, pipeline status, and top growth accounts filtered for your specific book of business.</p>
-                <a href="{{ url_for('sales.rep_dashboard') }}" class="btn btn-dark mt-auto" style="border-radius: 12px; font-weight: 700;">
-                    <i class="fas fa-chart-line mr-2"></i> Performance Board
-                </a>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted small mb-0">No data for this period.</p>
+                {% endif %}
+            </div>
+
+            <!-- Top Customers -->
+            <div class="glass-card p-4 border-0">
+                <h6 class="font-weight-bold mb-3"><i class="fas fa-trophy mr-2 text-warning"></i> Top Customers ({{ period_days }}d)</h6>
+                {% if top_customers %}
+                {% for c in top_customers[:8] %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <a href="{{ url_for('sales.customer_profile', customer_number=c.customer_code) }}" class="text-dark small">
+                        {{ c.customer_name[:25] }}{% if c.customer_name|length > 25 %}...{% endif %}
+                    </a>
+                    <span class="badge badge-primary badge-pill">{{ c.order_count }}</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted small mb-0">No customer data for this period.</p>
+                {% endif %}
             </div>
         </div>
+    </div>
 
-        <!-- 6. Analytics -->
-        <div class="col-xl-4 col-md-6 mb-4 animate-fade-in delay-3">
-            <div class="glass-card h-100 p-4 border-0 d-flex flex-column">
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-info-light p-3 rounded-lg mr-4 shadow-sm" style="background: rgba(111, 66, 193, 0.1);">
-                        <i class="fas fa-chart-pie fa-2x" style="color:#6f42c1;"></i>
-                    </div>
-                    <div>
-                        <h4 class="mb-0 font-weight-bold">Advanced Reports</h4>
-                        <span class="text-muted small">Business intelligence</span>
-                    </div>
-                </div>
-                <p class="text-muted mb-4 flex-grow-1">Executive summaries, product category trends, and YOY comparisons to drive strategic decision making.</p>
-                <a href="{{ url_for('sales.reports') }}" class="btn btn-ops-primary mt-auto" style="background: #6f42c1;">
-                    <i class="fas fa-presentation mr-2"></i> Analytics Hub
-                </a>
-            </div>
-        </div>
-
-    </div><!-- /row -->
-
-    <!-- Recent Shared Notes -->
-    <div class="row mt-4 animate-fade-in delay-3">
+    <!-- Team Intelligence Feed -->
+    <div class="row animate-fade-in delay-3">
         <div class="col-12">
             <div class="glass-card p-4 border-0">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h5 class="mb-0 font-weight-bold"><i class="fas fa-comment-alt-lines mr-2 text-primary"></i> Team Intelligence Feed</h5>
-                    <a href="{{ url_for('sales.order_status') }}" class="small font-weight-bold">Add Note <i class="fas fa-plus ml-1"></i></a>
-                </div>
+                <h5 class="mb-3 font-weight-bold"><i class="fas fa-comment-alt mr-2 text-primary"></i> Team Intelligence Feed</h5>
                 {% if recent_notes %}
                 <div class="row">
                     {% for note in recent_notes %}
                     <div class="col-lg-4 col-md-6 mb-3">
-                        <div class="glass-panel p-3 border-0 rounded" style="background: rgba(0,0,0,0.02); border-left: 4px solid var(--beisser-green) !important;">
+                        <div class="p-3 rounded" style="background: rgba(0,0,0,0.02); border-left: 4px solid var(--beisser-green);">
                             <div class="d-flex justify-content-between mb-2">
                                 <span class="badge badge-light">{{ note.note_type }}</span>
-                                <span class="small text-muted">{{ note.customer_number }}</span>
+                                <a href="{{ url_for('sales.customer_profile', customer_number=note.customer_number) }}" class="small text-muted">{{ note.customer_number }}</a>
                             </div>
-                            <p class="small text-dark mb-0 italic">"{{ note.body[:120] }}{% if note.body|length > 120 %}…{% endif %}"</p>
+                            <p class="small text-dark mb-0">"{{ note.body[:120] }}{% if note.body|length > 120 %}...{% endif %}"</p>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
-                <div class="text-center p-5 text-muted">
-                    <i class="fas fa-ghost fa-3x mb-3 opacity-25"></i>
-                    <p>No recent team notes shared. Be the first to log activity.</p>
+                <div class="text-center p-4 text-muted">
+                    <p class="mb-0">No recent team notes. Be the first to log activity.</p>
                 </div>
                 {% endif %}
             </div>
         </div>
     </div>
+
+    <!-- Quick Links Row -->
+    <div class="row mt-4 animate-fade-in delay-3">
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('sales.products') }}" class="glass-card p-3 border-0 d-block text-center text-dark text-decoration-none">
+                <i class="fas fa-boxes text-muted mb-2 fa-lg"></i>
+                <div class="small font-weight-bold">Products & Stock</div>
+            </a>
+        </div>
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('sales.reports') }}" class="glass-card p-3 border-0 d-block text-center text-dark text-decoration-none">
+                <i class="fas fa-chart-area text-muted mb-2 fa-lg"></i>
+                <div class="small font-weight-bold">Reports & Analytics</div>
+            </a>
+        </div>
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('sales.transactions', status='I,C') }}" class="glass-card p-3 border-0 d-block text-center text-dark text-decoration-none">
+                <i class="fas fa-file-invoice-dollar text-muted mb-2 fa-lg"></i>
+                <div class="small font-weight-bold">Invoice Search</div>
+            </a>
+        </div>
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('sales.history') }}" class="glass-card p-3 border-0 d-block text-center text-dark text-decoration-none">
+                <i class="fas fa-search-dollar text-muted mb-2 fa-lg"></i>
+                <div class="small font-weight-bold">Price History</div>
+            </a>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
-

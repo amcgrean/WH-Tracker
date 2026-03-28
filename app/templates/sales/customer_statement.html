@@ -44,30 +44,39 @@
         </div>
         <div class="col-md-3 col-6 mb-3">
             <div class="glass-card text-center p-4 border-0">
-                <div class="h3 font-weight-bold text-warning mb-0">
-                    <i class="fas fa-sync-alt fa-spin small"></i>
-                </div>
+                {% if customer_details.get('balance') %}
+                <div class="h3 font-weight-bold text-warning mb-0">${{ '{:,.2f}'.format(customer_details.balance|float) }}</div>
+                {% else %}
+                <div class="h3 font-weight-bold text-warning mb-0">&mdash;</div>
+                {% endif %}
                 <div class="small text-muted font-weight-bold text-uppercase">Outstanding Balance</div>
-                <div class="text-muted" style="font-size:0.7rem;">Pending AR sync</div>
+                {% if not customer_details.get('balance') %}
+                <div class="text-muted" style="font-size:0.7rem;">Pending sync</div>
+                {% endif %}
             </div>
         </div>
         <div class="col-md-3 col-6 mb-3">
             <div class="glass-card text-center p-4 border-0">
-                <div class="h3 font-weight-bold text-info mb-0">
-                    <i class="fas fa-sync-alt fa-spin small"></i>
-                </div>
+                {% if customer_details.get('credit_limit') %}
+                <div class="h3 font-weight-bold text-info mb-0">${{ '{:,.0f}'.format(customer_details.credit_limit|float) }}</div>
+                {% else %}
+                <div class="h3 font-weight-bold text-info mb-0">&mdash;</div>
+                {% endif %}
                 <div class="small text-muted font-weight-bold text-uppercase">Credit Limit</div>
-                <div class="text-muted" style="font-size:0.7rem;">Pending AR sync</div>
+                {% if not customer_details.get('credit_limit') %}
+                <div class="text-muted" style="font-size:0.7rem;">Pending sync</div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <div class="alert alert-info border-0 glass-panel shadow-sm mb-4 animate-fade-in delay-1">
-        <i class="fas fa-database mr-1"></i>
-        <strong>AR data coming soon:</strong> Balance, credit limit, and payment terms will display here once the
-        central database sync includes the Agility AR/Customer tables.
-        The order data below is already available from the open order mirror.
+    {% if not customer_details.get('balance') and not customer_details.get('credit_limit') %}
+    <div class="alert alert-light border mb-4 animate-fade-in delay-1">
+        <i class="fas fa-info-circle mr-1 text-muted"></i>
+        Balance and credit limit will display once the customer master sync is active.
+        Order data below is already available from the mirror.
     </div>
+    {% endif %}
 
     <!-- Open Orders -->
     <div class="glass-card mb-4 animate-fade-in delay-2">
@@ -153,7 +162,7 @@
                         <td>{{ r.handling_code or '—' }}</td>
                         <td>{{ r.ship_via or '—' }}</td>
                         <td>{{ r.line_count or '—' }}</td>
-                        <td class="text-muted fst-italic small">AR sync pending</td>
+                        <td class="text-muted small">&mdash;</td>
                     </tr>
                     {% endif %}
                     {% endfor %}
