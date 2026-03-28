@@ -2007,25 +2007,48 @@ class ERPService:
         cursor = conn.cursor()
         try:
             params_list = []
-            clauses = ["UPPER(COALESCE(soh.so_status, '')) = 'O'"]
+            clauses = []
+            # Status filtering — explicit status param takes precedence over open_only flag
+            if status:
+                valid_statuses = [s.strip().upper() for s in status.split(',') if s.strip() and s.strip().isalpha() and len(s.strip()) == 1]
+                if valid_statuses:
+                    placeholders = ', '.join(f"'{s}'" for s in valid_statuses)
+                    clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
+            elif open_only:
+                clauses.append("UPPER(COALESCE(soh.so_status, '')) = 'O'")
             if q:
                 like = f"%{q}%"
                 clauses.append(
                     "(CAST(soh.so_id AS VARCHAR(64)) LIKE ?"
                     " OR COALESCE(c.cust_name, '') LIKE ?"
-                    " OR COALESCE(c.cust_code, '') LIKE ?)"
+                    " OR COALESCE(c.cust_code, '') LIKE ?"
+                    " OR COALESCE(soh.po_number, '') LIKE ?"
+                    " OR COALESCE(soh.reference, '') LIKE ?)"
                 )
-                params_list.extend([like, like, like])
+                params_list.extend([like, like, like, like, like])
             if branch:
                 system_id = self._normalize_branch_system_id(branch)
                 if system_id:
                     clauses.append("soh.system_id = ?")
                     params_list.append(system_id)
-            where_clause = "WHERE " + " AND ".join(clauses)
+            if rep_id:
+                clauses.append(
+                    "(COALESCE(soh.salesperson, '') = ? OR COALESCE(soh.order_writer, '') = ?)"
+                )
+                params_list.extend([rep_id, rep_id])
+            if date_from:
+                clauses.append("CAST(soh.expect_date AS DATE) >= ?")
+                params_list.append(date_from)
+            if date_to:
+                clauses.append("CAST(soh.expect_date AS DATE) <= ?")
+                params_list.append(date_to)
+            where_clause = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+            page = max(1, page)
+            offset = (page - 1) * limit
 
             cursor.execute(
                 f"""
-                SELECT TOP {int(limit)}
+                SELECT
                     CAST(soh.so_id AS VARCHAR(64)) AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
@@ -2037,6 +2060,9 @@ class ERPService:
                     '' AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    MAX(COALESCE(soh.salesperson, '')) AS salesperson,
+                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    MAX(COALESCE(soh.po_number, '')) AS po_number,
                     COUNT(DISTINCT sod.sequence) AS line_count
                 FROM so_header soh
                 LEFT JOIN cust c
@@ -2049,6 +2075,7 @@ class ERPService:
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC, soh.so_id DESC
+                OFFSET {int(offset)} ROWS FETCH NEXT {int(limit)} ROWS ONLY
                 """,
                 params_list,
             )
@@ -2065,6 +2092,9 @@ class ERPService:
                     "handling_code": "",
                     "sale_type": row.sale_type,
                     "ship_via": row.ship_via,
+                    "salesperson": row.salesperson,
+                    "order_writer": row.order_writer,
+                    "po_number": row.po_number,
                     "line_count": row.line_count,
                 }
                 for row in rows
