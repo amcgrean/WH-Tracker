@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, render_template, request, flash, redirect, url_for, session, jsonify
 from ..Models.models import CustomerNote
 from sqlalchemy import desc
@@ -6,6 +7,8 @@ from ..Services.erp_service import ERPService
 from ..extensions import db
 from ..branch_utils import normalize_branch
 from ..auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -127,19 +130,39 @@ def hub():
     rep_id = _get_rep_id()
     branch = _get_branch()
 
-    metrics = erp.get_sales_hub_metrics(rep_id=rep_id)
-    recent_orders = [
-        _normalize_order_row(r) for r in erp.get_sales_order_status(
-            rep_id=rep_id, limit=15, branch=branch,
-        )
-    ]
-    recent_notes = CustomerNote.query.order_by(desc(CustomerNote.created_at)).limit(5).all()
+    try:
+        metrics = erp.get_sales_hub_metrics(rep_id=rep_id)
+    except Exception as e:
+        logger.error("Sales hub metrics failed: %s", e)
+        metrics = {"open_orders_count": 0, "total_orders_today": 0}
+
+    try:
+        recent_orders = [
+            _normalize_order_row(r) for r in erp.get_sales_order_status(
+                rep_id=rep_id, limit=15, branch=branch,
+            )
+        ]
+    except Exception as e:
+        logger.error("Sales hub recent orders failed: %s", e)
+        recent_orders = []
+
+    try:
+        recent_notes = CustomerNote.query.order_by(desc(CustomerNote.created_at)).limit(5).all()
+    except Exception as e:
+        logger.error("Sales hub recent notes failed: %s", e)
+        recent_notes = []
 
     # Period-based report data (absorbed from rep_dashboard)
     period_days = request.args.get('period', 30, type=int)
     if period_days not in (7, 30, 90):
         period_days = 30
-    reports = erp.get_sales_reports(period_days=period_days, branch=branch, rep_id=rep_id)
+
+    try:
+        reports = erp.get_sales_reports(period_days=period_days, branch=branch, rep_id=rep_id)
+    except Exception as e:
+        logger.error("Sales hub reports failed: %s", e)
+        reports = {"top_customers": [], "status_breakdown": []}
+
     top_customers = [_normalize_top_customer(r) for r in reports.get('top_customers', [])]
     status_breakdown = [_normalize_status_breakdown(r) for r in reports.get('status_breakdown', [])]
 
@@ -170,18 +193,35 @@ def rep_dashboard():
 @sales.route('/customer-profile/<customer_number>')
 def customer_profile(customer_number):
     """Customer workspace — account overview with quick actions and cross-navigation."""
-    customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=50)]
+    try:
+        customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=50)]
+    except Exception as e:
+        logger.error("Customer profile orders failed for %s: %s", customer_number, e)
+        customer_rows = []
+
     order_numbers = list({r['so_number'] for r in customer_rows if r.get('so_number')})
     first_row = customer_rows[0] if customer_rows else {}
     customer_name = first_row.get('customer_name') or customer_number
 
-    # Customer master details and ship-to addresses
-    customer_details = erp.get_customer_details(customer_number)
-    ship_to_addresses = erp.get_customer_ship_to_addresses(customer_number)
+    try:
+        customer_details = erp.get_customer_details(customer_number)
+    except Exception as e:
+        logger.error("Customer details failed for %s: %s", customer_number, e)
+        customer_details = {}
 
-    notes = CustomerNote.query.filter_by(
-        customer_number=customer_number
-    ).order_by(desc(CustomerNote.created_at)).limit(10).all()
+    try:
+        ship_to_addresses = erp.get_customer_ship_to_addresses(customer_number)
+    except Exception as e:
+        logger.error("Customer ship-to addresses failed for %s: %s", customer_number, e)
+        ship_to_addresses = []
+
+    try:
+        notes = CustomerNote.query.filter_by(
+            customer_number=customer_number
+        ).order_by(desc(CustomerNote.created_at)).limit(10).all()
+    except Exception as e:
+        logger.error("Customer notes query failed for %s: %s", customer_number, e)
+        notes = []
 
     open_orders = [r for r in customer_rows if r.get('so_status') == 'O']
 
@@ -222,11 +262,19 @@ def customer_notes(customer_number):
             flash('Note saved.', 'success')
         return redirect(url_for('sales.customer_notes', customer_number=customer_number))
 
-    notes = CustomerNote.query.filter_by(
-        customer_number=customer_number
-    ).order_by(desc(CustomerNote.created_at)).all()
+    try:
+        notes = CustomerNote.query.filter_by(
+            customer_number=customer_number
+        ).order_by(desc(CustomerNote.created_at)).all()
+    except Exception as e:
+        logger.error("Customer notes query failed for %s: %s", customer_number, e)
+        notes = []
 
-    customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=1)]
+    try:
+        customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=1)]
+    except Exception as e:
+        logger.error("Customer notes order lookup failed for %s: %s", customer_number, e)
+        customer_rows = []
     customer_row = customer_rows[0] if customer_rows else {}
     customer_name = customer_row.get('customer_name') or customer_number
 
@@ -242,10 +290,18 @@ def customer_notes(customer_number):
 @sales.route('/customer-statement/<customer_number>')
 def customer_statement(customer_number):
     """Account statement — open orders and invoiced orders for a customer."""
-    customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=100)]
+    try:
+        customer_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(customer_number, limit=100)]
+    except Exception as e:
+        logger.error("Customer statement orders failed for %s: %s", customer_number, e)
+        customer_rows = []
     customer_row = customer_rows[0] if customer_rows else {}
     customer_name = customer_row.get('customer_name') or customer_number
-    customer_details = erp.get_customer_details(customer_number)
+    try:
+        customer_details = erp.get_customer_details(customer_number)
+    except Exception as e:
+        logger.error("Customer statement details failed for %s: %s", customer_number, e)
+        customer_details = {}
 
     open_orders = [r for r in customer_rows if r.get('so_status') == 'O']
     invoiced_orders = [r for r in customer_rows if r.get('so_status') in ('I', 'C')]
@@ -290,13 +346,17 @@ def transactions():
     # Determine if we should filter to open only or show all statuses
     open_only = not status and not date_from and not date_to and not q
 
-    orders = [
-        _normalize_order_row(r) for r in erp.get_sales_order_status(
-            q=q, limit=PAGE_SIZE, branch=branch, open_only=open_only,
-            rep_id=rep_id, status=status, date_from=date_from, date_to=date_to,
-            page=page,
-        )
-    ]
+    try:
+        orders = [
+            _normalize_order_row(r) for r in erp.get_sales_order_status(
+                q=q, limit=PAGE_SIZE, branch=branch, open_only=open_only,
+                rep_id=rep_id, status=status, date_from=date_from, date_to=date_to,
+                page=page,
+            )
+        ]
+    except Exception as e:
+        logger.error("Transactions query failed: %s", e)
+        orders = []
 
     # Status counts for the summary bar
     status_counts = {}
@@ -359,10 +419,14 @@ def history(customer_number):
 
     history_rows = []
     if searched:
-        history_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(
-            customer_number, q=q, date_from=date_from, date_to=date_to, status=status,
-            branch=branch, limit=PAGE_SIZE, page=page, rep_id=rep_id,
-        )]
+        try:
+            history_rows = [_normalize_order_row(r) for r in erp.get_sales_customer_orders(
+                customer_number, q=q, date_from=date_from, date_to=date_to, status=status,
+                branch=branch, limit=PAGE_SIZE, page=page, rep_id=rep_id,
+            )]
+        except Exception as e:
+            logger.error("Purchase history query failed: %s", e)
+            history_rows = []
     return render_template(
         'sales/history.html',
         history=history_rows,
@@ -396,7 +460,10 @@ def products():
     q = request.args.get('q', '').strip()
     products_list = []
     if q:
-        products_list = [_normalize_product_row(r) for r in erp.get_sales_products(q=q, limit=50)]
+        try:
+            products_list = [_normalize_product_row(r) for r in erp.get_sales_products(q=q, limit=50)]
+        except Exception as e:
+            logger.error("Products query failed: %s", e)
     return render_template('sales/products.html', products=products_list, q=q)
 
 
@@ -406,7 +473,11 @@ def reports():
     period_days = request.args.get('period', 30, type=int)
     branch = _get_branch()
     rep_id = _get_rep_id()
-    report_data = erp.get_sales_reports(period_days=period_days, branch=branch, rep_id=rep_id)
+    try:
+        report_data = erp.get_sales_reports(period_days=period_days, branch=branch, rep_id=rep_id)
+    except Exception as e:
+        logger.error("Sales reports query failed: %s", e)
+        report_data = {"daily_orders": [], "top_customers": [], "status_breakdown": []}
     daily_orders = [_normalize_daily_order(r) for r in report_data['daily_orders']]
     top_customers = [_normalize_top_customer(r) for r in report_data['top_customers']]
     status_breakdown = [_normalize_status_breakdown(r) for r in report_data['status_breakdown']]
@@ -442,13 +513,17 @@ def api_transactions():
     limit = min(int(request.args.get('limit', 100)), 500)
     page = request.args.get('page', 1, type=int)
     open_only = not status and not date_from and not date_to and not q
-    orders = [
-        _normalize_order_row(r) for r in erp.get_sales_order_status(
-            q=q, limit=limit, branch=branch, open_only=open_only,
-            rep_id=rep_id, status=status, date_from=date_from, date_to=date_to,
-            page=page,
-        )
-    ]
+    try:
+        orders = [
+            _normalize_order_row(r) for r in erp.get_sales_order_status(
+                q=q, limit=limit, branch=branch, open_only=open_only,
+                rep_id=rep_id, status=status, date_from=date_from, date_to=date_to,
+                page=page,
+            )
+        ]
+    except Exception as e:
+        logger.error("API transactions query failed: %s", e)
+        orders = []
     return jsonify(orders)
 
 
@@ -465,7 +540,11 @@ def api_customer_search():
     q = request.args.get('q', '').strip()
     if len(q) < 2:
         return jsonify([])
-    rows = erp.get_sales_customers_search(q=q, limit=10)
+    try:
+        rows = erp.get_sales_customers_search(q=q, limit=10)
+    except Exception as e:
+        logger.error("Customer search failed: %s", e)
+        return jsonify([])
     results = []
     seen = set()
     for r in rows:
