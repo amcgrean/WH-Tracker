@@ -2,7 +2,7 @@ import logging
 from flask import Blueprint, render_template, request, flash, redirect, url_for, session, jsonify
 from ..Models.models import CustomerNote
 from sqlalchemy import desc
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from ..Services.erp_service import ERPService
 from ..extensions import db
 from ..branch_utils import normalize_branch
@@ -63,7 +63,20 @@ def _format_date(value):
     return value or ''
 
 
-def _normalize_order_row(row):
+def _normalize_order_row(row, rep_id=''):
+    salesperson = _value(row, 'salesperson', '')
+    order_writer = _value(row, 'order_writer', '')
+    # Determine agent role relative to the logged-in user
+    agent_role = ''
+    if rep_id:
+        is_agent1 = salesperson and salesperson == rep_id
+        is_agent3 = order_writer and order_writer == rep_id
+        if is_agent1 and is_agent3:
+            agent_role = 'both'
+        elif is_agent1:
+            agent_role = 'acct_rep'
+        elif is_agent3:
+            agent_role = 'writer'
     return {
         'so_number': _value(row, 'so_number', ''),
         'customer_name': _value(row, 'customer_name', ''),
@@ -71,14 +84,19 @@ def _normalize_order_row(row):
         'address': _value(row, 'address', ''),
         'expect_date': _value(row, 'expect_date', ''),
         'expect_date_display': _format_date(_value(row, 'expect_date')),
+        'ship_date': _value(row, 'ship_date', ''),
+        'ship_date_display': _format_date(_value(row, 'ship_date')),
+        'invoice_date': _value(row, 'invoice_date', ''),
+        'invoice_date_display': _format_date(_value(row, 'invoice_date')),
         'reference': _value(row, 'reference', ''),
         'so_status': _value(row, 'so_status', ''),
         'handling_code': _value(row, 'handling_code', ''),
         'sale_type': _value(row, 'sale_type', ''),
         'ship_via': _value(row, 'ship_via', ''),
         'line_count': _value(row, 'line_count', 0),
-        'salesperson': _value(row, 'salesperson', ''),
-        'order_writer': _value(row, 'order_writer', ''),
+        'salesperson': salesperson,
+        'order_writer': order_writer,
+        'agent_role': agent_role,
         'po_number': _value(row, 'po_number', ''),
         'synced_at': _value(row, 'synced_at'),
         'synced_at_display': _format_timestamp(_value(row, 'synced_at')),
@@ -330,30 +348,134 @@ def customer_shortcut(customer_number):
 PAGE_SIZE = 50
 
 
+CLOSED_CM_STATUSES = ('I', 'C', 'X', 'CAN', 'CANCEL', 'CANCELED', 'CN', 'VOID')
+# Sale types excluded from "delivery / add-on" view (leaves only delivery-style orders)
+NON_DELIVERY_TYPES = ('Direct', 'WillCall', 'XInstall', 'Hold', 'CM')
+
+VIEW_PRESETS = {
+    'my_open_3d': {
+        'label': 'My Open Orders', 'sublabel': 'Next 3 Days',
+        'icon': 'fa-clock', 'color': 'success', 'section': 'my',
+    },
+    'my_open_7d': {
+        'label': 'My Open Orders', 'sublabel': 'Next 7 Days',
+        'icon': 'fa-calendar-week', 'color': 'primary', 'section': 'my',
+    },
+    'branch_delivery': {
+        'label': 'Branch Orders', 'sublabel': 'Delivery / Add On',
+        'icon': 'fa-truck', 'color': 'info', 'section': 'branch',
+    },
+    'branch_willcall': {
+        'label': 'Branch Orders', 'sublabel': 'Will Call',
+        'icon': 'fa-store', 'color': 'warning', 'section': 'branch',
+    },
+    'my_rma': {
+        'label': 'My Open RMAs', 'sublabel': 'Credit Memos',
+        'icon': 'fa-undo-alt', 'color': 'danger', 'section': 'my',
+    },
+    'my_shipped_2d': {
+        'label': 'My Shipped', 'sublabel': 'Last 2 Days',
+        'icon': 'fa-shipping-fast', 'color': 'teal', 'section': 'my',
+    },
+    'my_invoiced_5d': {
+        'label': 'My Invoiced', 'sublabel': 'Last 5 Days',
+        'icon': 'fa-file-invoice-dollar', 'color': 'secondary', 'section': 'my',
+    },
+}
+
+
+def _get_user_rep_id():
+    """Return the logged-in user's raw ERP rep ID (regardless of role)."""
+    user = get_current_user()
+    if not user:
+        return ''
+    return user.get('user_id', '') or ''
+
+
 @sales.route('/transactions')
 def transactions():
     """Unified sales transaction workspace — search and act on all orders."""
+    view = request.args.get('view', '').strip()
     q = request.args.get('q', '').strip()
     status = request.args.get('status', '').strip()
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     branch = _get_branch()
     rep_id = _get_rep_id()
+    user_rep_id = _get_user_rep_id()
     page = request.args.get('page', 1, type=int)
     page = max(1, page)
     my_orders = request.args.get('my_orders', '')
+    today = date.today()
+
+    # --- View presets override manual filters ---
+    active_view = view if view in VIEW_PRESETS else ''
+    sale_type = ''
+    exclude_sale_types = ''
+    use_shipment_query = False
+    shipment_date_field = ''
+
+    if active_view == 'my_open_3d':
+        status = 'O'
+        date_from = today.isoformat()
+        date_to = (today + timedelta(days=3)).isoformat()
+        rep_id = user_rep_id
+        exclude_sale_types = ','.join(NON_DELIVERY_TYPES)
+    elif active_view == 'my_open_7d':
+        status = 'O'
+        date_from = today.isoformat()
+        date_to = (today + timedelta(days=7)).isoformat()
+        rep_id = user_rep_id
+        exclude_sale_types = ','.join(NON_DELIVERY_TYPES)
+    elif active_view == 'branch_delivery':
+        status = 'O'
+        exclude_sale_types = ','.join(NON_DELIVERY_TYPES)
+        rep_id = ''  # branch-wide, not filtered to user
+    elif active_view == 'branch_willcall':
+        status = 'O'
+        sale_type = 'WillCall'
+        rep_id = ''  # branch-wide
+    elif active_view == 'my_rma':
+        sale_type = 'CM'
+        # Open CMs: exclude closed/cancelled statuses
+        open_cm_statuses = [s for s in ('O', 'H') if len(s) == 1]
+        status = ','.join(open_cm_statuses)
+        date_from = ''
+        date_to = ''
+        rep_id = user_rep_id
+    elif active_view == 'my_shipped_2d':
+        use_shipment_query = True
+        shipment_date_field = 'ship_date'
+        date_from = (today - timedelta(days=2)).isoformat()
+        date_to = today.isoformat()
+        rep_id = user_rep_id
+    elif active_view == 'my_invoiced_5d':
+        use_shipment_query = True
+        shipment_date_field = 'invoice_date'
+        date_from = (today - timedelta(days=5)).isoformat()
+        date_to = today.isoformat()
+        rep_id = user_rep_id
 
     # Determine if we should filter to open only or show all statuses
-    open_only = not status and not date_from and not date_to and not q
+    open_only = not active_view and not status and not date_from and not date_to and not q
 
     try:
-        orders = [
-            _normalize_order_row(r) for r in erp.get_sales_order_status(
-                q=q, limit=PAGE_SIZE, branch=branch, open_only=open_only,
-                rep_id=rep_id, status=status, date_from=date_from, date_to=date_to,
-                page=page,
-            )
-        ]
+        if use_shipment_query:
+            orders = [
+                _normalize_order_row(r, rep_id=user_rep_id) for r in erp.get_orders_by_shipment_date(
+                    date_field=shipment_date_field,
+                    date_from=date_from, date_to=date_to,
+                    rep_id=rep_id, branch=branch, limit=PAGE_SIZE, page=page,
+                )
+            ]
+        else:
+            orders = [
+                _normalize_order_row(r, rep_id=user_rep_id) for r in erp.get_sales_order_status(
+                    q=q, limit=PAGE_SIZE, branch=branch, open_only=open_only,
+                    rep_id=rep_id, status=status, date_from=date_from, date_to=date_to,
+                    page=page, sale_type=sale_type, exclude_sale_types=exclude_sale_types,
+                )
+            ]
     except Exception as e:
         logger.error("Transactions query failed: %s", e)
         orders = []
@@ -368,16 +490,19 @@ def transactions():
         'sales/transactions.html',
         orders=orders,
         q=q,
-        status=status,
-        date_from=date_from,
-        date_to=date_to,
+        status=status if not active_view else '',
+        date_from=date_from if not active_view else '',
+        date_to=date_to if not active_view else '',
         branch=branch,
         rep_id=rep_id,
+        user_rep_id=user_rep_id,
         my_orders=my_orders,
         page=page,
         page_size=PAGE_SIZE,
         has_next=len(orders) == PAGE_SIZE,
         status_counts=status_counts,
+        active_view=active_view,
+        view_presets=VIEW_PRESETS,
     )
 
 
