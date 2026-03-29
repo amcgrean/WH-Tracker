@@ -400,6 +400,9 @@ def transactions():
     status = request.args.get('status', '').strip()
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
+    filter_salesperson = request.args.get('salesperson', '').strip()
+    filter_customer = request.args.get('customer_code', '').strip()
+    filter_shipto = request.args.get('shipto_seq', '').strip()
     branch = _get_branch()
     rep_id = _get_rep_id()
     user_rep_id = _get_user_rep_id()
@@ -457,7 +460,7 @@ def transactions():
         rep_id = user_rep_id
 
     # Determine if we should filter to open only or show all statuses
-    open_only = not active_view and not status and not date_from and not date_to and not q
+    open_only = not active_view and not status and not date_from and not date_to and not q and not filter_salesperson and not filter_customer
 
     try:
         if use_shipment_query:
@@ -474,6 +477,8 @@ def transactions():
                     q=q, limit=PAGE_SIZE, branch=branch, open_only=open_only,
                     rep_id=rep_id, status=status, date_from=date_from, date_to=date_to,
                     page=page, sale_type=sale_type, exclude_sale_types=exclude_sale_types,
+                    customer_code=filter_customer, salesperson=filter_salesperson,
+                    shipto_seq=filter_shipto,
                 )
             ]
     except Exception as e:
@@ -493,6 +498,9 @@ def transactions():
         status=status if not active_view else '',
         date_from=date_from if not active_view else '',
         date_to=date_to if not active_view else '',
+        filter_salesperson=filter_salesperson if not active_view else '',
+        filter_customer=filter_customer if not active_view else '',
+        filter_shipto=filter_shipto if not active_view else '',
         branch=branch,
         rep_id=rep_id,
         user_rep_id=user_rep_id,
@@ -657,6 +665,63 @@ def api_transactions():
 def api_orders():
     """Legacy JSON endpoint — redirects to api_transactions."""
     return api_transactions()
+
+
+@sales.route('/api/salespeople')
+def api_salespeople():
+    """JSON endpoint for salesperson dropdown."""
+    branch = _get_branch()
+    try:
+        rows = erp.get_distinct_salespeople(branch=branch)
+    except Exception as e:
+        logger.error("Salespeople list failed: %s", e)
+        return jsonify([])
+    return jsonify([{'id': r['rep_id'], 'label': r['rep_id']} for r in rows if r.get('rep_id')])
+
+
+@sales.route('/api/customers/list')
+def api_customer_list():
+    """JSON endpoint for customer dropdown — searches customers and ship-to addresses."""
+    q = request.args.get('q', '').strip()
+    if len(q) < 1:
+        return jsonify([])
+    try:
+        rows = erp.get_sales_customers_search(q=q, limit=20)
+    except Exception as e:
+        logger.error("Customer list failed: %s", e)
+        return jsonify([])
+    results = []
+    seen = set()
+    for r in rows:
+        key = _value(r, 'cust_code') or ''
+        name = _value(r, 'cust_name') or key
+        if key and key not in seen:
+            seen.add(key)
+            results.append({'id': key, 'label': f"{name} ({key})"})
+    return jsonify(results)
+
+
+@sales.route('/api/customers/shipto/<customer_code>')
+def api_customer_shipto(customer_code):
+    """JSON endpoint for ship-to dropdown for a selected customer."""
+    try:
+        rows = erp.get_customer_ship_to_addresses(customer_code)
+    except Exception as e:
+        logger.error("Ship-to list failed for %s: %s", customer_code, e)
+        return jsonify([])
+    results = []
+    for r in rows:
+        seq = str(_value(r, 'seq_num', ''))
+        name = _value(r, 'shipto_name', '')
+        addr1 = _value(r, 'address_1', '')
+        addr2 = _value(r, 'address_2', '')
+        city = _value(r, 'city', '')
+        label_parts = [p for p in [name, addr1, city] if p]
+        label = f"#{seq} — {', '.join(label_parts)}" if label_parts else f"#{seq}"
+        # search_text includes all fields for filtering
+        search_text = ' '.join(str(p) for p in [seq, name, addr1, addr2, city] if p).lower()
+        results.append({'id': seq, 'label': label, 'search': search_text})
+    return jsonify(results)
 
 
 @sales.route('/api/customers/search')

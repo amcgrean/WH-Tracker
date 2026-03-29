@@ -1896,9 +1896,10 @@ class ERPService:
 
     def get_sales_order_status(self, q="", limit=100, branch="", open_only=True, rep_id="",
                                status="", date_from="", date_to="", page=1,
-                               sale_type="", exclude_sale_types=""):
+                               sale_type="", exclude_sale_types="",
+                               customer_code="", salesperson="", shipto_seq=""):
         # Cache unfiltered list for 60 s; skip cache when any filters are active
-        has_filters = q or branch or rep_id or status or date_from or date_to or page > 1 or sale_type or exclude_sale_types
+        has_filters = q or branch or rep_id or status or date_from or date_to or page > 1 or sale_type or exclude_sale_types or customer_code or salesperson or shipto_seq
         cache_key = f'order_status_{limit}' if not has_filters and open_only else None
         if cache_key:
             cached = self._cache_get(cache_key)
@@ -1908,6 +1909,7 @@ class ERPService:
             q=q, limit=limit, branch=branch, open_only=open_only, rep_id=rep_id,
             status=status, date_from=date_from, date_to=date_to, page=page,
             sale_type=sale_type, exclude_sale_types=exclude_sale_types,
+            customer_code=customer_code, salesperson=salesperson, shipto_seq=shipto_seq,
         )
         if cache_key:
             self._cache_set(cache_key, result)
@@ -1915,7 +1917,8 @@ class ERPService:
 
     def _get_sales_order_status_inner(self, q="", limit=100, branch="", open_only=True,
                                       rep_id="", status="", date_from="", date_to="", page=1,
-                                      sale_type="", exclude_sale_types=""):
+                                      sale_type="", exclude_sale_types="",
+                                      customer_code="", salesperson="", shipto_seq=""):
         if self.central_db_mode:
             sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
             if "line_no" in sod_columns:
@@ -1953,6 +1956,15 @@ class ERPService:
                 clauses.append(
                     "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
                 )
+            if salesperson:
+                params["sp_filter"] = salesperson.strip()
+                clauses.append("COALESCE(soh.salesperson, '') = :sp_filter")
+            if customer_code:
+                params["cust_filter"] = customer_code.strip()
+                clauses.append("(TRIM(c.cust_code) = :cust_filter OR TRIM(soh.cust_key) = :cust_filter)")
+            if shipto_seq:
+                params["shipto_filter"] = shipto_seq.strip()
+                clauses.append("TRIM(CAST(soh.shipto_seq_num AS TEXT)) = :shipto_filter")
             if date_from:
                 params["date_from"] = date_from
                 clauses.append("CAST(soh.expect_date AS DATE) >= :date_from")
@@ -1960,12 +1972,12 @@ class ERPService:
                 params["date_to"] = date_to
                 clauses.append("CAST(soh.expect_date AS DATE) <= :date_to")
             if sale_type:
-                valid_types = [t.strip() for t in sale_type.split(',') if t.strip()]
+                valid_types = [t.strip().upper() for t in sale_type.split(',') if t.strip()]
                 if valid_types:
                     type_ph = ', '.join(f"'{t}'" for t in valid_types)
                     clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) IN ({type_ph})")
             if exclude_sale_types:
-                valid_excludes = [t.strip() for t in exclude_sale_types.split(',') if t.strip()]
+                valid_excludes = [t.strip().upper() for t in exclude_sale_types.split(',') if t.strip()]
                 if valid_excludes:
                     excl_ph = ', '.join(f"'{t}'" for t in valid_excludes)
                     clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) NOT IN ({excl_ph})")
@@ -2049,6 +2061,15 @@ class ERPService:
                     "(COALESCE(soh.salesperson, '') = ? OR COALESCE(soh.order_writer, '') = ?)"
                 )
                 params_list.extend([rep_id, rep_id])
+            if salesperson:
+                clauses.append("COALESCE(soh.salesperson, '') = ?")
+                params_list.append(salesperson.strip())
+            if customer_code:
+                clauses.append("(RTRIM(c.cust_code) = ? OR RTRIM(soh.cust_key) = ?)")
+                params_list.extend([customer_code.strip(), customer_code.strip()])
+            if shipto_seq:
+                clauses.append("CAST(soh.shipto_seq_num AS VARCHAR(32)) = ?")
+                params_list.append(shipto_seq.strip())
             if date_from:
                 clauses.append("CAST(soh.expect_date AS DATE) >= ?")
                 params_list.append(date_from)
@@ -2056,12 +2077,12 @@ class ERPService:
                 clauses.append("CAST(soh.expect_date AS DATE) <= ?")
                 params_list.append(date_to)
             if sale_type:
-                valid_types = [t.strip() for t in sale_type.split(',') if t.strip()]
+                valid_types = [t.strip().upper() for t in sale_type.split(',') if t.strip()]
                 if valid_types:
                     type_ph = ', '.join(f"'{t}'" for t in valid_types)
                     clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) IN ({type_ph})")
             if exclude_sale_types:
-                valid_excludes = [t.strip() for t in exclude_sale_types.split(',') if t.strip()]
+                valid_excludes = [t.strip().upper() for t in exclude_sale_types.split(',') if t.strip()]
                 if valid_excludes:
                     excl_ph = ', '.join(f"'{t}'" for t in valid_excludes)
                     clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) NOT IN ({excl_ph})")
@@ -2856,6 +2877,54 @@ class ERPService:
                 {"cust_code": row.cust_code, "cust_name": row.cust_name, "branch_code": row.branch_code}
                 for row in cursor.fetchall()
             ]
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_distinct_salespeople(self, branch=""):
+        """Return distinct salesperson IDs from open sales orders."""
+        if self.central_db_mode:
+            params: dict = {}
+            clauses = ["soh.is_deleted = false", "COALESCE(soh.salesperson, '') != ''"]
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    params["branch_id"] = system_id
+                    clauses.append("soh.system_id = :branch_id")
+            where_clause = "WHERE " + " AND ".join(clauses)
+            rows = self._mirror_query(
+                f"""
+                SELECT DISTINCT TRIM(soh.salesperson) AS rep_id
+                FROM erp_mirror_so_header soh
+                {where_clause}
+                ORDER BY rep_id
+                """,
+                params,
+            )
+            return [dict(row) for row in rows]
+
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            clauses = ["COALESCE(soh.salesperson, '') != ''"]
+            params_list = []
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    clauses.append("soh.system_id = ?")
+                    params_list.append(system_id)
+            where_clause = "WHERE " + " AND ".join(clauses)
+            cursor.execute(
+                f"""
+                SELECT DISTINCT RTRIM(soh.salesperson) AS rep_id
+                FROM so_header soh
+                {where_clause}
+                ORDER BY rep_id
+                """,
+                params_list,
+            )
+            return [{"rep_id": row.rep_id} for row in cursor.fetchall()]
         finally:
             cursor.close()
             conn.close()
