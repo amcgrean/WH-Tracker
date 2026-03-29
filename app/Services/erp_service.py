@@ -636,7 +636,7 @@ class ERPService:
                     OR (CAST(soh.expect_date AS DATE) = :today)
                     OR (CAST(sh.ship_date AS DATE) = :today)
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
                 """,
                 {"today": today},
@@ -746,7 +746,7 @@ class ERPService:
                     OR (soh.expect_date = '{today}')
                     OR (sh.ship_date = '{today}')
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
             """
             
@@ -1337,9 +1337,9 @@ class ERPService:
                 params["branches"] = expanded
 
             if sale_types:
-                types = [item.strip() for item in sale_types.split(",") if item.strip()]
+                types = [item.strip().upper() for item in sale_types.split(",") if item.strip()]
                 if types:
-                    filters.append("soh.sale_type IN :sale_types")
+                    filters.append("UPPER(COALESCE(soh.sale_type, '')) IN :sale_types")
                     params["sale_types"] = types
 
             if status_filter:
@@ -1445,9 +1445,9 @@ class ERPService:
             params = [start, end]
 
             if sale_types:
-                types = [item.strip() for item in sale_types.split(",") if item.strip()]
+                types = [item.strip().upper() for item in sale_types.split(",") if item.strip()]
                 if types:
-                    filters.append(f"hdr.sale_type IN ({','.join('?' for _ in types)})")
+                    filters.append(f"UPPER(COALESCE(hdr.sale_type, '')) IN ({','.join('?' for _ in types)})")
                     params.extend(types)
 
             if status_filter:
@@ -3074,7 +3074,7 @@ class ERPService:
                     OR (soh.so_status = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
                     OR (soh.so_status IN ('K', 'P', 'S') AND (CAST(soh.expect_date AS DATE) = :today OR CAST(soh.expect_date AS DATE) < :today))
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.so_id) DESC
                 """,
@@ -3161,7 +3161,7 @@ class ERPService:
                     OR (soh.so_status = 'I' AND sh.invoice_date = ?)
                     OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = ? OR soh.expect_date < ?)) -- Show backlog too but avoid future ones
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.so_id) DESC
             """
@@ -3231,7 +3231,7 @@ class ERPService:
                 WHERE soh.is_deleted = false
                   AND CAST(sh.ship_date AS DATE) >= CURRENT_DATE - (:days * INTERVAL '1 day')
                   AND CAST(sh.ship_date AS DATE) < CURRENT_DATE
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                   {branch_filter}
                 GROUP BY CAST(sh.ship_date AS DATE)
                 ORDER BY CAST(sh.ship_date AS DATE) DESC
@@ -3263,7 +3263,7 @@ class ERPService:
                 JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
                 WHERE sh.ship_date >= CAST(DATEADD(day, -{days}, GETDATE()) AS DATE)
                   AND sh.ship_date < CAST(GETDATE() AS DATE)
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                   {branch_filter}
                 GROUP BY sh.ship_date
                 ORDER BY sh.ship_date DESC
