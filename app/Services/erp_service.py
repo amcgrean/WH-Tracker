@@ -1116,6 +1116,45 @@ class ERPService:
             print(f"ERP Connection Error (Hist Summary): {e}")
             return []
 
+    def get_so_sale_type(self, so_number):
+        """
+        Lightweight lookup: returns the sale_type for a single SO number.
+        Returns uppercase sale_type string, or None if not found.
+        """
+        if self.central_db_mode:
+            rows = self._mirror_query(
+                """
+                SELECT UPPER(COALESCE(soh.sale_type, '')) AS sale_type
+                FROM erp_mirror_so_header soh
+                WHERE soh.is_deleted = false
+                  AND CAST(soh.so_id AS TEXT) = :so_number
+                LIMIT 1
+                """,
+                {"so_number": str(so_number)},
+            )
+            if rows:
+                return rows[0]['sale_type'] or None
+            return None
+
+        self._require_central_db_for_cloud_mode()
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT TOP 1 UPPER(COALESCE(soh.sale_type, '')) AS sale_type
+                FROM so_header soh
+                WHERE soh.so_id = ?
+                """,
+                (so_number,),
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return row.sale_type if row else None
+        except Exception as e:
+            print(f"ERP Connection Error (SO Sale Type): {e}")
+            return None
+
     def get_so_header(self, so_number):
         """
         Fetches header info (Customer, Reference, etc.) for a single Sales Order.

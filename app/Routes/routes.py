@@ -326,7 +326,9 @@ def complete_pick(pick_id):
         flash('Pick completed successfully.')
         return redirect(url_for('main.index'))
     else:
-        return render_template('complete_pick.html', pick=pick)
+        picker = Pickster.query.get_or_404(pick.picker_id)
+        incomplete_picks = Pick.query.filter_by(picker_id=picker.id, completed_time=None).all()
+        return render_template('complete_pick.html', picker=picker, incomplete_picks=incomplete_picks)
 
 @main.route('/start_pick/<int:picker_id>/<int:pick_type_id>', methods=['POST'])
 def start_pick(picker_id, pick_type_id):
@@ -387,6 +389,124 @@ def start_pick(picker_id, pick_type_id):
     else:
         flash('Pick started successfully.')
     return redirect(url_for('main.index'))
+
+
+@main.route('/api/smart_scan', methods=['POST'])
+def api_smart_scan():
+    """
+    Smart scan endpoint: auto-detects pick type from ERP sale_type.
+
+    Decision flow:
+    1. If an incomplete Pick exists with this barcode → complete it
+    2. If ERP sale_type is WILLCALL → create auto-completed will call pick
+    3. Otherwise → create a new timed pick (regular)
+    4. If barcode not found in ERP → fallback to regular pick
+    """
+    data = request.get_json(silent=True) or {}
+    picker_id = data.get('picker_id')
+    raw_barcode = (data.get('barcode') or '').strip()
+
+    if not picker_id or not raw_barcode:
+        return jsonify({'error': 'picker_id and barcode are required'}), 400
+
+    picker = Pickster.query.get(picker_id)
+    if not picker:
+        return jsonify({'error': 'Picker not found'}), 404
+
+    # Validate barcode format: digits, spaces, hyphens only; max 50 chars
+    if not re.match(r'^[0-9\s\-]+$', raw_barcode) or len(raw_barcode) > 50:
+        return jsonify({'error': 'Invalid barcode format'}), 400
+
+    # Parse barcode: "SO_NUMBER-SHIPMENT_SEQ" (e.g., "0001463004-001")
+    shipment_num = None
+    if '-' in raw_barcode:
+        parts = raw_barcode.split('-', 1)
+        barcode = parts[0].strip()
+        shipment_num = parts[1].strip() or None
+    else:
+        barcode = raw_barcode.replace(' ', '')
+
+    now = datetime.utcnow()
+
+    # 1. Check for existing incomplete pick with this barcode
+    existing_pick = Pick.query.filter_by(
+        barcode_number=barcode, completed_time=None
+    ).first()
+
+    if existing_pick:
+        existing_pick.completed_time = now
+        audit = AuditEvent(
+            event_type='pick_completed',
+            entity_type='pick',
+            entity_id=existing_pick.id,
+            so_number=barcode,
+            actor_id=picker.id,
+            occurred_at=now,
+        )
+        db.session.add(audit)
+        db.session.commit()
+        return jsonify({
+            'action': 'completed',
+            'pick_id': existing_pick.id,
+            'pick_type': get_pick_type_name(existing_pick.pick_type_id),
+            'so_number': barcode,
+            'message': f'Pick {barcode} completed.',
+        })
+
+    # 2. Look up sale_type from ERP to determine pick type
+    sale_type = None
+    try:
+        erp = ERPService()
+        sale_type = erp.get_so_sale_type(barcode)
+    except Exception:
+        pass  # ERP lookup failure → fallback to regular pick
+
+    if sale_type and sale_type.upper() == 'WILLCALL':
+        # Will call: auto-complete immediately
+        pick_type_id = WILL_CALL_TYPE_ID
+        completed_time = now
+        action = 'will_call_completed'
+        message = f'Will Call {barcode} recorded.'
+    else:
+        # Regular pick: start timer
+        pick_type_id = 1  # Default to Yard
+        completed_time = None
+        action = 'started'
+        message = f'Pick {barcode} started.'
+
+    ensure_pick_type_exists(pick_type_id)
+
+    new_pick = Pick(
+        barcode_number=barcode,
+        shipment_num=shipment_num,
+        start_time=now,
+        completed_time=completed_time,
+        picker_id=picker.id,
+        pick_type_id=pick_type_id,
+    )
+    db.session.add(new_pick)
+    db.session.flush()
+
+    event_type = 'pick_completed' if completed_time else 'pick_started'
+    audit = AuditEvent(
+        event_type=event_type,
+        entity_type='pick',
+        entity_id=new_pick.id,
+        so_number=barcode,
+        actor_id=picker.id,
+        occurred_at=now,
+    )
+    db.session.add(audit)
+    db.session.commit()
+
+    return jsonify({
+        'action': action,
+        'pick_id': new_pick.id,
+        'pick_type': get_pick_type_name(pick_type_id),
+        'so_number': barcode,
+        'message': message,
+    })
+
 
 ###OPEN PICKS####
 @main.route('/api/pickers_picks')
@@ -451,17 +571,25 @@ def pickers_picks():
     today = datetime.now().date()  ###new insert 7.9.24 2pm
     five_days_ago = today - timedelta(days=5)
 
-    # Count of completed picks today
+    # Count of completed picks today excluding will call picks
     today_count = Pick.query.filter(
-        func.date(Pick.completed_time) == today
+        func.date(Pick.completed_time) == today,
+        Pick.pick_type_id != WILL_CALL_TYPE_ID
     ).count()
 
-    # Average count of completed picks over the last 5 days
+    # Count for will call tickets today
+    will_call_count = Pick.query.filter(
+        func.date(Pick.completed_time) == today,
+        Pick.pick_type_id == WILL_CALL_TYPE_ID
+    ).count()
+
+    # Average count of completed picks over the last 5 days excluding will call picks
     recent_counts = db.session.query(
         func.date(Pick.completed_time), func.count('*').label('daily_count')
     ).filter(
         func.date(Pick.completed_time) >= five_days_ago,
-        func.date(Pick.completed_time) < today
+        func.date(Pick.completed_time) < today,
+        Pick.pick_type_id != WILL_CALL_TYPE_ID
     ).group_by(
         func.date(Pick.completed_time)
     ).all()
@@ -472,9 +600,7 @@ def pickers_picks():
     else:
         average_count = 0
 
-    # Pass the counts to the template #new insert
-
-    return render_template('pickers_picks.html', today_count=today_count, average_count=average_count)
+    return render_template('pickers_picks.html', today_count=today_count, will_call_count=will_call_count, average_count=average_count)
 
 ####PICK STATS#####
 @main.route('/api/picks')
