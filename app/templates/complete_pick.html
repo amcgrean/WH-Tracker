@@ -27,16 +27,40 @@
             {% endfor %}
         </tbody>
     </table>
-<div class="btn-group" role="group" aria-label="Pick Actions" style="width: 100%; padding: 20px;">
-        <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=1) }}" class="pick-button btn btn-primary">
-            <i class="fas fa-box-open"></i><br>Input New Pick
+
+    <!-- Smart Scan: auto-detects pick type from ERP data -->
+    <div class="smart-scan-section mb-4">
+        <h4><i class="fas fa-barcode"></i> Smart Scan</h4>
+        <p class="text-muted small">Scan a barcode — the system will auto-detect if it's a Will Call, complete an open pick, or start a new timed pick.</p>
+        <div class="input-group">
+            <input type="text" class="form-control" id="smartBarcodeInput" placeholder="Scan or enter barcode..." pattern="[0-9\s\-]+" autofocus>
+            <div class="input-group-append">
+                <button class="btn btn-success" type="button" id="smartScanBtn">
+                    <i class="fas fa-search"></i> Scan
+                </button>
+            </div>
+        </div>
+        <div id="smartScanResult" class="mt-2" style="display:none;"></div>
+    </div>
+
+    <!-- Manual pick type buttons (fallback) -->
+    <div class="mb-2">
+        <a data-toggle="collapse" href="#manualPickTypes" role="button" aria-expanded="false" aria-controls="manualPickTypes" class="text-muted small">
+            <i class="fas fa-chevron-down"></i> Manual pick type selection
         </a>
-        <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=6) }}" class="pick-button btn btn-info">
-            <i class="fas fa-phone-volume"></i><br>Input Will Call
-        </a>
-        <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=2) }}" class="pick-button btn btn-warning">
-            <i class="fas fa-door-open"></i><br>Input Door 1
-        </a>
+    </div>
+    <div class="collapse" id="manualPickTypes">
+        <div class="btn-group" role="group" aria-label="Pick Actions" style="width: 100%; padding: 20px;">
+            <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=1) }}" class="pick-button btn btn-primary">
+                <i class="fas fa-box-open"></i><br>Input New Pick
+            </a>
+            <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=6) }}" class="pick-button btn btn-info">
+                <i class="fas fa-phone-volume"></i><br>Input Will Call
+            </a>
+            <a href="{{ url_for('main.input_pick', picker_id=picker.id, pick_type_id=2) }}" class="pick-button btn btn-warning">
+                <i class="fas fa-door-open"></i><br>Input Door 1
+            </a>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -45,15 +69,77 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
     <style>
     .pick-button {
-        width: 100px; /* Set a fixed width */
-        height: 100px; /* Set a fixed height */
-        margin: 10px; /* Space between buttons */
+        width: 100px;
+        height: 100px;
+        margin: 10px;
         display: inline-flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         padding: 10px;
-        font-size: 0.9em; /* Adjust text size */
+        font-size: 0.9em;
+    }
+    .smart-scan-section {
+        background: rgba(0,69,38,0.05);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid rgba(0,69,38,0.15);
     }
     </style>
+    <script>
+    (function() {
+        var pickerId = {{ picker.id }};
+        var input = document.getElementById('smartBarcodeInput');
+        var btn = document.getElementById('smartScanBtn');
+        var resultDiv = document.getElementById('smartScanResult');
+
+        function doSmartScan() {
+            var barcode = input.value.trim();
+            if (!barcode) return;
+            if (!/^[0-9\s\-]+$/.test(barcode)) {
+                showResult('danger', 'Invalid barcode format. Only numbers, spaces, and hyphens allowed.');
+                return;
+            }
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+
+            fetch('/api/smart_scan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({picker_id: pickerId, barcode: barcode})
+            })
+            .then(function(resp) { return resp.json().then(function(d) { return {ok: resp.ok, data: d}; }); })
+            .then(function(result) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-search"></i> Scan';
+                if (!result.ok) {
+                    showResult('danger', result.data.error || 'Scan failed.');
+                    return;
+                }
+                var d = result.data;
+                var cls = d.action === 'completed' ? 'info' : d.action === 'will_call_completed' ? 'success' : 'primary';
+                showResult(cls, d.message + ' (' + d.pick_type + ')');
+                input.value = '';
+                // Reload page after short delay to refresh incomplete picks table
+                setTimeout(function() { window.location.reload(); }, 1500);
+            })
+            .catch(function(err) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-search"></i> Scan';
+                showResult('danger', 'Network error: ' + err.message);
+            });
+        }
+
+        function showResult(cls, msg) {
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'mt-2 alert alert-' + cls;
+            resultDiv.textContent = msg;
+        }
+
+        btn.addEventListener('click', doSmartScan);
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); doSmartScan(); }
+        });
+    })();
+    </script>
 {% endblock %}
