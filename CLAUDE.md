@@ -98,7 +98,7 @@ The `/sales/transactions` page has two modes:
 "My" views filter where user is `salesperson` (agent_1) OR `order_writer` (agent_3).
 Agent role dots on each row: green = Acct Rep, blue = Order Writer.
 
-Delivery type filtering: exclude `('Direct', 'WillCall', 'XInstall', 'Hold', 'CM')` — everything remaining is delivery/add-on.
+Delivery type filtering: exclude `('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD', 'CM')` — everything remaining is delivery/add-on. Always use uppercase when referencing sale types in code (`NON_DELIVERY_TYPES` constant in `sales_routes.py`).
 
 ### Sales Transactions API Endpoints
 - `/sales/api/salespeople` — Distinct salesperson IDs (filtered by branch)
@@ -118,20 +118,33 @@ Delivery type filtering: exclude `('Direct', 'WillCall', 'XInstall', 'Hold', 'CM
 
 ## Known Pitfalls & Review Checklist
 
-### sale_type case sensitivity (CRITICAL)
-ERP data stores `sale_type` in mixed case (e.g. `WillCall`, `Direct`, `XInstall`). Any SQL filter comparing `sale_type` values **must** use `UPPER()` on both sides:
+### String column case sensitivity (CRITICAL)
+ERP data stores text fields in mixed case (e.g. `sale_type` = `WillCall`/`Direct`/`XInstall`, `wo_status` = `Completed`/`Canceled`). **All** SQL filters comparing string columns must use `UPPER(COALESCE(..., ''))` on the column and uppercase literals:
 ```sql
 -- CORRECT
 UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
+UPPER(COALESCE(soh.so_status, '')) = 'K'
+UPPER(COALESCE(wh.wo_status, '')) NOT IN ('COMPLETED', 'CANCELED', 'C')
 
 -- WRONG — will silently return wrong results
 soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+soh.so_status = 'k'
+wh.wo_status NOT IN ('Completed', 'Canceled')
 ```
-This applies to both hardcoded NOT IN/IN clauses and dynamic filters built from user input. When building dynamic filters, `.upper()` the Python values too:
+This applies to: `sale_type`, `so_status`, `wo_status`, `tran_type`, `print_status`, `source`, and any other text column compared against literals.
+
+For dynamic filters built from user input, always `.upper()` the Python values:
 ```python
 valid_types = [t.strip().upper() for t in sale_type.split(',') if t.strip()]
 ```
-This bug was found in `get_sales_order_status`, `get_open_picks`, `get_sales_delivery_tracker`, and `get_dispatch_stops` — audit any new sale_type filter the same way.
+
+For Python-side filtering of returned ERP data, normalize before comparing:
+```python
+# In _normalize_order_row(): so_status and sale_type are .upper()'d
+open_orders = [r for r in rows if str(r.get('so_status', '')).upper() == 'O']
+```
+
+**Also applies to `dispatch_service.py`** — its `get_stops()` method has the same dual-filter pattern as `erp_service.py`.
 
 ### Dual-database parity
 Every ERP query has two code paths (PostgreSQL + SQL Server). When adding or fixing filters, **both paths must be updated**. Use `replace_all` cautiously — the same logical fix may need different SQL syntax per database.
@@ -149,7 +162,9 @@ Every variable used in Jinja2 templates must be passed via `render_template()`. 
 2. Write the PostgreSQL path first (uses `self._mirror_query()` with named `:params`)
 3. Add SQL Server fallback after `self._require_central_db_for_cloud_mode()` (uses `cursor.execute()` with `?` positional params)
 4. Both paths must return the same dict structure
-5. **Always use `UPPER()` when comparing string columns like `sale_type`, `so_status`** — see pitfalls above
+5. **Always use `UPPER(COALESCE(col, ''))` when comparing string columns** (`sale_type`, `so_status`, `wo_status`, `tran_type`, `print_status`, `source`) — see pitfalls above
+6. When splitting user-provided filter strings, always `.upper()` the values: `[t.strip().upper() for t in param.split(',')]`
+7. In `_normalize_order_row()`, string fields like `so_status` and `sale_type` are already `.upper()`'d — keep this convention for any new fields
 
 ### Route helper functions (`sales_routes.py`)
 - `_get_branch()` — Reads branch from URL > session > all

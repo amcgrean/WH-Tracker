@@ -89,9 +89,9 @@ def _normalize_order_row(row, rep_id=''):
         'invoice_date': _value(row, 'invoice_date', ''),
         'invoice_date_display': _format_date(_value(row, 'invoice_date')),
         'reference': _value(row, 'reference', ''),
-        'so_status': _value(row, 'so_status', ''),
+        'so_status': str(_value(row, 'so_status', '')).upper(),
         'handling_code': _value(row, 'handling_code', ''),
-        'sale_type': _value(row, 'sale_type', ''),
+        'sale_type': str(_value(row, 'sale_type', '')).upper(),
         'ship_via': _value(row, 'ship_via', ''),
         'line_count': _value(row, 'line_count', 0),
         'salesperson': salesperson,
@@ -241,7 +241,7 @@ def customer_profile(customer_number):
         logger.error("Customer notes query failed for %s: %s", customer_number, e)
         notes = []
 
-    open_orders = [r for r in customer_rows if r.get('so_status') == 'O']
+    open_orders = [r for r in customer_rows if str(r.get('so_status', '')).upper() == 'O']
 
     return render_template(
         'sales/customer_profile.html',
@@ -321,8 +321,8 @@ def customer_statement(customer_number):
         logger.error("Customer statement details failed for %s: %s", customer_number, e)
         customer_details = {}
 
-    open_orders = [r for r in customer_rows if r.get('so_status') == 'O']
-    invoiced_orders = [r for r in customer_rows if r.get('so_status') in ('I', 'C')]
+    open_orders = [r for r in customer_rows if str(r.get('so_status', '')).upper() == 'O']
+    invoiced_orders = [r for r in customer_rows if str(r.get('so_status', '')).upper() in ('I', 'C')]
 
     return render_template(
         'sales/customer_statement.html',
@@ -350,7 +350,7 @@ PAGE_SIZE = 50
 
 CLOSED_CM_STATUSES = ('I', 'C', 'X', 'CAN', 'CANCEL', 'CANCELED', 'CN', 'VOID')
 # Sale types excluded from "delivery / add-on" view (leaves only delivery-style orders)
-NON_DELIVERY_TYPES = ('Direct', 'WillCall', 'XInstall', 'Hold', 'CM')
+NON_DELIVERY_TYPES = ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD', 'CM')
 
 VIEW_PRESETS = {
     'my_open_3d': {
@@ -436,7 +436,7 @@ def transactions():
         rep_id = ''  # branch-wide, not filtered to user
     elif active_view == 'branch_willcall':
         status = 'O'
-        sale_type = 'WillCall'
+        sale_type = 'WILLCALL'
         rep_id = ''  # branch-wide
     elif active_view == 'my_rma':
         sale_type = 'CM'
