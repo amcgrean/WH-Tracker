@@ -230,15 +230,15 @@ class DispatchService:
         params: List[Any] = [start, end]
 
         if sale_types:
-            types = [item.strip() for item in sale_types.split(",") if item.strip()]
+            types = [item.strip().upper() for item in sale_types.split(",") if item.strip()]
             if types:
-                filters.append(f"hdr.sale_type IN ({','.join('?' for _ in types)})")
+                filters.append(f"UPPER(COALESCE(hdr.sale_type, '')) IN ({','.join('?' for _ in types)})")
                 params.extend(types)
 
         if status_filter:
-            statuses = [item.strip() for item in status_filter.split(",") if item.strip()]
+            statuses = [item.strip().upper() for item in status_filter.split(",") if item.strip()]
             if statuses:
-                filters.append(f"hdr.so_status IN ({','.join('?' for _ in statuses)})")
+                filters.append(f"UPPER(COALESCE(hdr.so_status, '')) IN ({','.join('?' for _ in statuses)})")
                 params.extend(statuses)
 
         if route_id:
