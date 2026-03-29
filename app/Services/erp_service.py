@@ -509,7 +509,7 @@ class ERPService:
                 FROM wo_header wh
                 JOIN so_detail sod ON wh.source_id = sod.so_id AND wh.source_seq = sod.sequence
                 JOIN item i ON sod.item_ptr = i.item_ptr
-                WHERE wh.source_id = ? AND wh.source = 'SO'
+                WHERE wh.source_id = ? AND UPPER(COALESCE(wh.source, '')) = 'SO'
             """
             
             cursor.execute(query, (barcode,))
@@ -579,7 +579,7 @@ class ERPService:
                     JOIN erp_mirror_pick_detail pd
                         ON ph.pick_id = pd.pick_id
                        AND ph.system_id = pd.system_id
-                    WHERE ph.print_status = 'Pick Ticket'
+                    WHERE UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET'
                       AND UPPER(COALESCE(pd.tran_type, '')) = 'SO'
                     GROUP BY pd.system_id, CAST(pd.tran_id AS TEXT)
                 )
@@ -629,10 +629,10 @@ class ERPService:
                     ON ph.system_id = soh.system_id
                    AND ph.so_id = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
-                  AND soh.so_status != 'C'
+                  AND UPPER(COALESCE(soh.so_status, '')) != 'C'
                   AND (
-                    (soh.so_status IN ('K', 'P', 'S'))
-                    OR (soh.so_status = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
+                    (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
                     OR (CAST(soh.expect_date AS DATE) = :today)
                     OR (CAST(sh.ship_date AS DATE) = :today)
                   )
@@ -736,20 +736,20 @@ class ERPService:
                            MAX(ph.created_time) as created_time
                     FROM pick_header ph
                     JOIN pick_detail pd ON ph.pick_id = pd.pick_id AND ph.system_id = pd.system_id
-                    WHERE ph.print_status = 'Pick Ticket' AND pd.tran_type = 'SO'
+                    WHERE UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET' AND UPPER(COALESCE(pd.tran_type, '')) = 'SO'
                     GROUP BY pd.tran_id, pd.system_id
                 ) ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id
-                WHERE soh.so_status != 'C'
+                WHERE UPPER(COALESCE(soh.so_status, '')) != 'C'
                   AND (
-                    (soh.so_status IN ('K', 'P', 'S'))
-                    OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
+                    (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND sh.invoice_date = '{today}')
                     OR (soh.expect_date = '{today}')
                     OR (sh.ship_date = '{today}')
                   )
                   AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
             """
-            
+
             cursor.execute(query)
             rows = cursor.fetchall()
             
@@ -880,7 +880,7 @@ class ERPService:
         if self.central_db_mode:
             backorder_expr = self._mirror_so_detail_backorder_expr()
             filters = [
-                "soh.so_status = 'K'",
+                "UPPER(COALESCE(soh.so_status, '')) = 'K'",
                 f"COALESCE({backorder_expr}, 0) = 0",
             ]
             params = {}
@@ -962,7 +962,7 @@ class ERPService:
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR) 
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
-                WHERE soh.so_status = 'k' 
+                WHERE UPPER(COALESCE(soh.so_status, '')) = 'K'
                     AND sod.bo = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 ORDER BY ib.handling_code, soh.so_id
@@ -1199,7 +1199,7 @@ class ERPService:
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                LEFT JOIN pick_header ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id AND ph.print_status = 'Pick Ticket'
+                LEFT JOIN pick_header ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id AND UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET'
                 WHERE soh.so_id = ?
             """
             cursor.execute(query, (so_number,))
@@ -1345,7 +1345,7 @@ class ERPService:
             if status_filter:
                 statuses = [item.strip().upper() for item in status_filter.split(",") if item.strip()]
                 if statuses:
-                    filters.append("soh.so_status IN :statuses")
+                    filters.append("UPPER(COALESCE(soh.so_status, '')) IN :statuses")
                     params["statuses"] = statuses
 
             if route_id:
@@ -1451,9 +1451,9 @@ class ERPService:
                     params.extend(types)
 
             if status_filter:
-                statuses = [item.strip() for item in status_filter.split(",") if item.strip()]
+                statuses = [item.strip().upper() for item in status_filter.split(",") if item.strip()]
                 if statuses:
-                    filters.append(f"hdr.so_status IN ({','.join('?' for _ in statuses)})")
+                    filters.append(f"UPPER(COALESCE(hdr.so_status, '')) IN ({','.join('?' for _ in statuses)})")
                     params.extend(statuses)
 
             if route_id:
@@ -1741,7 +1741,7 @@ class ERPService:
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE soh.so_status = 'k'
+                WHERE UPPER(COALESCE(soh.so_status, '')) = 'K'
                     AND sod.bo = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, soh.system_id
                 ORDER BY soh.so_id
@@ -1936,7 +1936,7 @@ class ERPService:
                     placeholders = ', '.join(f"'{s}'" for s in valid_statuses)
                     clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
             elif open_only:
-                clauses.append("soh.so_status = 'O'")
+                clauses.append("UPPER(COALESCE(soh.so_status, '')) = 'O'")
             if q:
                 params["q"] = f"%{q}%"
                 clauses.append(
@@ -2998,7 +2998,7 @@ class ERPService:
                 LEFT JOIN item i ON sod.item_ptr = i.item_ptr
                 LEFT JOIN so_header soh ON wh.source_id = soh.so_id
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
-                WHERE wh.wo_status NOT IN ('Completed', 'Canceled')
+                WHERE UPPER(COALESCE(wh.wo_status, '')) NOT IN ('COMPLETED', 'CANCELED', 'C')
                 ORDER BY wh.wo_id DESC
             """
             
@@ -3066,13 +3066,13 @@ class ERPService:
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
-                  AND soh.so_status != 'C'
+                  AND UPPER(COALESCE(soh.so_status, '')) != 'C'
                   {branch_filter}
                   AND (
                     (CAST(soh.expect_date AS DATE) = :today)
                     OR (CAST(sh.ship_date AS DATE) = :today)
-                    OR (soh.so_status = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
-                    OR (soh.so_status IN ('K', 'P', 'S') AND (CAST(soh.expect_date AS DATE) = :today OR CAST(soh.expect_date AS DATE) < :today))
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
+                    OR (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S') AND (CAST(soh.expect_date AS DATE) = :today OR CAST(soh.expect_date AS DATE) < :today))
                   )
                   AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 GROUP BY soh.system_id, soh.so_id
@@ -3153,13 +3153,13 @@ class ERPService:
                 LEFT JOIN cust c ON soh.system_id = c.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(c.cust_key AS INT)
                 LEFT JOIN cust_shipto cs ON soh.system_id = cs.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE soh.so_status != 'C'
+                WHERE UPPER(COALESCE(soh.so_status, '')) != 'C'
                   {branch_filter}
                   AND (
                     (soh.expect_date = ?)
                     OR (sh.ship_date = ?)
-                    OR (soh.so_status = 'I' AND sh.invoice_date = ?)
-                    OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = ? OR soh.expect_date < ?)) -- Show backlog too but avoid future ones
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND sh.invoice_date = ?)
+                    OR (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S') AND (soh.expect_date = ? OR soh.expect_date < ?)) -- Show backlog too but avoid future ones
                   )
                   AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 GROUP BY soh.system_id, soh.so_id
