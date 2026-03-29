@@ -41,12 +41,22 @@ def kiosk_input_pick(branch, picker_id, pick_type_id):
         return redirect(url_for('main.kiosk_pickers', branch=branch))
 
     if request.method == 'POST':
-        barcode = request.form.get('barcode', '').strip()
-        if barcode:
+        raw_barcode = request.form.get('barcode', '').strip()
+        if raw_barcode:
+            # Parse barcode: format may be "SO_NUMBER-SHIPMENT_SEQ" (e.g. "0001463004-001")
+            shipment_num = None
+            if '-' in raw_barcode:
+                parts = raw_barcode.split('-', 1)
+                barcode = parts[0].strip()
+                shipment_num = parts[1].strip() or None
+            else:
+                barcode = raw_barcode.replace(' ', '')
+
             start_time = datetime.utcnow()
             completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None
             new_pick = Pick(
                 barcode_number=barcode,
+                shipment_num=shipment_num,
                 start_time=start_time,
                 completed_time=completed_time,
                 picker_id=picker.id,

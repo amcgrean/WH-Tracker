@@ -141,6 +141,7 @@ def input_pick(picker_id, pick_type_id):
             picker_id=picker.id,
             pick_type_id=pick_type_id,
             completed_time=completed_time,
+            branch_code=picker.branch_code,
         )
         db.session.add(new_pick)
 
@@ -228,7 +229,8 @@ def start_pick(picker_id, pick_type_id):
         start_time=start_time,
         completed_time=completed_time,
         picker_id=picker.id,
-        pick_type_id=pick_type_id
+        pick_type_id=pick_type_id,
+        branch_code=picker.branch_code,
     )
     db.session.add(new_pick)
 
