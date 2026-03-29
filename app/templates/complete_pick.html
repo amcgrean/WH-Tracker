@@ -16,7 +16,7 @@
             {% for pick in incomplete_picks %}
             <tr>
                 <td>{{ pick.barcode_number }}</td>
-                <td>{{ pick.pick_type_id }}</td>
+                <td>{{ pick_type_names.get(pick.pick_type_id, 'Unknown') }}</td>
                 <td>{{ pick.start_time.strftime('%m/%d/%y %H:%M') }}</td>
                 <td>
                     <form action="{{ url_for('main.complete_pick', pick_id=pick.id) }}" method="post" class="btn btn-success">

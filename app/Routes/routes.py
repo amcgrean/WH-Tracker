@@ -45,6 +45,24 @@ DEFAULT_PICK_TYPES = {
     WILL_CALL_TYPE_ID: 'Will Call',
 }
 
+# Maps ERP handling_code (uppercase) to pick_type_id for smart scan auto-detection.
+HANDLING_CODE_TO_PICK_TYPE = {
+    'DECK BLDG': 3,   # Decking
+    'DECKING':   3,
+    'DOOR1':     2,    # Door 1
+    'DOOR 1':    2,
+    'EWP':       4,    # EWP
+    'MILLWORK':  5,    # Millwork
+    'METALS':    1,    # Yard (metals picked from yard)
+}
+
+
+def pick_type_from_handling_code(handling_code):
+    """Return the pick_type_id for an ERP handling_code, defaulting to Yard (1)."""
+    if not handling_code:
+        return 1
+    return HANDLING_CODE_TO_PICK_TYPE.get(handling_code.strip().upper(), 1)
+
 
 def upsert_sync_state(payload):
     worker_name = str(payload.get('worker_name') or 'erp-sync').strip() or 'erp-sync'
@@ -275,9 +293,9 @@ def confirm_picker(picker_id):
 
     # Directly render the template with incomplete picks, if any
     # The POST method behavior needs to be adjusted based on your form handling
-    return render_template('complete_pick.html', picker=picker, incomplete_picks=incomplete_picks)
+    return render_template('complete_pick.html', picker=picker, incomplete_picks=incomplete_picks, pick_type_names=DEFAULT_PICK_TYPES)
 
-@main.route('/input_pick/<int:picker_id>/<int:pick_type_id>', methods=['GET', 'POST'])##
+@main.route('/input_pick/<int:picker_id>/<int:pick_type_id>', methods=['GET', 'POST'])
 def input_pick(picker_id, pick_type_id):
     picker = Pickster.query.get_or_404(picker_id)
 
@@ -286,23 +304,56 @@ def input_pick(picker_id, pick_type_id):
         return redirect(url_for('main.index'))
 
     if request.method == 'POST':
-        barcode = request.form.get('barcode')
-        if barcode:
-            start_time = datetime.now()
-            completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None
-            new_pick = Pick(
-                barcode_number=barcode,
-                start_time=start_time,
-                picker_id=picker.id,
-                pick_type_id=pick_type_id,
-                completed_time=completed_time
-            )
-            db.session.add(new_pick)
-            db.session.commit()
-            flash('Pick added successfully.')
-            return redirect(url_for('main.index'))  # Redirect as needed
-        else:
+        raw_barcode = (request.form.get('barcode') or '').strip()
+        if not raw_barcode:
             flash('Barcode is required.', 'error')
+            return render_template('input_pick.html', picker=picker, pick_type_id=pick_type_id)
+
+        if not re.match(r'^[0-9\s\-]+$', raw_barcode) or len(raw_barcode) > 50:
+            flash('Invalid barcode format.', 'error')
+            return render_template('input_pick.html', picker=picker, pick_type_id=pick_type_id)
+
+        # Parse barcode: format may be "SO_NUMBER-SHIPMENT_SEQ" (e.g. "0001463004-001")
+        shipment_num = None
+        if '-' in raw_barcode:
+            parts = raw_barcode.split('-', 1)
+            barcode = parts[0].strip()
+            shipment_num = parts[1].strip() or None
+        else:
+            barcode = raw_barcode.replace(' ', '')
+
+        start_time = datetime.utcnow()
+        completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None
+
+        new_pick = Pick(
+            barcode_number=barcode,
+            shipment_num=shipment_num,
+            start_time=start_time,
+            picker_id=picker.id,
+            pick_type_id=pick_type_id,
+            completed_time=completed_time,
+        )
+        db.session.add(new_pick)
+
+        # Audit trail
+        event_type = 'pick_completed' if completed_time else 'pick_started'
+        db.session.flush()
+        audit = AuditEvent(
+            event_type=event_type,
+            entity_type='pick',
+            entity_id=new_pick.id,
+            so_number=barcode,
+            actor_id=picker.id,
+            occurred_at=start_time,
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        if completed_time:
+            flash(f'Will Call {barcode} recorded.')
+        else:
+            flash('Pick started successfully.')
+        return redirect(url_for('main.index'))
     return render_template('input_pick.html', picker=picker, pick_type_id=pick_type_id)
 
 @main.route('/complete_pick/<int:pick_id>', methods=['GET', 'POST'])
@@ -328,7 +379,7 @@ def complete_pick(pick_id):
     else:
         picker = Pickster.query.get_or_404(pick.picker_id)
         incomplete_picks = Pick.query.filter_by(picker_id=picker.id, completed_time=None).all()
-        return render_template('complete_pick.html', picker=picker, incomplete_picks=incomplete_picks)
+        return render_template('complete_pick.html', picker=picker, incomplete_picks=incomplete_picks, pick_type_names=DEFAULT_PICK_TYPES)
 
 @main.route('/start_pick/<int:picker_id>/<int:pick_type_id>', methods=['POST'])
 def start_pick(picker_id, pick_type_id):
@@ -401,6 +452,11 @@ def api_smart_scan():
     2. If ERP sale_type is WILLCALL → create auto-completed will call pick
     3. Otherwise → create a new timed pick (regular)
     4. If barcode not found in ERP → fallback to regular pick
+
+    NOTE: This JSON endpoint does not carry CSRF protection.  If a
+    CSRF middleware (e.g. Flask-WTF CSRFProtect) is enabled app-wide,
+    either exempt this route or require the X-CSRFToken header from
+    the client-side fetch call.
     """
     data = request.get_json(silent=True) or {}
     picker_id = data.get('picker_id')
@@ -428,10 +484,11 @@ def api_smart_scan():
 
     now = datetime.utcnow()
 
-    # 1. Check for existing incomplete pick with this barcode
-    existing_pick = Pick.query.filter_by(
-        barcode_number=barcode, completed_time=None
-    ).first()
+    # 1. Check for existing incomplete pick with this barcode (scoped to picker's branch)
+    incomplete_q = Pick.query.filter_by(barcode_number=barcode, completed_time=None)
+    if picker.branch_code:
+        incomplete_q = incomplete_q.filter_by(branch_code=picker.branch_code)
+    existing_pick = incomplete_q.first()
 
     if existing_pick:
         existing_pick.completed_time = now
@@ -453,11 +510,14 @@ def api_smart_scan():
             'message': f'Pick {barcode} completed.',
         })
 
-    # 2. Look up sale_type from ERP to determine pick type
+    # 2. Look up sale_type and handling_code from ERP to determine pick type
     sale_type = None
+    handling_code = None
     try:
         erp = ERPService()
         sale_type = erp.get_so_sale_type(barcode)
+        if not (sale_type and sale_type.upper() == 'WILLCALL'):
+            handling_code = erp.get_so_primary_handling_code(barcode)
     except Exception:
         pass  # ERP lookup failure → fallback to regular pick
 
@@ -468,11 +528,12 @@ def api_smart_scan():
         action = 'will_call_completed'
         message = f'Will Call {barcode} recorded.'
     else:
-        # Regular pick: start timer
-        pick_type_id = 1  # Default to Yard
+        # Map handling_code to pick type; defaults to Yard (1)
+        pick_type_id = pick_type_from_handling_code(handling_code)
         completed_time = None
         action = 'started'
-        message = f'Pick {barcode} started.'
+        pick_type_name = get_pick_type_name(pick_type_id)
+        message = f'Pick {barcode} started ({pick_type_name}).'
 
     ensure_pick_type_exists(pick_type_id)
 
@@ -483,6 +544,7 @@ def api_smart_scan():
         completed_time=completed_time,
         picker_id=picker.id,
         pick_type_id=pick_type_id,
+        branch_code=picker.branch_code,
     )
     db.session.add(new_pick)
     db.session.flush()
