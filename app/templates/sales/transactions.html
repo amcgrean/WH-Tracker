@@ -1,6 +1,61 @@
 {% extends "base.html" %}
 {% block title %}Sales Transactions{% endblock %}
 
+{% block head %}
+<style>
+/* View cards */
+.txn-view-card {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.txn-view-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-color: rgba(0,69,38,0.25);
+}
+.txn-view-card--active {
+    border-color: var(--beisser-green, #004526);
+    box-shadow: 0 4px 15px rgba(0,69,38,0.18);
+    background: rgba(0,69,38,0.06);
+}
+
+.txn-view-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+.txn-view-icon--success  { background: rgba(40,167,69,0.12); color: #28a745; }
+.txn-view-icon--primary  { background: rgba(0,69,38,0.12); color: #004526; }
+.txn-view-icon--info     { background: rgba(23,162,184,0.12); color: #17a2b8; }
+.txn-view-icon--warning  { background: rgba(255,193,7,0.15); color: #d39e00; }
+.txn-view-icon--danger   { background: rgba(220,53,69,0.12); color: #dc3545; }
+.txn-view-icon--teal     { background: rgba(32,201,151,0.12); color: #20c997; }
+.txn-view-icon--secondary{ background: rgba(108,117,125,0.12); color: #6c757d; }
+
+/* Agent role dots */
+.txn-role-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-left: 3px;
+}
+.txn-role-dot--acct_rep { background: #004526; }
+.txn-role-dot--writer   { background: #17a2b8; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4 pb-5 px-lg-5">
 
@@ -18,8 +73,63 @@
         </div>
     </div>
 
-    <!-- Filter Bar -->
+    <!-- Quick View Cards -->
+    {% if user_rep_id %}
+    <div class="mb-2">
+        <div class="small text-muted font-weight-bold text-uppercase mb-2" style="letter-spacing:0.05em;">My Orders</div>
+        <div class="row">
+            {% for vk, vp in view_presets.items() if vp.section == 'my' %}
+            <div class="col-lg col-md-4 col-6 mb-3">
+                <a href="{{ url_for('sales.transactions', view=vk) }}"
+                   class="d-block text-decoration-none txn-view-card{% if active_view == vk %} txn-view-card--active{% endif %}">
+                    <div class="d-flex align-items-center">
+                        <div class="txn-view-icon txn-view-icon--{{ vp.color }}">
+                            <i class="fas {{ vp.icon }}"></i>
+                        </div>
+                        <div class="ml-2">
+                            <div class="font-weight-bold text-dark" style="font-size:0.85rem;line-height:1.2;">{{ vp.label }}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">{{ vp.sublabel }}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mb-4">
+        <div class="small text-muted font-weight-bold text-uppercase mb-2" style="letter-spacing:0.05em;">Branch Views</div>
+        <div class="row">
+            {% for vk, vp in view_presets.items() if vp.section == 'branch' %}
+            <div class="col-lg col-md-4 col-6 mb-3">
+                <a href="{{ url_for('sales.transactions', view=vk) }}"
+                   class="d-block text-decoration-none txn-view-card{% if active_view == vk %} txn-view-card--active{% endif %}">
+                    <div class="d-flex align-items-center">
+                        <div class="txn-view-icon txn-view-icon--{{ vp.color }}">
+                            <i class="fas {{ vp.icon }}"></i>
+                        </div>
+                        <div class="ml-2">
+                            <div class="font-weight-bold text-dark" style="font-size:0.85rem;line-height:1.2;">{{ vp.label }}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">{{ vp.sublabel }}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Custom Filter Bar -->
     <div class="glass-card p-4 border-0 mb-4">
+        <div class="d-flex align-items-center mb-3">
+            <span class="small font-weight-bold text-muted text-uppercase" style="letter-spacing:0.05em;">Custom Search</span>
+            {% if active_view %}
+            <span class="badge badge-pill ml-2" style="background:var(--beisser-green);color:#fff;">
+                Viewing: {{ view_presets[active_view].label }} &mdash; {{ view_presets[active_view].sublabel }}
+            </span>
+            {% endif %}
+        </div>
         <form method="GET" id="txnFilterForm">
             <div class="row">
                 <div class="col-md-3 mb-2">
@@ -61,7 +171,7 @@
 
     <!-- Status Summary Bar -->
     {% if orders %}
-    <div class="d-flex flex-wrap mb-3">
+    <div class="d-flex flex-wrap mb-3 align-items-center">
         <span class="mr-3 small text-muted">
             <strong>{{ orders|length }}{% if has_next %}+{% endif %}</strong> results
             {% if page > 1 %} &mdash; page {{ page }}{% endif %}
@@ -76,6 +186,12 @@
             {{ s_count }}
         </span>
         {% endfor %}
+        {% if user_rep_id %}
+        <span class="ml-auto small text-muted">
+            <span class="txn-role-dot txn-role-dot--acct_rep"></span> Acct Rep
+            <span class="txn-role-dot txn-role-dot--writer ml-2"></span> Writer
+        </span>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -90,6 +206,8 @@
                         <th>Customer</th>
                         <th>Status</th>
                         <th>Expect Date</th>
+                        {% if active_view == 'my_shipped_2d' %}<th>Ship Date</th>{% endif %}
+                        {% if active_view == 'my_invoiced_5d' %}<th>Invoice Date</th>{% endif %}
                         <th>PO #</th>
                         <th>Sale Type</th>
                         <th>Ship Via</th>
@@ -101,7 +219,15 @@
                 <tbody>
                     {% for o in orders %}
                     <tr>
-                        <td class="font-weight-bold">{{ o.so_number }}</td>
+                        <td class="font-weight-bold">
+                            {{ o.so_number }}
+                            {% if o.agent_role == 'acct_rep' or o.agent_role == 'both' %}
+                            <span class="txn-role-dot txn-role-dot--acct_rep" title="You are Acct Rep"></span>
+                            {% endif %}
+                            {% if o.agent_role == 'writer' or o.agent_role == 'both' %}
+                            <span class="txn-role-dot txn-role-dot--writer" title="You are Order Writer"></span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if o.customer_code %}
                             <a href="{{ url_for('sales.customer_profile', customer_number=o.customer_code) }}" class="text-dark">
@@ -126,6 +252,8 @@
                             {% endif %}
                         </td>
                         <td class="small">{{ o.expect_date_display }}</td>
+                        {% if active_view == 'my_shipped_2d' %}<td class="small">{{ o.ship_date_display }}</td>{% endif %}
+                        {% if active_view == 'my_invoiced_5d' %}<td class="small">{{ o.invoice_date_display }}</td>{% endif %}
                         <td class="small">{{ o.po_number }}</td>
                         <td class="small">{{ o.sale_type }}</td>
                         <td class="small">{{ o.ship_via }}</td>
@@ -158,7 +286,7 @@
         {% if page > 1 or has_next %}
         <div class="p-3 d-flex justify-content-between align-items-center border-top">
             {% if page > 1 %}
-            <a href="{{ url_for('sales.transactions', q=q, status=status, date_from=date_from, date_to=date_to, page=page-1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
+            <a href="{{ url_for('sales.transactions', view=active_view, q=q, status=status, date_from=date_from, date_to=date_to, page=page-1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
                 <i class="fas fa-chevron-left mr-1"></i> Previous
             </a>
             {% else %}
@@ -166,7 +294,7 @@
             {% endif %}
             <span class="small text-muted">Page {{ page }}</span>
             {% if has_next %}
-            <a href="{{ url_for('sales.transactions', q=q, status=status, date_from=date_from, date_to=date_to, page=page+1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
+            <a href="{{ url_for('sales.transactions', view=active_view, q=q, status=status, date_from=date_from, date_to=date_to, page=page+1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
                 Next <i class="fas fa-chevron-right ml-1"></i>
             </a>
             {% else %}
@@ -178,21 +306,18 @@
         {% else %}
         <div class="text-center p-5 text-muted">
             <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
-            <p class="mb-1">{% if q or status or date_from or date_to %}No transactions match your filters.{% else %}Showing open orders. Use the filters above to search across all statuses.{% endif %}</p>
-            {% if q or status or date_from or date_to %}
+            {% if active_view %}
+            <p class="mb-1">No orders found for this view.</p>
+            <a href="{{ url_for('sales.transactions') }}" class="small">Clear view</a>
+            {% elif q or status or date_from or date_to %}
+            <p class="mb-1">No transactions match your filters.</p>
             <a href="{{ url_for('sales.transactions') }}" class="small">Clear all filters</a>
+            {% else %}
+            <p class="mb-1">Select a view above or use the search filters.</p>
             {% endif %}
         </div>
         {% endif %}
     </div>
-
-    <!-- TODO: Future enhancements
-         - Saved views / configurable columns
-         - Export to CSV
-         - Inline order detail expansion (line items)
-         - Operational actions (hold, release, dispatch)
-         - Summary/detail toggle
-    -->
 
 </div>
 {% endblock %}

@@ -1895,9 +1895,10 @@ class ERPService:
             conn.close()
 
     def get_sales_order_status(self, q="", limit=100, branch="", open_only=True, rep_id="",
-                               status="", date_from="", date_to="", page=1):
+                               status="", date_from="", date_to="", page=1,
+                               sale_type="", exclude_sale_types=""):
         # Cache unfiltered list for 60 s; skip cache when any filters are active
-        has_filters = q or branch or rep_id or status or date_from or date_to or page > 1
+        has_filters = q or branch or rep_id or status or date_from or date_to or page > 1 or sale_type or exclude_sale_types
         cache_key = f'order_status_{limit}' if not has_filters and open_only else None
         if cache_key:
             cached = self._cache_get(cache_key)
@@ -1906,13 +1907,15 @@ class ERPService:
         result = self._get_sales_order_status_inner(
             q=q, limit=limit, branch=branch, open_only=open_only, rep_id=rep_id,
             status=status, date_from=date_from, date_to=date_to, page=page,
+            sale_type=sale_type, exclude_sale_types=exclude_sale_types,
         )
         if cache_key:
             self._cache_set(cache_key, result)
         return result
 
     def _get_sales_order_status_inner(self, q="", limit=100, branch="", open_only=True,
-                                      rep_id="", status="", date_from="", date_to="", page=1):
+                                      rep_id="", status="", date_from="", date_to="", page=1,
+                                      sale_type="", exclude_sale_types=""):
         if self.central_db_mode:
             sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
             if "line_no" in sod_columns:
@@ -1956,6 +1959,16 @@ class ERPService:
             if date_to:
                 params["date_to"] = date_to
                 clauses.append("CAST(soh.expect_date AS DATE) <= :date_to")
+            if sale_type:
+                valid_types = [t.strip() for t in sale_type.split(',') if t.strip()]
+                if valid_types:
+                    type_ph = ', '.join(f"'{t}'" for t in valid_types)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) IN ({type_ph})")
+            if exclude_sale_types:
+                valid_excludes = [t.strip() for t in exclude_sale_types.split(',') if t.strip()]
+                if valid_excludes:
+                    excl_ph = ', '.join(f"'{t}'" for t in valid_excludes)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) NOT IN ({excl_ph})")
             where_clause = "WHERE " + " AND ".join(clauses)
             page = max(1, page)
             offset = (page - 1) * limit
@@ -2042,6 +2055,16 @@ class ERPService:
             if date_to:
                 clauses.append("CAST(soh.expect_date AS DATE) <= ?")
                 params_list.append(date_to)
+            if sale_type:
+                valid_types = [t.strip() for t in sale_type.split(',') if t.strip()]
+                if valid_types:
+                    type_ph = ', '.join(f"'{t}'" for t in valid_types)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) IN ({type_ph})")
+            if exclude_sale_types:
+                valid_excludes = [t.strip() for t in exclude_sale_types.split(',') if t.strip()]
+                if valid_excludes:
+                    excl_ph = ', '.join(f"'{t}'" for t in valid_excludes)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) NOT IN ({excl_ph})")
             where_clause = ("WHERE " + " AND ".join(clauses)) if clauses else ""
             page = max(1, page)
             offset = (page - 1) * limit
@@ -2102,6 +2125,90 @@ class ERPService:
         finally:
             cursor.close()
             conn.close()
+
+    def get_orders_by_shipment_date(self, date_field="ship_date", date_from="", date_to="",
+                                      rep_id="", branch="", limit=100, page=1):
+        """Query orders joined with shipments_header, filtering by ship_date or invoice_date."""
+        if not self.central_db_mode:
+            return []
+        sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
+        if "line_no" in sod_columns:
+            line_count_expr = "COUNT(DISTINCT sod.line_no) AS line_count"
+        elif "sequence" in sod_columns:
+            line_count_expr = "COUNT(DISTINCT sod.sequence) AS line_count"
+        else:
+            line_count_expr = "COUNT(sod.id) AS line_count"
+
+        db_col = "sh.invoice_date" if date_field == "invoice_date" else "sh.ship_date"
+        params: dict = {"limit": limit}
+        clauses = ["soh.is_deleted = false"]
+
+        if date_from:
+            params["date_from"] = date_from
+            clauses.append(f"CAST({db_col} AS DATE) >= :date_from")
+        if date_to:
+            params["date_to"] = date_to
+            clauses.append(f"CAST({db_col} AS DATE) <= :date_to")
+        if rep_id:
+            params["rep_id"] = rep_id
+            clauses.append(
+                "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
+            )
+        if branch:
+            system_id = self._normalize_branch_system_id(branch)
+            if system_id:
+                params["branch_id"] = system_id
+                clauses.append("soh.system_id = :branch_id")
+
+        where_clause = "WHERE " + " AND ".join(clauses)
+        page = max(1, page)
+        offset = (page - 1) * limit
+        params["offset"] = offset
+
+        rows = self._mirror_query(
+            f"""
+            SELECT
+                soh.so_id::text AS so_number,
+                MAX(c.cust_name) AS customer_name,
+                MAX(c.cust_code) AS customer_code,
+                MAX(cs.address_1) AS address_1,
+                MAX(cs.city) AS city,
+                MAX(soh.expect_date) AS expect_date,
+                MAX(sh.ship_date) AS ship_date,
+                MAX(sh.invoice_date) AS invoice_date,
+                MAX(soh.reference) AS reference,
+                MAX(soh.so_status) AS so_status,
+                '' AS handling_code,
+                MAX(soh.sale_type) AS sale_type,
+                MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                MAX(COALESCE(soh.salesperson, '')) AS salesperson,
+                MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                MAX(COALESCE(soh.po_number, '')) AS po_number,
+                {line_count_expr}
+            FROM erp_mirror_so_header soh
+            INNER JOIN erp_mirror_shipments_header sh
+                ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
+            LEFT JOIN erp_mirror_cust c
+                ON TRIM(c.cust_key) = TRIM(soh.cust_key)
+            LEFT JOIN erp_mirror_cust_shipto cs
+                ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
+            LEFT JOIN erp_mirror_so_detail sod
+                ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
+            {where_clause}
+            GROUP BY soh.system_id, soh.so_id
+            ORDER BY MAX({db_col}) DESC NULLS LAST, soh.so_id DESC
+            LIMIT :limit OFFSET :offset
+            """,
+            params,
+        )
+        return [
+            {
+                **dict(row),
+                "address": ", ".join(part for part in [row.get("address_1"), row.get("city")] if part),
+            }
+            for row in rows
+        ]
 
     def get_sales_invoice_lookup(self, q="", date_from="", date_to="", status="", limit=50, branch="", rep_id=""):
         if self.central_db_mode:
