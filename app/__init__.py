@@ -7,7 +7,7 @@ from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, 
 from .Routes.routes import main as main_blueprint
 from .Routes.dispatch_routes import dispatch as dispatch_blueprint
 from .Routes.sales import sales_bp as sales_blueprint
-from .Routes.auth_routes import auth as auth_blueprint
+from .Routes.auth import auth_bp as auth_blueprint
 from .runtime_settings import env_bool, get_database_url, is_fly_runtime, is_pooled_postgres_url
 from .navigation import build_navigation, get_current_user_roles
 from .auth import get_current_user
