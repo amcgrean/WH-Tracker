@@ -1155,6 +1155,55 @@ class ERPService:
             print(f"ERP Connection Error (SO Sale Type): {e}")
             return None
 
+    def get_so_primary_handling_code(self, so_number):
+        """
+        Lightweight lookup: returns the most common handling_code across
+        line items for a single SO.  Returns uppercase string or None.
+        """
+        if self.central_db_mode:
+            rows = self._mirror_query(
+                """
+                SELECT UPPER(COALESCE(ib.handling_code, '')) AS handling_code,
+                       COUNT(*) AS cnt
+                FROM erp_mirror_so_detail sod
+                LEFT JOIN erp_mirror_item_branch ib
+                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
+                WHERE CAST(sod.so_id AS TEXT) = :so_number
+                  AND COALESCE(ib.handling_code, '') != ''
+                GROUP BY UPPER(COALESCE(ib.handling_code, ''))
+                ORDER BY cnt DESC
+                LIMIT 1
+                """,
+                {"so_number": str(so_number)},
+            )
+            if rows:
+                return rows[0]['handling_code'] or None
+            return None
+
+        self._require_central_db_for_cloud_mode()
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT TOP 1 UPPER(COALESCE(ib.handling_code, '')) AS handling_code,
+                       COUNT(*) AS cnt
+                FROM so_detail sod
+                JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
+                WHERE sod.so_id = ?
+                  AND COALESCE(ib.handling_code, '') != ''
+                GROUP BY UPPER(COALESCE(ib.handling_code, ''))
+                ORDER BY cnt DESC
+                """,
+                (so_number,),
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return row.handling_code if row else None
+        except Exception as e:
+            print(f"ERP Connection Error (SO Primary Handling Code): {e}")
+            return None
+
     def get_so_header(self, so_number):
         """
         Fetches header info (Customer, Reference, etc.) for a single Sales Order.
