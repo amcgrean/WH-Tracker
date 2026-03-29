@@ -3,11 +3,12 @@ import os
 from flask import Flask
 from flask_migrate import upgrade
 from .extensions import db, migrate
-from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, OTPCode, Pick, PickAssignment, PickTypes, Pickster, WorkOrder, WorkOrderAssignment  # noqa: F401
+from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, File, FileVersion, OTPCode, Pick, PickAssignment, PickTypes, Pickster, WorkOrder, WorkOrderAssignment  # noqa: F401
 from .Routes.main import main_bp as main_blueprint
 from .Routes.dispatch import dispatch_bp as dispatch_blueprint
 from .Routes.sales import sales_bp as sales_blueprint
 from .Routes.auth import auth_bp as auth_blueprint
+from .Routes.files import files as files_blueprint
 from .runtime_settings import env_bool, get_database_url, is_fly_runtime, is_pooled_postgres_url
 from .navigation import build_navigation, get_current_user_roles
 from .auth import get_current_user
@@ -109,6 +110,7 @@ def create_app():
     app.register_blueprint(dispatch_blueprint)
     app.register_blueprint(sales_blueprint)
     app.register_blueprint(auth_blueprint)
+    app.register_blueprint(files_blueprint)
 
     @app.context_processor
     def inject_navigation():

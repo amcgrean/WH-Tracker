@@ -496,5 +496,40 @@ class CustomerNote(db.Model):
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
 
 # -------------------------------------------------------------------
+# File Storage — Polymorphic file attachments backed by R2
+# Files can be attached to any entity type (rma, bid, takeoff, job, etc.)
+# -------------------------------------------------------------------
+
+class File(db.Model):
+    __tablename__ = 'files'
+    id                = db.Column(db.Integer, primary_key=True)
+    entity_type       = db.Column(db.String(50), nullable=False, index=True)   # 'rma', 'bid', 'takeoff', 'job'
+    entity_id         = db.Column(db.String(100), nullable=False, index=True)  # e.g. RMA number, bid ID
+    category          = db.Column(db.String(50))                               # 'plan', 'markup', 'quote', 'photo', 'receipt'
+    original_filename = db.Column(db.String(512), nullable=False)
+    object_key        = db.Column(db.String(1024), nullable=False)             # R2 bucket key
+    mime_type         = db.Column(db.String(128))
+    size_bytes        = db.Column(db.BigInteger)
+    uploaded_by       = db.Column(db.String(128))
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    is_deleted        = db.Column(db.Boolean, default=False, index=True)
+
+    versions = db.relationship('FileVersion', backref='file', lazy='dynamic',
+                               order_by='FileVersion.version_number.desc()')
+
+
+class FileVersion(db.Model):
+    __tablename__ = 'file_versions'
+    id              = db.Column(db.Integer, primary_key=True)
+    file_id         = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=False, index=True)
+    version_number  = db.Column(db.Integer, nullable=False, default=1)
+    object_key      = db.Column(db.String(1024), nullable=False)
+    size_bytes      = db.Column(db.BigInteger)
+    change_note     = db.Column(db.String(512))
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by      = db.Column(db.String(128))
+
+
+# -------------------------------------------------------------------
 # Audit Trail / Sync Batch Metadata
 # -------------------------------------------------------------------
