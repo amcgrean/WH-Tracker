@@ -4,7 +4,7 @@ from flask import Flask
 from flask_migrate import upgrade
 from .extensions import db, migrate
 from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, OTPCode, Pick, PickAssignment, PickTypes, Pickster, WorkOrder, WorkOrderAssignment  # noqa: F401
-from .Routes.routes import main as main_blueprint
+from .Routes.main import main_bp as main_blueprint
 from .Routes.dispatch import dispatch_bp as dispatch_blueprint
 from .Routes.sales import sales_bp as sales_blueprint
 from .Routes.auth import auth_bp as auth_blueprint
