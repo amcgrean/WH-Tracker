@@ -9,7 +9,7 @@ from .Routes.dispatch import dispatch_bp as dispatch_blueprint
 from .Routes.sales import sales_bp as sales_blueprint
 from .Routes.auth import auth_bp as auth_blueprint
 from .Routes.files import files as files_blueprint
-from .runtime_settings import env_bool, get_database_url, is_fly_runtime, is_pooled_postgres_url
+from .runtime_settings import env_bool, is_fly_runtime
 from .navigation import build_navigation, get_current_user_roles
 from .auth import get_current_user
 from .branch_utils import normalize_branch, sidebar_branch_choices, branch_label, expand_branch
@@ -161,12 +161,7 @@ def create_app():
 
     fly_runtime = is_fly_runtime()
 
-    if app.config.get("VERCEL") or os.environ.get("VERCEL"):
-        primary_url = get_database_url()
-        if primary_url and not is_pooled_postgres_url(primary_url):
-            app.logger.warning("DATABASE_URL does not appear to be a pooled Postgres endpoint; burst traffic may exhaust connections.")
-
-    default_run_migrations = not (os.environ.get("VERCEL") or fly_runtime)
+    default_run_migrations = True
     run_migrations_on_start = env_bool("RUN_MIGRATIONS_ON_START", default_run_migrations)
     if run_migrations_on_start:
         with app.app_context():
