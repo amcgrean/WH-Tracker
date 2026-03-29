@@ -89,12 +89,23 @@ The `/sales/transactions` page has two modes:
    - `my_shipped_2d` — User's orders by shipments_header.ship_date (last 2 days)
    - `my_invoiced_5d` — User's orders by shipments_header.invoice_date (last 5 days)
 
-2. **Custom Search** — Manual filters (search, status, date range)
+2. **Custom Search** — Manual filters (search, status, date range, salesperson, customer, ship-to)
+   - Custom search bar is hidden when a Quick View card is active
+   - Sales Agent dropdown: loads distinct `salesperson` values from `erp_mirror_so_header`
+   - Customer dropdown: type-ahead search against `erp_mirror_cust` by name/code
+   - Ship-To dropdown: appears after customer is selected, filterable by name/address/seq
 
 "My" views filter where user is `salesperson` (agent_1) OR `order_writer` (agent_3).
 Agent role dots on each row: green = Acct Rep, blue = Order Writer.
 
 Delivery type filtering: exclude `('Direct', 'WillCall', 'XInstall', 'Hold', 'CM')` — everything remaining is delivery/add-on.
+
+### Sales Transactions API Endpoints
+- `/sales/api/salespeople` — Distinct salesperson IDs (filtered by branch)
+- `/sales/api/customers/list?q=` — Customer type-ahead (name/code search)
+- `/sales/api/customers/shipto/<customer_code>` — Ship-to addresses for a customer
+- `/sales/api/transactions` — JSON order data with all filters
+- `/sales/api/customers/search?q=` — Customer search for global search bar
 
 ## UI Design System
 
@@ -105,6 +116,32 @@ Delivery type filtering: exclude `('Direct', 'WillCall', 'XInstall', 'Hold', 'CM
 - **Animations**: `.animate-fade-in` with `.delay-1` through `.delay-3`
 - Bootstrap 4 grid, Font Awesome 5 icons, Inter font
 
+## Known Pitfalls & Review Checklist
+
+### sale_type case sensitivity (CRITICAL)
+ERP data stores `sale_type` in mixed case (e.g. `WillCall`, `Direct`, `XInstall`). Any SQL filter comparing `sale_type` values **must** use `UPPER()` on both sides:
+```sql
+-- CORRECT
+UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
+
+-- WRONG — will silently return wrong results
+soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+```
+This applies to both hardcoded NOT IN/IN clauses and dynamic filters built from user input. When building dynamic filters, `.upper()` the Python values too:
+```python
+valid_types = [t.strip().upper() for t in sale_type.split(',') if t.strip()]
+```
+This bug was found in `get_sales_order_status`, `get_open_picks`, `get_sales_delivery_tracker`, and `get_dispatch_stops` — audit any new sale_type filter the same way.
+
+### Dual-database parity
+Every ERP query has two code paths (PostgreSQL + SQL Server). When adding or fixing filters, **both paths must be updated**. Use `replace_all` cautiously — the same logical fix may need different SQL syntax per database.
+
+### Pagination link params
+When adding new filter parameters to a route, **always update pagination links** in the template to include the new params, or they will be lost when the user clicks Next/Previous.
+
+### Template variables
+Every variable used in Jinja2 templates must be passed via `render_template()`. When adding new filter params, update both the route's render call and any pagination/navigation links in the template.
+
 ## Common Patterns
 
 ### Adding a new ERP query
@@ -112,6 +149,7 @@ Delivery type filtering: exclude `('Direct', 'WillCall', 'XInstall', 'Hold', 'CM
 2. Write the PostgreSQL path first (uses `self._mirror_query()` with named `:params`)
 3. Add SQL Server fallback after `self._require_central_db_for_cloud_mode()` (uses `cursor.execute()` with `?` positional params)
 4. Both paths must return the same dict structure
+5. **Always use `UPPER()` when comparing string columns like `sale_type`, `so_status`** — see pitfalls above
 
 ### Route helper functions (`sales_routes.py`)
 - `_get_branch()` — Reads branch from URL > session > all
