@@ -1,7 +1,7 @@
 """Add branch column to app_users
 
-Revision ID: k5l6m7n8o9p0
-Revises: j4k5l6m7n8o9
+Revision ID: k5l6m7n8o9p0b
+Revises: k5l6m7n8o9p0
 Create Date: 2026-03-30 00:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'k5l6m7n8o9p0'
-down_revision = 'j4k5l6m7n8o9'
+revision = 'k5l6m7n8o9p0b'
+down_revision = 'k5l6m7n8o9p0'
 branch_labels = None
 depends_on = None
 
