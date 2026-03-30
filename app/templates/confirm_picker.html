@@ -1,12 +1,27 @@
-{% extends 'base.html' %}
+{% extends "kiosk_base.html" %}
 
 {% block title %}Confirm Picker{% endblock %}
 
 {% block content %}
-<h1>Confirm Picker</h1>
-<p>Are you sure you want to select {{ picker.name }}?</p>
-<form action="{{ url_for('main.confirm_picker', picker_id=picker.id) }}" method="post">
-    <input type="submit" value="Confirm">
-</form>
-
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="bg-white shadow-sm rounded p-5 text-center">
+            <div class="mb-4">
+                <i class="fas fa-user-check fa-3x mb-3" style="color:#004526;"></i>
+                <h1 style="font-weight:800; color:#004526;">Confirm Picker</h1>
+                <p class="lead mb-0">Continue as <strong>{{ picker.name }}</strong>?</p>
+            </div>
+            <form action="{{ url_for('main.confirm_picker', picker_id=picker.id) }}" method="post">
+                <button type="submit" class="kiosk-btn kiosk-btn-primary w-100">
+                    <i class="fas fa-check mr-2"></i>Yes, Start Picking
+                </button>
+            </form>
+            <div class="mt-4">
+                <a href="{{ url_for('main.index') }}" class="text-muted font-weight-bold" style="font-size:1.1rem;">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Picker List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
