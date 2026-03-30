@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from sqlalchemy import bindparam, create_engine, func, inspect, text
+from app.extensions import db
 from app.runtime_settings import (
     build_sql_connection_strings,
     env_bool,
@@ -1506,6 +1507,261 @@ class ERPService:
             pass
 
         return results
+
+    def get_enriched_dispatch_stops(
+        self,
+        start,
+        end,
+        sale_types=None,
+        status_filter=None,
+        route_id=None,
+        driver=None,
+        include_no_gps=False,
+        branches=None,
+    ):
+        """Enhanced version of get_dispatch_stops that adds order value,
+        customer credit, pick status, work order flags, and local route
+        assignment info.  Only works in central_db (cloud mirror) mode."""
+        if not self.central_db_mode:
+            # Fall back to base stops for legacy mode
+            return self.get_dispatch_stops(
+                start, end, sale_types, status_filter, route_id, driver,
+                include_no_gps, branches,
+            )
+
+        # Get base stops
+        base_stops = self.get_dispatch_stops(
+            start, end, sale_types, status_filter, route_id, driver,
+            include_no_gps, branches,
+        )
+        if not base_stops:
+            return base_stops
+
+        so_ids = list({str(s["id"]) for s in base_stops if s.get("id")})
+        if not so_ids:
+            return base_stops
+
+        # --- Enrich: order value from so_detail ---
+        try:
+            value_rows = self._mirror_query(
+                """
+                SELECT CAST(so_id AS TEXT) AS so_id,
+                       SUM(COALESCE(price, 0) * COALESCE(qty_ordered, 0)) AS order_value
+                FROM erp_mirror_so_detail
+                WHERE is_deleted = false AND CAST(so_id AS TEXT) IN :so_ids
+                GROUP BY so_id
+                """,
+                {"so_ids": so_ids},
+                expanding={"so_ids"},
+            )
+            value_map = {str(r["so_id"]): float(r["order_value"] or 0) for r in value_rows}
+        except Exception:
+            value_map = {}
+
+        # --- Enrich: customer credit info ---
+        cust_keys = list({s.get("customer_code") for s in base_stops if s.get("customer_code")})
+        cust_credit_map = {}
+        if cust_keys:
+            try:
+                credit_rows = self._mirror_query(
+                    """
+                    SELECT cust_key, cust_name, balance, credit_limit, credit_account
+                    FROM erp_mirror_cust
+                    WHERE is_deleted = false AND cust_code IN :cust_keys
+                    """,
+                    {"cust_keys": cust_keys},
+                    expanding={"cust_keys"},
+                )
+                for r in credit_rows:
+                    cust_credit_map[r["cust_key"]] = {
+                        "customer_balance": float(r["balance"] or 0),
+                        "credit_limit": float(r["credit_limit"] or 0),
+                        "credit_hold": (float(r["balance"] or 0) > float(r["credit_limit"] or 0)) if r["credit_limit"] else False,
+                    }
+            except Exception:
+                pass
+
+        # --- Enrich: work order flags ---
+        try:
+            wo_rows = self._mirror_query(
+                """
+                SELECT DISTINCT CAST(source_id AS TEXT) AS so_id
+                FROM erp_mirror_wo_header
+                WHERE is_deleted = false AND CAST(source_id AS TEXT) IN :so_ids
+                """,
+                {"so_ids": so_ids},
+                expanding={"so_ids"},
+            )
+            wo_set = {str(r["so_id"]) for r in wo_rows}
+        except Exception:
+            wo_set = set()
+
+        # --- Enrich: SO header fields (ship_via, po_number, salesperson, promise_date) ---
+        try:
+            so_rows = self._mirror_query(
+                """
+                SELECT CAST(so_id AS TEXT) AS so_id, ship_via, po_number, salesperson,
+                       promise_date, cust_key
+                FROM erp_mirror_so_header
+                WHERE is_deleted = false AND CAST(so_id AS TEXT) IN :so_ids
+                """,
+                {"so_ids": so_ids},
+                expanding={"so_ids"},
+            )
+            so_map = {}
+            for r in so_rows:
+                so_map[str(r["so_id"])] = {
+                    "ship_via": r.get("ship_via"),
+                    "po_number": r.get("po_number"),
+                    "salesperson": r.get("salesperson"),
+                    "promise_date": r["promise_date"].isoformat() if hasattr(r.get("promise_date"), "isoformat") else r.get("promise_date"),
+                    "cust_key": r.get("cust_key"),
+                }
+        except Exception:
+            so_map = {}
+
+        # --- Enrich: local route assignments ---
+        from app.Models.dispatch_models import DispatchRouteStop, DispatchRoute
+        try:
+            assigned_stops = (
+                db.session.query(
+                    DispatchRouteStop.so_id,
+                    DispatchRoute.id.label("local_route_id"),
+                    DispatchRoute.route_name.label("local_route_name"),
+                )
+                .join(DispatchRoute, DispatchRouteStop.route_id == DispatchRoute.id)
+                .filter(DispatchRoute.route_date >= start, DispatchRoute.route_date <= end)
+                .all()
+            )
+            route_assign_map = {
+                str(s.so_id): {
+                    "local_route_id": s.local_route_id,
+                    "local_route_name": s.local_route_name,
+                    "route_assigned": True,
+                }
+                for s in assigned_stops
+            }
+        except Exception:
+            route_assign_map = {}
+
+        # --- Merge enrichments into base stops ---
+        for stop in base_stops:
+            sid = str(stop.get("id", ""))
+
+            # Order value
+            stop["order_value"] = round(value_map.get(sid, 0), 2)
+
+            # Work orders
+            stop["has_work_orders"] = sid in wo_set
+
+            # SO header fields
+            so_info = so_map.get(sid, {})
+            stop["ship_via"] = so_info.get("ship_via")
+            stop["po_number"] = so_info.get("po_number")
+            stop["salesperson"] = so_info.get("salesperson")
+            stop["promise_date"] = so_info.get("promise_date")
+
+            # Customer credit
+            cust_key = so_info.get("cust_key")
+            credit_info = cust_credit_map.get(cust_key, {})
+            stop["customer_balance"] = credit_info.get("customer_balance")
+            stop["credit_limit"] = credit_info.get("credit_limit")
+            stop["credit_hold"] = credit_info.get("credit_hold", False)
+
+            # Local route assignment
+            route_info = route_assign_map.get(sid, {})
+            stop["route_assigned"] = route_info.get("route_assigned", False)
+            stop["local_route_id"] = route_info.get("local_route_id")
+            stop["local_route_name"] = route_info.get("local_route_name")
+
+        return base_stops
+
+    def get_customer_ar_summary(self, cust_key):
+        """Get AR aging buckets for a customer."""
+        if not self.central_db_mode:
+            return {}
+        from datetime import timedelta
+        now = date.today()
+        try:
+            rows = self._mirror_query(
+                """
+                SELECT ref_num, ref_date, open_amt, open_flag
+                FROM erp_mirror_aropen
+                WHERE is_deleted = false AND cust_key = :cust_key AND open_flag = true
+                """,
+                {"cust_key": cust_key},
+            )
+            buckets = {"current": 0, "over_30": 0, "over_60": 0, "over_90": 0, "total": 0}
+            for r in rows:
+                amt = float(r.get("open_amt") or 0)
+                ref_date = r.get("ref_date")
+                if ref_date and hasattr(ref_date, "date"):
+                    ref_date = ref_date.date()
+                days = (now - ref_date).days if ref_date else 0
+                if days > 90:
+                    buckets["over_90"] += amt
+                elif days > 60:
+                    buckets["over_60"] += amt
+                elif days > 30:
+                    buckets["over_30"] += amt
+                else:
+                    buckets["current"] += amt
+                buckets["total"] += amt
+            for k in buckets:
+                buckets[k] = round(buckets[k], 2)
+            return buckets
+        except Exception:
+            return {}
+
+    def get_order_work_orders(self, so_id):
+        """Get work orders linked to a sales order."""
+        if not self.central_db_mode:
+            return []
+        try:
+            rows = self._mirror_query(
+                """
+                SELECT wo_id, wo_status, item_ptr, qty, department, branch_code
+                FROM erp_mirror_wo_header
+                WHERE is_deleted = false AND CAST(source_id AS TEXT) = :so_id
+                ORDER BY wo_id
+                """,
+                {"so_id": str(so_id)},
+            )
+            return [
+                {
+                    "wo_id": r["wo_id"],
+                    "status": r["wo_status"],
+                    "item": r["item_ptr"],
+                    "qty": float(r["qty"]) if r.get("qty") else None,
+                    "department": r["department"],
+                    "branch": r["branch_code"],
+                }
+                for r in rows
+            ]
+        except Exception:
+            return []
+
+    def get_order_timeline(self, so_id):
+        """Get audit events for an order to build a status timeline."""
+        try:
+            from app.Models.models import AuditEvent
+            events = (
+                AuditEvent.query
+                .filter_by(so_number=str(so_id))
+                .order_by(AuditEvent.occurred_at)
+                .all()
+            )
+            return [
+                {
+                    "event_type": e.event_type,
+                    "entity_type": e.entity_type,
+                    "notes": e.notes,
+                    "occurred_at": e.occurred_at.isoformat() if e.occurred_at else None,
+                }
+                for e in events
+            ]
+        except Exception:
+            return []
 
     def get_dispatch_shipment_lines(self, so_id, shipment_num=None, limit=200):
         if self.central_db_mode:
