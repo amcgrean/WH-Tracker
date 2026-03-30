@@ -29,7 +29,7 @@
         </div>
         <div class="col-md-2 mb-2">
           <span class="text-muted small d-block">Status</span>
-          <span class="badge badge-secondary">{{ header.get('status') or '—' }}</span>
+          <span class="badge badge-secondary">{{ header.get('po_status') or '—' }}</span>
         </div>
         <div class="col-md-2 mb-2">
           <span class="text-muted small d-block">Branch</span>
@@ -39,7 +39,7 @@
         </div>
         <div class="col-md-2 mb-2">
           <span class="text-muted small d-block">Expected</span>
-          {{ (header.get('expected_date') or '')[:10] or '—' }}
+          {{ (header.get('expect_date') or '')[:10] or '—' }}
         </div>
         <div class="col-md-2 mb-2">
           <span class="text-muted small d-block">Order Date</span>
@@ -106,15 +106,15 @@
             <dt class="col-7 text-muted">Receipt Count</dt>
             <dd class="col-5">{{ rs.get('receipt_count') or '0' }}</dd>
             <dt class="col-7 text-muted">Total Qty Received</dt>
-            <dd class="col-5">{{ rs.get('total_qty_received') or '—' }}</dd>
+            <dd class="col-5">{{ rs.get('qty_received_total') or '—' }}</dd>
             <dt class="col-7 text-muted">First Receipt</dt>
-            <dd class="col-5 small">{{ (rs.get('first_receipt_date') or '')[:10] or '—' }}</dd>
+            <dd class="col-5 small">{{ (rs.get('first_receive_date') or '')[:10] or '—' }}</dd>
             <dt class="col-7 text-muted">Latest Receipt</dt>
-            <dd class="col-5 small">{{ (rs.get('latest_receipt_date') or '')[:10] or '—' }}</dd>
+            <dd class="col-5 small">{{ (rs.get('last_receive_date') or '')[:10] or '—' }}</dd>
             <dt class="col-7 text-muted">Latest Status</dt>
             <dd class="col-5">
-              {% if rs.get('latest_status') %}
-                <span class="badge badge-secondary" style="font-size:.7rem;">{{ rs.get('latest_status') }}</span>
+              {% if rs.get('latest_recv_status') %}
+                <span class="badge badge-secondary" style="font-size:.7rem;">{{ rs.get('latest_recv_status') }}</span>
               {% else %}—{% endif %}
             </dd>
           </dl>

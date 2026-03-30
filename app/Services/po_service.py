@@ -34,8 +34,8 @@ def search_purchase_orders(q: str, limit: int = 25) -> list[dict]:
     """
     q_like = f"%{q}%"
     sql = text("""
-        SELECT po_number, po_id, supplier_name, supplier_key, system_id, branch_code,
-               expected_date, order_date, status, receive_complete
+        SELECT po_number, po_id, supplier_name, supplier_code, system_id, branch_code,
+               expect_date, order_date, po_status, receipt_count
         FROM app_po_search
         WHERE po_number ILIKE :q
            OR supplier_name ILIKE :q
@@ -50,34 +50,35 @@ def search_purchase_orders(q: str, limit: int = 25) -> list[dict]:
 def list_open_pos_for_branch(branch_code: Optional[str], limit: int = 500) -> list[dict]:
     """Return open POs for a branch (or all branches when branch_code is None).
 
-    "Open" means status (case-insensitive) NOT IN
+    "Open" means po_status (case-insensitive) NOT IN
     ('closed', 'complete', 'cancelled', 'void', 'received').
+    Uses app_po_search view which includes po_number and branch_code.
     """
     open_filter = (
-        "LOWER(COALESCE(status, '')) NOT IN "
-        "('closed', 'complete', 'cancelled', 'void', 'received')"
+        "UPPER(COALESCE(po_status, '')) NOT IN "
+        "('CLOSED', 'COMPLETE', 'CANCELLED', 'CANCELED', 'VOID', 'RECEIVED')"
     )
 
     if branch_code:
         from app.branch_utils import expand_branch
         codes = expand_branch(branch_code)
         sql = text(f"""
-            SELECT po_number, supplier_name, supplier_key, system_id,
-                   expected_date, order_date, status, receive_complete
-            FROM erp_mirror_po_header
+            SELECT po_number, supplier_name, supplier_code, system_id,
+                   expect_date, order_date, po_status, receipt_count
+            FROM app_po_search
             WHERE system_id = ANY(:codes)
               AND {open_filter}
-            ORDER BY expected_date ASC NULLS LAST
+            ORDER BY expect_date ASC NULLS LAST
             LIMIT :limit
         """)
         rows = db.session.execute(sql, {"codes": codes, "limit": limit}).mappings().all()
     else:
         sql = text(f"""
-            SELECT po_number, supplier_name, supplier_key, system_id,
-                   expected_date, order_date, status, receive_complete
-            FROM erp_mirror_po_header
+            SELECT po_number, supplier_name, supplier_code, system_id,
+                   expect_date, order_date, po_status, receipt_count
+            FROM app_po_search
             WHERE {open_filter}
-            ORDER BY expected_date ASC NULLS LAST
+            ORDER BY expect_date ASC NULLS LAST
             LIMIT :limit
         """)
         rows = db.session.execute(sql, {"limit": limit}).mappings().all()

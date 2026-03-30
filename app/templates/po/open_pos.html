@@ -60,14 +60,14 @@
                 {% else %}—{% endif %}
               </td>
               <td class="align-middle small text-muted" style="white-space:nowrap;">
-                {{ po.expected_date[:10] if po.expected_date else '—' }}
+                {{ po.expect_date[:10] if po.expect_date else '—' }}
               </td>
               <td class="align-middle">
-                <span class="badge badge-secondary" style="font-size:.7rem;">{{ po.status or '—' }}</span>
+                <span class="badge badge-secondary" style="font-size:.7rem;">{{ po.po_status or '—' }}</span>
               </td>
               <td class="align-middle small">
-                {% if po.receive_complete %}
-                  <span class="badge badge-success" style="font-size:.7rem;">Complete</span>
+                {% if po.receipt_count %}
+                  <span class="badge badge-info" style="font-size:.7rem;">{{ po.receipt_count }} receipt{{ 's' if po.receipt_count != 1 else '' }}</span>
                 {% else %}
                   <span class="text-muted">—</span>
                 {% endif %}

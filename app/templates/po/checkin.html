@@ -256,7 +256,7 @@
         var h = res.data.header;
         state.poNumber = h.po_number || num;
         state.supplierName = h.supplier_name || '';
-        state.poStatus = h.status || '';
+        state.poStatus = h.po_status || '';
         $('poResultNum').textContent = state.poNumber;
         $('poResultSupplier').textContent = state.supplierName;
         $('poResultStatus').textContent = state.poStatus;
