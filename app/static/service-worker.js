@@ -1,5 +1,5 @@
-// Beisser OPS Service Worker — Shell asset caching only (no data caching)
-const CACHE_NAME = 'beisser-ops-shell-v1';
+// LiveEdge Service Worker — Shell asset caching only (no data caching)
+const CACHE_NAME = 'liveedge-shell-v2';
 const SHELL_ASSETS = [
   '/static/css/style.css',
   '/static/js/app.js',

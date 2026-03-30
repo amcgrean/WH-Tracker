@@ -1,7 +1,7 @@
 {
-  "name": "Beisser OPS",
-  "short_name": "Beisser OPS",
-  "description": "Unified warehouse operations platform for Beisser Lumber",
+  "name": "LiveEdge",
+  "short_name": "LiveEdge",
+  "description": "Unified operations platform for Beisser Lumber",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f0f2f5",

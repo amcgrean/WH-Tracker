@@ -3,44 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In — Beisser Ops</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <title>Sign In — LiveEdge</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/liveedge-icon.svg') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body { background: var(--bg-primary, #f8f9fa); font-family: 'Inter', sans-serif; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            -webkit-font-smoothing: antialiased;
+        }
         .auth-card {
-            max-width: 420px;
-            margin: 80px auto 0;
+            width: 100%;
+            max-width: 400px;
             background: #fff;
             border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,69,38,0.10);
-            padding: 2.5rem;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            padding: 40px 32px 32px;
         }
-        .auth-brand { color: #004526; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.5px; }
-        .auth-brand span { font-weight: 400; }
-        .btn-beisser {
+        .auth-brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+        .auth-brand-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+        }
+        .auth-brand-text {
+            font-weight: 800;
+            font-size: 1.4rem;
+            color: #004526;
+            letter-spacing: -0.02em;
+        }
+        .auth-brand-text span { font-weight: 400; }
+        .auth-subtitle {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-bottom: 0;
+        }
+        .form-control {
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            border: 1.5px solid #e2e8f0;
+            transition: all 0.15s;
+        }
+        .form-control:focus {
+            border-color: #004526;
+            box-shadow: 0 0 0 3px rgba(0,69,38,0.08);
+        }
+        .btn-primary-le {
             background: #004526;
             color: #fff;
             border: none;
             font-weight: 600;
-            letter-spacing: 0.02em;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            transition: all 0.15s;
+            letter-spacing: 0.01em;
         }
-        .btn-beisser:hover { background: #005c34; color: #fff; }
-        .form-control:focus { border-color: #004526; box-shadow: 0 0 0 0.2rem rgba(0,69,38,.15); }
+        .btn-primary-le:hover { background: #006834; color: #fff; }
+        .btn-primary-le:active { transform: scale(0.98); }
+        .auth-footer {
+            text-align: center;
+            color: #adb5bd;
+            font-size: 0.75rem;
+            margin-top: 24px;
+        }
     </style>
 </head>
 <body>
     <div class="auth-card">
-        <div class="text-center mb-4">
-            <div class="auth-brand">BEISSER <span>OPS</span></div>
-            <p class="text-muted mt-1 mb-0" style="font-size:.85rem;">Sign in with your work email</p>
+        <div class="auth-brand">
+            <img src="{{ url_for('static', filename='images/liveedge-icon.svg') }}" alt="" class="auth-brand-icon">
+            <div class="auth-brand-text">LIVE<span>EDGE</span></div>
         </div>
+        <p class="auth-subtitle mb-4">Sign in with your work email</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else ('info' if category == 'info' else 'success')) }} py-2" role="alert" style="font-size:.875rem;">
+            <div class="alert alert-{{ 'danger' if category == 'error' else ('warning' if category == 'warning' else ('info' if category == 'info' else 'success')) }} py-2" role="alert" style="font-size:.85rem; border-radius: 10px;">
                 {{ message }}
             </div>
           {% endfor %}
@@ -48,22 +104,23 @@
 
         <form method="POST" action="{{ url_for('auth.login') }}" autocomplete="off">
             <div class="form-group">
-                <label for="email" class="font-weight-semibold" style="font-size:.875rem;">Email address</label>
+                <label for="email" class="font-weight-semibold" style="font-size:.85rem;">Email address</label>
                 <input type="email" class="form-control" id="email" name="email"
                        placeholder="you@beisserlumber.com"
                        autofocus required autocomplete="email">
             </div>
-            <button type="submit" class="btn btn-beisser btn-block mt-3">
+            <button type="submit" class="btn btn-primary-le btn-block mt-3">
                 <i class="fas fa-paper-plane mr-2"></i>Send sign-in code
             </button>
         </form>
 
-        <p class="text-center text-muted mt-4 mb-0" style="font-size:.78rem;">
+        <p class="auth-footer">
             A 6-digit code will be emailed to you. No password needed.
         </p>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <p style="color: #adb5bd; font-size: 0.7rem; margin-top: 24px; text-align: center;">
+        Beisser Lumber Co.
+    </p>
 </body>
 </html>

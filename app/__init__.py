@@ -144,15 +144,21 @@ def create_app():
     def inject_navigation():
         from flask import request, session
         current_roles = get_current_user_roles()
+        user = get_current_user()
 
-        # Branch precedence: URL param > session > None
-        raw_branch = request.args.get("branch") or session.get("selected_branch") or ""
+        # Branch precedence: URL param > session > user's home branch > None
+        raw_branch = (
+            request.args.get("branch")
+            or session.get("selected_branch")
+            or (user.get("branch", "") if user else "")
+            or ""
+        )
         selected_branch = normalize_branch(raw_branch)
 
         return {
             "nav_sections": build_navigation(current_roles),
             "current_user_roles": current_roles,
-            "current_user": get_current_user(),
+            "current_user": user,
             "selected_branch": selected_branch,
             "selected_branch_label": branch_label(selected_branch),
             "branch_choices": sidebar_branch_choices(),
