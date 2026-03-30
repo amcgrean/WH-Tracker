@@ -146,8 +146,11 @@ def create_app():
         if not app.config.get("AUTH_REQUIRED"):
             return
         from flask import redirect, request, session, url_for
-        public_endpoints = {"auth.login", "auth.verify", "auth.resend", "static"}
+        public_endpoints = {"auth.login", "auth.verify", "auth.resend", "static", "main.root_health"}
         if request.endpoint in public_endpoints:
+            return
+        # Kiosk and TV routes run on wall-mounted devices without user sessions
+        if request.path.startswith("/kiosk/") or request.path.startswith("/tv/"):
             return
         if not session.get("user_id"):
             return redirect(url_for("auth.login", next=request.url))
