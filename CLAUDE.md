@@ -181,6 +181,21 @@ open_orders = [r for r in rows if str(r.get('so_status', '')).upper() == 'O']
 
 **Also applies to `dispatch_service.py`** — its `get_stops()` method has the same dual-filter pattern as `erp_service.py`.
 
+### No redundant CAST on VARCHAR joins (CRITICAL)
+`so_id`, `item_ptr`, `source_id`, `tran_id` are all `VARCHAR(64)`. Never wrap them in `CAST(... AS TEXT)` on joins or WHERE clauses — it prevents PostgreSQL from using indexes and causes full table scans. Similarly, CTEs that aggregate large tables (e.g. `shipment_rollup`, `pick_rollup`) **must** include a recency filter (date range or status) to avoid scanning millions of rows.
+
+```sql
+-- CORRECT
+ON soh.so_id = sod.so_id
+ON i.item_ptr = sod.item_ptr
+
+-- WRONG — breaks index usage
+ON CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
+ON CAST(i.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
+```
+
+Note: `cust_key` and `seq_num` still need `TRIM()` due to ERP padding differences.
+
 ### Dual-database parity
 Every ERP query has two code paths (PostgreSQL + SQL Server). When adding or fixing filters, **both paths must be updated**. Use `replace_all` cautiously — the same logical fix may need different SQL syntax per database.
 
@@ -210,7 +225,11 @@ Every variable used in Jinja2 templates must be passed via `render_template()`. 
 ## Deployment
 
 - **Fly.io** (primary) — auto-runs migrations on startup (`RUN_MIGRATIONS_ON_START` defaults to `True` on Fly)
+- Migrations protected by `pg_try_advisory_lock(7483201)` — only one machine runs DDL, others skip
+- Deploy strategy: `rolling` (sequential machine updates in `fly.toml`)
+- Health check: `GET /healthz` — 60s grace period, 10s timeout
 - Auth gated by `AUTH_REQUIRED` env var
+- Auth-exempt paths: `/kiosk/`, `/tv/`, `/pick_tracker`, `/confirm_picker/`, `/input_pick/`, `/complete_pick/`, `/start_pick/`, `/api/smart_scan`, health endpoints
 - ERP sync worker runs separately (`SYNC_INTERVAL_SECONDS=5`)
 - File storage via Cloudflare R2 (secrets set in Fly dashboard)
 
