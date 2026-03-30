@@ -13,6 +13,7 @@ from reportlab.pdfgen import canvas
 import qrcode
 from sqlalchemy import func, text
 
+from app.branch_utils import expand_branch_filter
 from app.extensions import db
 from app.runtime_settings import build_sql_connection_strings, sql_connection_configured
 
@@ -232,15 +233,15 @@ class DispatchService:
         params: List[Any] = [start, end]
 
         if sale_types:
-            types = [item.strip() for item in sale_types.split(",") if item.strip()]
+            types = [item.strip().upper() for item in sale_types.split(",") if item.strip()]
             if types:
-                filters.append(f"hdr.sale_type IN ({','.join('?' for _ in types)})")
+                filters.append(f"UPPER(COALESCE(hdr.sale_type, '')) IN ({','.join('?' for _ in types)})")
                 params.extend(types)
 
         if status_filter:
-            statuses = [item.strip() for item in status_filter.split(",") if item.strip()]
+            statuses = [item.strip().upper() for item in status_filter.split(",") if item.strip()]
             if statuses:
-                filters.append(f"hdr.so_status IN ({','.join('?' for _ in statuses)})")
+                filters.append(f"UPPER(COALESCE(hdr.so_status, '')) IN ({','.join('?' for _ in statuses)})")
                 params.extend(statuses)
 
         if route_id:
@@ -252,14 +253,7 @@ class DispatchService:
             params.append(driver)
 
         if branches:
-            raw_branches = [item.strip().upper() for item in branches.split(",") if item.strip()]
-            expanded: List[str] = []
-            for branch in raw_branches:
-                if branch in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
-                    expanded.extend(["20GR", "25BW"])
-                else:
-                    expanded.append(branch)
-            expanded = sorted(set(expanded))
+            expanded = expand_branch_filter(branches)
             if expanded:
                 filters.append(f"hdr.system_id IN ({','.join('?' for _ in expanded)})")
                 params.extend(expanded)

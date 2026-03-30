@@ -1,0 +1,66 @@
+{% extends "kiosk_base.html" %}
+{% block title %}Open Work Orders — {{ user.name }}{% endblock %}
+
+{% block content %}
+<h2 class="text-center mb-2" style="font-weight:800; color:#004526;">
+    <i class="fas fa-clipboard-list mr-2"></i>Open Work Orders
+</h2>
+<p class="text-center text-muted mb-4" style="font-size:1.1rem;">Builder: <strong>{{ user.name }}</strong></p>
+
+<div class="table-responsive">
+    <table class="table" style="font-size:1.05rem;">
+        <thead class="thead-light">
+            <tr>
+                <th>WO #</th>
+                <th>SO #</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th style="width:150px;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for wo in open_orders %}
+            <tr>
+                <td class="font-weight-bold">{{ wo.work_order_number }}</td>
+                <td>{{ wo.sales_order_number or '—' }}</td>
+                <td>{{ wo.description }}</td>
+                <td>
+                    <span class="badge badge-{% if wo.status == 'Assigned' %}primary{% else %}secondary{% endif %} px-2 py-1">
+                        {{ wo.status }}
+                    </span>
+                </td>
+                <td>{{ wo.created_at.strftime('%m/%d/%y %H:%M') if wo.created_at else '—' }}</td>
+                <td>
+                    <form action="{{ url_for('main.kiosk_complete_work_order', branch=kiosk_branch, wo_id=wo.id) }}" method="post" style="display:inline;">
+                        <button type="submit" class="kiosk-btn kiosk-btn-success" style="min-width:120px; min-height:48px; font-size:1rem;">
+                            <i class="fas fa-check mr-1"></i> Complete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                    <i class="fas fa-inbox fa-2x d-block mb-2" style="opacity:0.3;"></i>
+                    No open work orders.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="text-center mt-4">
+    <a href="{{ url_for('main.kiosk_work_order_scan', branch=kiosk_branch, user_id=user.id) }}"
+       class="kiosk-btn kiosk-btn-primary">
+        <i class="fas fa-plus mr-2"></i>Input New Work Order
+    </a>
+</div>
+
+<div class="text-center mt-3">
+    <a href="{{ url_for('main.kiosk_work_orders', branch=kiosk_branch) }}" class="text-muted font-weight-bold" style="font-size:1.1rem;">
+        <i class="fas fa-arrow-left mr-1"></i> Change User
+    </a>
+</div>
+{% endblock %}

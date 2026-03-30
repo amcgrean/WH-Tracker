@@ -1,0 +1,46 @@
+{% extends "kiosk_base.html" %}
+{% block title %}Scan SO — {{ user.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6 text-center">
+        <h2 class="mb-2" style="font-weight:800; color:#004526;">
+            <i class="fas fa-barcode mr-2"></i>Scan Sales Order
+        </h2>
+        <p class="text-muted mb-4" style="font-size:1.1rem;">
+            Builder: <strong>{{ user.name }}</strong>. Scan the SO barcode to find work orders.
+        </p>
+
+        <form action="{{ url_for('main.kiosk_work_order_select', branch=kiosk_branch) }}" method="get">
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            <div class="mb-4">
+                <input type="text" class="kiosk-input text-center" id="barcode" name="barcode"
+                       placeholder="Scan Barcode Here…"
+                       autofocus required autocomplete="off">
+            </div>
+            <button type="submit" class="kiosk-btn kiosk-btn-primary d-block w-100">
+                <i class="fas fa-search mr-2"></i>Search Work Orders
+            </button>
+        </form>
+
+        <div class="mt-4">
+            <a href="{{ url_for('main.kiosk_work_orders_open', branch=kiosk_branch, user_id=user.id) }}"
+               class="text-muted font-weight-bold" style="font-size:1.1rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Back to Open Orders
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var input = document.getElementById('barcode');
+        if (input) {
+            input.focus();
+            document.addEventListener('click', function() { input.focus(); });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "kiosk_base.html" %}
+{% block title %}Select Work Orders — SO #{{ barcode }}{% endblock %}
+
+{% block content %}
+<h2 class="text-center mb-2" style="font-weight:800; color:#004526;">
+    <i class="fas fa-tasks mr-2"></i>Work Orders for SO #{{ barcode }}
+</h2>
+<p class="text-center text-muted mb-4" style="font-size:1.1rem;">
+    Builder: <strong>{{ user.name }}</strong>
+</p>
+
+<form action="{{ url_for('main.kiosk_start_work_orders', branch=kiosk_branch) }}" method="post">
+    <input type="hidden" name="user_id" value="{{ user.id }}">
+    <div class="table-responsive">
+        <table class="table" style="font-size:1.05rem;">
+            <thead class="thead-light">
+                <tr>
+                    <th style="width:60px;">Select</th>
+                    <th>WO #</th>
+                    <th>Item #</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Dept</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="text-center">
+                        <input type="checkbox" name="selected_items"
+                               value='{{ {"wo_id": item.wo_number, "so_number": barcode, "item_number": item.item_number, "description": item.description}|tojson|forceescape }}'
+                               style="transform:scale(1.8); cursor:pointer;">
+                    </td>
+                    <td class="font-weight-bold">{{ item.wo_number }}</td>
+                    <td>{{ item.item_number }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>
+                        <span class="badge badge-secondary px-2 py-1">{{ item.status or 'Open' }}</span>
+                    </td>
+                    <td>{{ item.handling_code or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        <i class="fas fa-inbox fa-2x d-block mb-2" style="opacity:0.3;"></i>
+                        No work orders found for this sales order.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if items %}
+    <div class="text-center mt-3">
+        <button type="submit" class="kiosk-btn kiosk-btn-primary">
+            <i class="fas fa-play mr-2"></i>Start Selected Work Orders
+        </button>
+    </div>
+    {% endif %}
+</form>
+
+<div class="text-center mt-3">
+    <a href="{{ url_for('main.kiosk_work_order_scan', branch=kiosk_branch, user_id=user.id) }}"
+       class="text-muted font-weight-bold" style="font-size:1.1rem;">
+        <i class="fas fa-arrow-left mr-1"></i> Scan Another SO
+    </a>
+</div>
+{% endblock %}

@@ -1,160 +1,22 @@
-from datetime import date, datetime, timedelta
+"""Route planning, driver roster, truck assignments, and KPI endpoints."""
 
-from flask import Blueprint, jsonify, render_template, request, send_file, session
-
-from app.Services.dispatch_service import DispatchService
-from app.Services.erp_service import ERPService
-from app.Services.samsara_service import SamsaraService
-
-dispatch = Blueprint("dispatch", __name__, url_prefix="/dispatch")
-dispatch_service = DispatchService()
-erp_service = ERPService()
-samsara_service = SamsaraService()
-
-
-def _add_business_days(start_date: date, days: int) -> date:
-    result = start_date
-    sign = 1 if days >= 0 else -1
-    remaining = abs(days)
-    while remaining > 0:
-        result += timedelta(days=sign)
-        if result.weekday() < 5:  # Mon-Fri
-            remaining -= 1
-    return result
-
-
-def _parse_iso_date(value: str, fallback: date) -> date:
-    try:
-        return datetime.fromisoformat(value).date()
-    except Exception:
-        return fallback
-
-
-@dispatch.get("/")
-def index():
-    return render_template("dispatch/index.html")
-
-
-@dispatch.get("/api/health")
-def health():
-    return jsonify(
-        {
-            "ok": True,
-            "time_utc": datetime.utcnow().isoformat() + "Z",
-            "using_cloud_mirror": True,
-            "legacy_erp_fallback_enabled": erp_service.allow_legacy_erp_fallback,
-        }
-    )
-
-
-@dispatch.get("/api/branches")
-def branches():
-    return jsonify(dispatch_service.get_branch_choices())
-
-
-@dispatch.get("/api/stops")
-def stops():
-    today = date.today()
-    default_start = _add_business_days(today, -7)
-    default_end = _add_business_days(today, 1)
-    start = _parse_iso_date(request.args.get("start", default_start.isoformat()), default_start)
-    end = _parse_iso_date(request.args.get("end", default_end.isoformat()), default_end)
-    statuses = request.args.get("status")
-    branch = request.args.get("branch")
-    sale_types = request.args.get("sale_types")
-    route_id = request.args.get("route_id")
-    driver = request.args.get("driver")
-    debug_mode = request.args.get("debug", "").lower() in ("1", "true", "yes", "y")
-
-    rows = erp_service.get_dispatch_stops(
-        start=start,
-        end=end,
-        sale_types=sale_types,
-        status_filter=statuses,
-        route_id=route_id,
-        driver=driver,
-        include_no_gps=True,
-        branches=branch,
-    )
-    return jsonify(rows)
-
-
-@dispatch.get("/api/orders/<int:so_id>/lines")
-def shipment_lines(so_id: int):
-    shipment_num = request.args.get("shipment_num")
-    shipment_value = int(shipment_num) if shipment_num not in (None, "", "null") else None
-    lines = erp_service.get_dispatch_shipment_lines(so_id, shipment_value, limit=200)
-    return jsonify(lines)
-
-
-@dispatch.post("/api/manifest")
-def manifest():
-    payload = request.get_json(silent=True) or {}
-    items = payload.get("items") or []
-    if not isinstance(items, list) or not (1 <= len(items) <= 10):
-        return jsonify({"error": "Provide between 1 and 10 items."}), 400
-    pdf_buffer = dispatch_service.generate_manifest_pdf(items)
-    return send_file(
-        pdf_buffer,
-        mimetype="application/pdf",
-        as_attachment=True,
-        download_name="dispatch-manifest.pdf",
-    )
-
-
-@dispatch.get("/api/vehicles/live")
-def live_vehicles():
-    branch = request.args.get("branch")
-    limit = request.args.get("limit", type=int)
-    payload = samsara_service.get_dispatch_vehicle_payload(branch=branch, limit=limit)
-    return jsonify(payload)
+from datetime import date
+from flask import jsonify, request, session
+from app.Routes.dispatch import dispatch_bp
+from app.Routes.dispatch.helpers import (
+    _parse_iso_date, dispatch_service, samsara_service,
+)
 
 
 def _current_user_id():
     return session.get("user_id")
 
 
-def _parse_stops_params():
-    """Parse common date/branch/filter params used by stops endpoints."""
-    today = date.today()
-    default_start = _add_business_days(today, -7)
-    default_end = _add_business_days(today, 1)
-    return {
-        "start": _parse_iso_date(request.args.get("start", default_start.isoformat()), default_start),
-        "end": _parse_iso_date(request.args.get("end", default_end.isoformat()), default_end),
-        "status_filter": request.args.get("status"),
-        "branch": request.args.get("branch"),
-        "sale_types": request.args.get("sale_types"),
-        "route_id": request.args.get("route_id"),
-        "driver": request.args.get("driver"),
-    }
-
-
-# ------------------------------------------------------------------
-# Enriched Stops
-# ------------------------------------------------------------------
-
-@dispatch.get("/api/stops/enriched")
-def enriched_stops():
-    p = _parse_stops_params()
-    rows = erp_service.get_enriched_dispatch_stops(
-        start=p["start"],
-        end=p["end"],
-        sale_types=p["sale_types"],
-        status_filter=p["status_filter"],
-        route_id=p["route_id"],
-        driver=p["driver"],
-        include_no_gps=True,
-        branches=p["branch"],
-    )
-    return jsonify(rows)
-
-
 # ------------------------------------------------------------------
 # KPIs
 # ------------------------------------------------------------------
 
-@dispatch.get("/api/kpis")
+@dispatch_bp.get("/api/kpis")
 def kpis():
     today = date.today()
     kpi_date = _parse_iso_date(request.args.get("date", today.isoformat()), today)
@@ -167,7 +29,7 @@ def kpis():
 # Routes CRUD
 # ------------------------------------------------------------------
 
-@dispatch.get("/api/routes")
+@dispatch_bp.get("/api/routes")
 def list_routes():
     today = date.today()
     route_date = _parse_iso_date(request.args.get("date", today.isoformat()), today)
@@ -176,7 +38,7 @@ def list_routes():
     return jsonify(routes)
 
 
-@dispatch.post("/api/routes")
+@dispatch_bp.post("/api/routes")
 def create_route():
     payload = request.get_json(silent=True) or {}
     route_date = _parse_iso_date(payload.get("route_date", ""), date.today())
@@ -196,7 +58,7 @@ def create_route():
     return jsonify(route), 201
 
 
-@dispatch.put("/api/routes/<int:route_id>")
+@dispatch_bp.put("/api/routes/<int:route_id>")
 def update_route(route_id):
     payload = request.get_json(silent=True) or {}
     route = dispatch_service.update_route(route_id, **payload)
@@ -205,7 +67,7 @@ def update_route(route_id):
     return jsonify(route)
 
 
-@dispatch.delete("/api/routes/<int:route_id>")
+@dispatch_bp.delete("/api/routes/<int:route_id>")
 def delete_route(route_id):
     ok = dispatch_service.delete_route(route_id)
     if not ok:
@@ -217,7 +79,7 @@ def delete_route(route_id):
 # Route Stops
 # ------------------------------------------------------------------
 
-@dispatch.post("/api/routes/<int:route_id>/stops")
+@dispatch_bp.post("/api/routes/<int:route_id>/stops")
 def add_route_stops(route_id):
     payload = request.get_json(silent=True) or {}
     stop_defs = payload.get("stops") or []
@@ -229,7 +91,7 @@ def add_route_stops(route_id):
     return jsonify(stops), 201
 
 
-@dispatch.put("/api/routes/<int:route_id>/stops/reorder")
+@dispatch_bp.put("/api/routes/<int:route_id>/stops/reorder")
 def reorder_route_stops(route_id):
     payload = request.get_json(silent=True) or {}
     ordered_ids = payload.get("stop_ids") or []
@@ -239,7 +101,7 @@ def reorder_route_stops(route_id):
     return jsonify({"ok": True})
 
 
-@dispatch.delete("/api/routes/<int:route_id>/stops/<int:stop_id>")
+@dispatch_bp.delete("/api/routes/<int:route_id>/stops/<int:stop_id>")
 def remove_route_stop(route_id, stop_id):
     ok = dispatch_service.remove_stop(route_id, stop_id)
     if not ok:
@@ -251,14 +113,14 @@ def remove_route_stop(route_id, stop_id):
 # Drivers
 # ------------------------------------------------------------------
 
-@dispatch.get("/api/drivers")
+@dispatch_bp.get("/api/drivers")
 def list_drivers():
     branch = request.args.get("branch")
     drivers = dispatch_service.get_drivers(branch)
     return jsonify(drivers)
 
 
-@dispatch.post("/api/drivers")
+@dispatch_bp.post("/api/drivers")
 def create_driver():
     payload = request.get_json(silent=True) or {}
     name = (payload.get("name") or "").strip()
@@ -274,7 +136,7 @@ def create_driver():
     return jsonify(driver), 201
 
 
-@dispatch.put("/api/drivers/<int:driver_id>")
+@dispatch_bp.put("/api/drivers/<int:driver_id>")
 def update_driver(driver_id):
     payload = request.get_json(silent=True) or {}
     driver = dispatch_service.update_driver(driver_id, **payload)
@@ -283,7 +145,7 @@ def update_driver(driver_id):
     return jsonify(driver)
 
 
-@dispatch.post("/api/drivers/seed-from-erp")
+@dispatch_bp.post("/api/drivers/seed-from-erp")
 def seed_drivers():
     branch = request.args.get("branch")
     created = dispatch_service.seed_drivers_from_erp(branch)
@@ -294,7 +156,7 @@ def seed_drivers():
 # Truck Assignments
 # ------------------------------------------------------------------
 
-@dispatch.get("/api/trucks")
+@dispatch_bp.get("/api/trucks")
 def list_trucks():
     today = date.today()
     assignment_date = _parse_iso_date(
@@ -308,7 +170,6 @@ def list_trucks():
     vehicle_list = vehicles.get("vehicles") or []
 
     # Build merged list: Samsara vehicles + their assignments
-    assigned_ids = {a["samsara_vehicle_id"] for a in assignments}
     assign_map = {a["samsara_vehicle_id"]: a for a in assignments}
 
     merged = []
@@ -321,8 +182,9 @@ def list_trucks():
         })
 
     # Include assignments for vehicles not in current Samsara response
+    seen_ids = {v.get("id") or v.get("name") for v in vehicle_list}
     for a in assignments:
-        if a["samsara_vehicle_id"] not in {v.get("id") or v.get("name") for v in vehicle_list}:
+        if a["samsara_vehicle_id"] not in seen_ids:
             merged.append({
                 "id": a["samsara_vehicle_id"],
                 "name": a["samsara_vehicle_name"],
@@ -333,7 +195,7 @@ def list_trucks():
     return jsonify({"trucks": merged, "assignments": assignments})
 
 
-@dispatch.post("/api/trucks/assignments")
+@dispatch_bp.post("/api/trucks/assignments")
 def upsert_truck_assignment():
     payload = request.get_json(silent=True) or {}
     assignment_date = _parse_iso_date(
@@ -355,7 +217,7 @@ def upsert_truck_assignment():
     return jsonify(assignment)
 
 
-@dispatch.put("/api/trucks/assignments/<int:assignment_id>")
+@dispatch_bp.put("/api/trucks/assignments/<int:assignment_id>")
 def update_truck_assignment(assignment_id):
     from app.Models.dispatch_models import DispatchTruckAssignment
     from app.extensions import db
@@ -372,7 +234,7 @@ def update_truck_assignment(assignment_id):
     return jsonify(assignment.to_dict())
 
 
-@dispatch.post("/api/trucks/assignments/copy-previous")
+@dispatch_bp.post("/api/trucks/assignments/copy-previous")
 def copy_previous_assignments():
     payload = request.get_json(silent=True) or {}
     target_date = _parse_iso_date(
@@ -385,25 +247,3 @@ def copy_previous_assignments():
         target_date, branch, _current_user_id()
     )
     return jsonify({"copied": len(created), "assignments": created})
-
-
-# ------------------------------------------------------------------
-# Order Detail Helpers (customer AR, work orders, timeline)
-# ------------------------------------------------------------------
-
-@dispatch.get("/api/customers/<cust_key>/summary")
-def customer_summary(cust_key):
-    ar = erp_service.get_customer_ar_summary(cust_key)
-    return jsonify(ar)
-
-
-@dispatch.get("/api/orders/<so_id>/timeline")
-def order_timeline(so_id):
-    events = erp_service.get_order_timeline(so_id)
-    return jsonify(events)
-
-
-@dispatch.get("/api/orders/<so_id>/work-orders")
-def order_work_orders(so_id):
-    wos = erp_service.get_order_work_orders(so_id)
-    return jsonify(wos)

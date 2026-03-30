@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+{% block title %}Sales Transactions{% endblock %}
+
+{% block head %}
+<style>
+/* View cards */
+.txn-view-card {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.txn-view-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-color: rgba(0,69,38,0.25);
+}
+.txn-view-card--active {
+    border-color: var(--beisser-green, #004526);
+    box-shadow: 0 4px 15px rgba(0,69,38,0.18);
+    background: rgba(0,69,38,0.06);
+}
+
+.txn-view-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+.txn-view-icon--success  { background: rgba(40,167,69,0.12); color: #28a745; }
+.txn-view-icon--primary  { background: rgba(0,69,38,0.12); color: #004526; }
+.txn-view-icon--info     { background: rgba(23,162,184,0.12); color: #17a2b8; }
+.txn-view-icon--warning  { background: rgba(255,193,7,0.15); color: #d39e00; }
+.txn-view-icon--danger   { background: rgba(220,53,69,0.12); color: #dc3545; }
+.txn-view-icon--teal     { background: rgba(32,201,151,0.12); color: #20c997; }
+.txn-view-icon--secondary{ background: rgba(108,117,125,0.12); color: #6c757d; }
+
+/* Agent role dots */
+.txn-role-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-left: 3px;
+}
+.txn-role-dot--acct_rep { background: #004526; }
+.txn-role-dot--writer   { background: #17a2b8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 pb-5 px-lg-5">
+
+    <!-- Header + Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb bg-transparent px-0 mb-2">
+            <li class="breadcrumb-item"><a href="{{ url_for('sales.hub') }}">Sales Hub</a></li>
+            <li class="breadcrumb-item active">Transactions</li>
+        </ol>
+    </nav>
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+        <div>
+            <h2 class="font-weight-bold mb-0">Sales Transactions</h2>
+            <p class="text-muted mb-0">Search, filter, and act on orders across all statuses</p>
+        </div>
+    </div>
+
+    <!-- Quick View Cards -->
+    {% if user_rep_id %}
+    <div class="mb-2">
+        <div class="small text-muted font-weight-bold text-uppercase mb-2" style="letter-spacing:0.05em;">My Orders</div>
+        <div class="row">
+            {% for vk, vp in view_presets.items() if vp.section == 'my' %}
+            <div class="col-lg col-md-4 col-6 mb-3">
+                <a href="{{ url_for('sales.transactions', view=vk) }}"
+                   class="d-block text-decoration-none txn-view-card{% if active_view == vk %} txn-view-card--active{% endif %}">
+                    <div class="d-flex align-items-center">
+                        <div class="txn-view-icon txn-view-icon--{{ vp.color }}">
+                            <i class="fas {{ vp.icon }}"></i>
+                        </div>
+                        <div class="ml-2">
+                            <div class="font-weight-bold text-dark" style="font-size:0.85rem;line-height:1.2;">{{ vp.label }}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">{{ vp.sublabel }}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mb-4">
+        <div class="small text-muted font-weight-bold text-uppercase mb-2" style="letter-spacing:0.05em;">Branch Views</div>
+        <div class="row">
+            {% for vk, vp in view_presets.items() if vp.section == 'branch' %}
+            <div class="col-lg col-md-4 col-6 mb-3">
+                <a href="{{ url_for('sales.transactions', view=vk) }}"
+                   class="d-block text-decoration-none txn-view-card{% if active_view == vk %} txn-view-card--active{% endif %}">
+                    <div class="d-flex align-items-center">
+                        <div class="txn-view-icon txn-view-icon--{{ vp.color }}">
+                            <i class="fas {{ vp.icon }}"></i>
+                        </div>
+                        <div class="ml-2">
+                            <div class="font-weight-bold text-dark" style="font-size:0.85rem;line-height:1.2;">{{ vp.label }}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">{{ vp.sublabel }}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Custom Filter Bar (hidden when a quick view is active) -->
+    {% if not active_view %}
+    <div class="glass-card p-4 border-0 mb-4">
+        <div class="d-flex align-items-center mb-3">
+            <span class="small font-weight-bold text-muted text-uppercase" style="letter-spacing:0.05em;">Custom Search</span>
+        </div>
+        <form method="GET" id="txnFilterForm">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <label class="small font-weight-bold text-muted">Search</label>
+                    <input type="text" name="q" class="form-control" placeholder="SO#, customer, PO#, reference..." value="{{ q }}" id="txnSearchInput">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="small font-weight-bold text-muted">Status</label>
+                    <select name="status" class="form-control">
+                        <option value="" {% if not status %}selected{% endif %}>Open (default)</option>
+                        <option value="O" {% if status == 'O' %}selected{% endif %}>Open</option>
+                        <option value="I" {% if status == 'I' %}selected{% endif %}>Invoiced</option>
+                        <option value="C" {% if status == 'C' %}selected{% endif %}>Closed</option>
+                        <option value="I,C" {% if status == 'I,C' %}selected{% endif %}>Invoiced & Closed</option>
+                        <option value="H" {% if status == 'H' %}selected{% endif %}>On Hold</option>
+                        <option value="O,I,C,H" {% if status == 'O,I,C,H' %}selected{% endif %}>All Statuses</option>
+                    </select>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="small font-weight-bold text-muted">Date From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="small font-weight-bold text-muted">Date To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                </div>
+                <div class="col-md-3 mb-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-ops-primary mr-2">
+                        <i class="fas fa-search mr-1"></i> Search
+                    </button>
+                    <a href="{{ url_for('sales.transactions') }}" class="btn btn-outline-secondary">Reset</a>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-3 mb-2">
+                    <label class="small font-weight-bold text-muted">Sales Agent</label>
+                    <div class="position-relative" id="salespersonDropdown">
+                        <input type="text" class="form-control" id="salespersonSearch" placeholder="Type to search..."
+                               value="{{ filter_salesperson }}" autocomplete="off">
+                        <input type="hidden" name="salesperson" id="salespersonValue" value="{{ filter_salesperson }}">
+                        <div class="dropdown-menu w-100" id="salespersonList" style="max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <label class="small font-weight-bold text-muted">Customer</label>
+                    <div class="position-relative" id="customerDropdown">
+                        <input type="text" class="form-control" id="customerSearch" placeholder="Name, code, or address..."
+                               value="{{ filter_customer }}" autocomplete="off">
+                        <input type="hidden" name="customer_code" id="customerValue" value="{{ filter_customer }}">
+                        <div class="dropdown-menu w-100" id="customerList" style="max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-2" id="shiptoContainer" style="{% if not filter_customer %}display:none{% endif %}">
+                    <label class="small font-weight-bold text-muted">Ship-To Location</label>
+                    <div class="position-relative" id="shiptoDropdown">
+                        <input type="text" class="form-control" id="shiptoSearch" placeholder="All locations (type to filter)..."
+                               value="{{ filter_shipto }}" autocomplete="off">
+                        <input type="hidden" name="shipto_seq" id="shiptoValue" value="{{ filter_shipto }}">
+                        <div class="dropdown-menu w-100" id="shiptoList" style="max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                </div>
+            </div>
+            {% if my_orders %}
+            <input type="hidden" name="my_orders" value="1">
+            {% endif %}
+        </form>
+    </div>
+    {% else %}
+    <div class="mb-4">
+        <span class="badge badge-pill px-3 py-2" style="background:var(--beisser-green);color:#fff;font-size:0.85rem;">
+            <i class="fas {{ view_presets[active_view].icon }} mr-1"></i>
+            Viewing: {{ view_presets[active_view].label }} &mdash; {{ view_presets[active_view].sublabel }}
+        </span>
+        <a href="{{ url_for('sales.transactions') }}" class="btn btn-sm btn-outline-secondary ml-2">
+            <i class="fas fa-times mr-1"></i> Clear View
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Status Summary Bar -->
+    {% if orders %}
+    <div class="d-flex flex-wrap mb-3 align-items-center">
+        <span class="mr-3 small text-muted">
+            <strong>{{ orders|length }}{% if has_next %}+{% endif %}</strong> results
+            {% if page > 1 %} &mdash; page {{ page }}{% endif %}
+        </span>
+        {% for s_code, s_count in status_counts.items() %}
+        <span class="mr-3 small">
+            {% if s_code == 'O' %}<span class="badge badge-success">Open</span>
+            {% elif s_code == 'I' %}<span class="badge badge-info">Invoiced</span>
+            {% elif s_code == 'C' %}<span class="badge badge-secondary">Closed</span>
+            {% elif s_code == 'H' %}<span class="badge badge-warning">Hold</span>
+            {% else %}<span class="badge badge-light">{{ s_code }}</span>{% endif %}
+            {{ s_count }}
+        </span>
+        {% endfor %}
+        {% if user_rep_id %}
+        <span class="ml-auto small text-muted">
+            <span class="txn-role-dot txn-role-dot--acct_rep"></span> Acct Rep
+            <span class="txn-role-dot txn-role-dot--writer ml-2"></span> Writer
+        </span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Results Table -->
+    <div class="glass-card border-0 p-0">
+        {% if orders %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="txnTable">
+                <thead class="thead-light">
+                    <tr class="small text-uppercase text-muted">
+                        <th>SO #</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Expect Date</th>
+                        {% if active_view == 'my_shipped_2d' %}<th>Ship Date</th>{% endif %}
+                        {% if active_view == 'my_invoiced_5d' %}<th>Invoice Date</th>{% endif %}
+                        <th>PO #</th>
+                        <th>Sale Type</th>
+                        <th>Ship Via</th>
+                        <th>Agent</th>
+                        <th class="text-center">Lines</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for o in orders %}
+                    <tr>
+                        <td class="font-weight-bold">
+                            {{ o.so_number }}
+                            {% if o.agent_role == 'acct_rep' or o.agent_role == 'both' %}
+                            <span class="txn-role-dot txn-role-dot--acct_rep" title="You are Acct Rep"></span>
+                            {% endif %}
+                            {% if o.agent_role == 'writer' or o.agent_role == 'both' %}
+                            <span class="txn-role-dot txn-role-dot--writer" title="You are Order Writer"></span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if o.customer_code %}
+                            <a href="{{ url_for('sales.customer_profile', customer_number=o.customer_code) }}" class="text-dark">
+                                {{ o.customer_name[:30] }}{% if o.customer_name|length > 30 %}...{% endif %}
+                            </a>
+                            <div class="small text-muted">{{ o.customer_code }}</div>
+                            {% else %}
+                            {{ o.customer_name }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if o.so_status == 'O' %}
+                            <span class="badge badge-success">Open</span>
+                            {% elif o.so_status == 'I' %}
+                            <span class="badge badge-info">Invoiced</span>
+                            {% elif o.so_status == 'C' %}
+                            <span class="badge badge-secondary">Closed</span>
+                            {% elif o.so_status == 'H' %}
+                            <span class="badge badge-warning">Hold</span>
+                            {% else %}
+                            <span class="badge badge-light">{{ o.so_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ o.expect_date_display }}</td>
+                        {% if active_view == 'my_shipped_2d' %}<td class="small">{{ o.ship_date_display }}</td>{% endif %}
+                        {% if active_view == 'my_invoiced_5d' %}<td class="small">{{ o.invoice_date_display }}</td>{% endif %}
+                        <td class="small">{{ o.po_number }}</td>
+                        <td class="small">{{ o.sale_type }}</td>
+                        <td class="small">{{ o.ship_via }}</td>
+                        <td class="small">
+                            {% if o.salesperson %}{{ o.salesperson }}{% endif %}
+                            {% if o.order_writer and o.order_writer != o.salesperson %}
+                            <span class="text-muted">/ {{ o.order_writer }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ o.line_count }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                {% if o.customer_code %}
+                                <a href="{{ url_for('sales.customer_profile', customer_number=o.customer_code) }}" class="btn btn-outline-secondary btn-sm" title="Customer Workspace">
+                                    <i class="fas fa-user"></i>
+                                </a>
+                                <a href="{{ url_for('sales.history', customer_number=o.customer_code) }}" class="btn btn-outline-secondary btn-sm" title="Purchase History">
+                                    <i class="fas fa-history"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page > 1 or has_next %}
+        <div class="p-3 d-flex justify-content-between align-items-center border-top">
+            {% if page > 1 %}
+            <a href="{{ url_for('sales.transactions', view=active_view, q=q, status=status, date_from=date_from, date_to=date_to, salesperson=filter_salesperson, customer_code=filter_customer, shipto_seq=filter_shipto, page=page-1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-chevron-left mr-1"></i> Previous
+            </a>
+            {% else %}
+            <span></span>
+            {% endif %}
+            <span class="small text-muted">Page {{ page }}</span>
+            {% if has_next %}
+            <a href="{{ url_for('sales.transactions', view=active_view, q=q, status=status, date_from=date_from, date_to=date_to, salesperson=filter_salesperson, customer_code=filter_customer, shipto_seq=filter_shipto, page=page+1, my_orders=my_orders) }}" class="btn btn-sm btn-outline-secondary">
+                Next <i class="fas fa-chevron-right ml-1"></i>
+            </a>
+            {% else %}
+            <span></span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center p-5 text-muted">
+            <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
+            {% if active_view %}
+            <p class="mb-1">No orders found for this view.</p>
+            <a href="{{ url_for('sales.transactions') }}" class="small">Clear view</a>
+            {% elif q or status or date_from or date_to or filter_salesperson or filter_customer %}
+            <p class="mb-1">No transactions match your filters.</p>
+            <a href="{{ url_for('sales.transactions') }}" class="small">Clear all filters</a>
+            {% else %}
+            <p class="mb-1">Select a view above or use the search filters.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    // --- Searchable dropdown helper ---
+    function initSearchDropdown(inputId, hiddenId, listId, fetchUrl, opts) {
+        var input = document.getElementById(inputId);
+        var hidden = document.getElementById(hiddenId);
+        var list = document.getElementById(listId);
+        if (!input || !hidden || !list) return;
+
+        var items = [];
+        var loaded = false;
+        var isRemote = opts && opts.remote;
+        var useSearchField = opts && opts.useSearchField;
+        var debounceTimer = null;
+        var onSelect = (opts && opts.onSelect) || function(){};
+        var onClear = (opts && opts.onClear) || function(){};
+
+        function renderItems(filter) {
+            list.innerHTML = '';
+            var lc = (filter || '').toLowerCase();
+            var matches = items.filter(function(it) {
+                if (!lc) return true;
+                if (useSearchField && it.search) return it.search.indexOf(lc) !== -1;
+                return it.label.toLowerCase().indexOf(lc) !== -1 || it.id.toLowerCase().indexOf(lc) !== -1;
+            });
+            if (matches.length === 0) {
+                list.innerHTML = '<span class="dropdown-item text-muted small">No results</span>';
+            }
+            matches.slice(0, 50).forEach(function(it) {
+                var a = document.createElement('a');
+                a.className = 'dropdown-item small';
+                a.href = '#';
+                a.textContent = it.label;
+                a.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    input.value = it.label;
+                    hidden.value = it.id;
+                    list.classList.remove('show');
+                    onSelect(it);
+                });
+                list.appendChild(a);
+            });
+            if (hidden.value) {
+                var clearEl = document.createElement('a');
+                clearEl.className = 'dropdown-item small text-danger';
+                clearEl.href = '#';
+                clearEl.textContent = 'Clear selection';
+                clearEl.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    input.value = '';
+                    hidden.value = '';
+                    list.classList.remove('show');
+                    onClear();
+                });
+                list.insertBefore(clearEl, list.firstChild);
+            }
+            list.classList.add('show');
+        }
+
+        function fetchAndRender(q) {
+            var url = fetchUrl + (fetchUrl.indexOf('?') === -1 ? '?' : '&') + 'q=' + encodeURIComponent(q || '');
+            fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+                items = data;
+                renderItems(q);
+            });
+        }
+
+        function loadAndRender(filter) {
+            var url = typeof fetchUrl === 'function' ? fetchUrl() : fetchUrl;
+            if (!url) return;
+            fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+                items = data;
+                loaded = true;
+                renderItems(filter);
+            });
+        }
+
+        // Public reload (for ship-to when customer changes)
+        input._reloadDropdown = function(newUrl) {
+            fetchUrl = newUrl;
+            loaded = false;
+            items = [];
+        };
+
+        input.addEventListener('focus', function() {
+            if (isRemote) {
+                if (input.value.length >= 1) fetchAndRender(input.value);
+            } else {
+                if (!loaded) {
+                    loadAndRender(input.value);
+                } else {
+                    renderItems(input.value);
+                }
+            }
+        });
+
+        input.addEventListener('input', function() {
+            hidden.value = '';
+            if (isRemote) {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function() {
+                    if (input.value.length >= 1) fetchAndRender(input.value);
+                    else list.classList.remove('show');
+                }, 250);
+            } else {
+                if (!loaded) loadAndRender(input.value);
+                else renderItems(input.value);
+            }
+        });
+
+        input.addEventListener('blur', function() {
+            setTimeout(function() { list.classList.remove('show'); }, 200);
+        });
+    }
+
+    var shiptoContainer = document.getElementById('shiptoContainer');
+    var shiptoSearch = document.getElementById('shiptoSearch');
+    var shiptoValue = document.getElementById('shiptoValue');
+
+    function showShiptoForCustomer(custCode) {
+        if (!shiptoContainer) return;
+        if (!custCode) {
+            shiptoContainer.style.display = 'none';
+            if (shiptoSearch) { shiptoSearch.value = ''; }
+            if (shiptoValue) { shiptoValue.value = ''; }
+            return;
+        }
+        shiptoContainer.style.display = '';
+        if (shiptoSearch && shiptoSearch._reloadDropdown) {
+            shiptoSearch._reloadDropdown('{{ url_for("sales.api_customer_shipto", customer_code="__CC__") }}'.replace('__CC__', encodeURIComponent(custCode)));
+        }
+    }
+
+    initSearchDropdown('salespersonSearch', 'salespersonValue', 'salespersonList',
+        '{{ url_for("sales.api_salespeople") }}');
+
+    initSearchDropdown('customerSearch', 'customerValue', 'customerList',
+        '{{ url_for("sales.api_customer_list") }}', {
+            remote: true,
+            onSelect: function(item) { showShiptoForCustomer(item.id); },
+            onClear: function() { showShiptoForCustomer(''); }
+        });
+
+    initSearchDropdown('shiptoSearch', 'shiptoValue', 'shiptoList',
+        function() { return null; }, {useSearchField: true});
+
+    // Init ship-to if customer is pre-selected
+    var initCust = document.getElementById('customerValue');
+    if (initCust && initCust.value) {
+        showShiptoForCustomer(initCust.value);
+    }
+})();
+</script>
+{% endblock %}

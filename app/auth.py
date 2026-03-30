@@ -30,6 +30,7 @@ SESSION_USER_EMAIL    = "user_email"     # e.g. "mschmit@beisserlumber.com"
 SESSION_USER_REP_ID   = "user_rep_id"   # ERP rep/employee ID e.g. "mschmit"
 SESSION_USER_NAME     = "user_display_name"
 SESSION_USER_ROLES    = "user_roles"     # list[str] — used by navigation.py
+SESSION_USER_BRANCH   = "user_branch"   # AppUser.branch e.g. "20GR" — used by PO module
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +52,7 @@ def get_current_user() -> dict | None:
         "user_id":      session.get(SESSION_USER_REP_ID, ""),   # ERP rep ID
         "display_name": session.get(SESSION_USER_NAME, ""),
         "roles":        session.get(SESSION_USER_ROLES, []),
+        "branch":       session.get(SESSION_USER_BRANCH, ""),
     }
 
 

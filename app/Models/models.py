@@ -1,3 +1,5 @@
+import uuid as _uuid
+
 from app.extensions import db
 from datetime import datetime  # If you're using datetime for the DateTime columns
 
@@ -7,6 +9,7 @@ class Pickster(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), unique=True, nullable=False)
     user_type = db.Column(db.String(50), default='picker') # 'picker', 'door_builder', etc.
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
     picks = db.relationship('Pick', backref='pickster', lazy=True)
     # 'picks' establishes a relationship to the Pick model, with a back-reference to 'pickster'
     # 'lazy=True' specifies that the related objects are loaded as necessary
@@ -21,6 +24,7 @@ class Pick(db.Model):
     picker_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=False)
     pick_type_id = db.Column(db.Integer, db.ForeignKey('PickTypes.pick_type_id'))
     notes = db.Column(db.Text)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
 
 class PickTypes(db.Model):
     __tablename__ = 'PickTypes'
@@ -65,6 +69,7 @@ class WorkOrderAssignment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
 
     assigned_to = db.relationship('Pickster', foreign_keys=[assigned_to_id], backref=db.backref('wo_assignments', lazy=True))
     completed_by = db.relationship('Pickster', foreign_keys=[completed_by_id], backref=db.backref('completed_wo_assignments', lazy=True))
@@ -82,7 +87,8 @@ class PickAssignment(db.Model):
     handling_code = db.Column(db.String(50), nullable=True) # Optional: Assign per code?
     picker_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=False)
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+
     picker = db.relationship('Pickster', backref=db.backref('assignments', lazy=True))
 
 
@@ -100,6 +106,7 @@ class AuditEvent(db.Model):
     entity_id = db.Column(db.Integer)
     so_number = db.Column(db.String(128), index=True)
     actor_id = db.Column(db.Integer, db.ForeignKey('pickster.id'), nullable=True)
+    actor = db.relationship('Pickster', backref=db.backref('audit_events', lazy=True))
     notes = db.Column(db.Text)
     occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
@@ -122,6 +129,8 @@ class AppUser(db.Model):
     phone = db.Column(db.String(32), nullable=True)
     # JSON array of role strings e.g. ["sales", "ops"]
     roles = db.Column(db.JSON, nullable=False, default=list)
+    # Home branch code e.g. "20GR" — used for PO module scoping. NULL = all branches.
+    branch = db.Column(db.String(16), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
@@ -135,6 +144,35 @@ class AppUser(db.Model):
         return f'<AppUser {self.email}>'
 
 
+class POSubmission(db.Model):
+    """PO check-in submission — records a warehouse worker photographing received goods."""
+    __tablename__ = 'po_submissions'
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(_uuid.uuid4()))
+    po_number = db.Column(db.Text, nullable=False)
+    image_urls = db.Column(db.JSON, nullable=False, default=list)
+    supplier_name = db.Column(db.Text, nullable=True)
+    supplier_key = db.Column(db.Text, nullable=True)
+    po_status = db.Column(db.Text, nullable=True)     # ERP status at submission time
+    notes = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending/reviewed/flagged
+    submitted_by = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    submitted_username = db.Column(db.Text, nullable=True)  # denormalized — name at submit time
+    branch = db.Column(db.Text, nullable=True)              # denormalized from AppUser.branch
+    reviewer_notes = db.Column(db.Text, nullable=True)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    reviewed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    submitter = db.relationship('AppUser', foreign_keys=[submitted_by],
+                                backref=db.backref('po_submissions_submitted', lazy=True))
+    reviewer_user = db.relationship('AppUser', foreign_keys=[reviewed_by],
+                                    backref=db.backref('po_submissions_reviewed', lazy=True))
+
+    def __repr__(self):
+        return f'<POSubmission {self.id} PO={self.po_number} status={self.status}>'
+
+
 class OTPCode(db.Model):
     """Short-lived one-time passcode sent to a user's email (or phone in phase 2)."""
     __tablename__ = 'otp_codes'
@@ -145,9 +183,6 @@ class OTPCode(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False, nullable=False, index=True)
-
-    actor = db.relationship('Pickster', backref=db.backref('audit_events', lazy=True))
-
 
 class ERPSyncState(db.Model):
     __tablename__ = 'erp_sync_state'
@@ -309,6 +344,7 @@ class ERPMirrorSalesOrderHeader(db.Model, MirrorSyncMetadataMixin):
     ship_via = db.Column(db.String(128), nullable=True)
     terms = db.Column(db.String(64), nullable=True)
     salesperson = db.Column(db.String(64), nullable=True)
+    order_writer = db.Column(db.String(64), nullable=True)
     po_number = db.Column(db.String(128), nullable=True)
     branch_code = db.Column(db.String(32), nullable=True, index=True)
     __table_args__ = (
@@ -491,6 +527,41 @@ class CustomerNote(db.Model):
     body            = db.Column(db.Text, nullable=False)
     rep_name        = db.Column(db.String(128))
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+# -------------------------------------------------------------------
+# File Storage — Polymorphic file attachments backed by R2
+# Files can be attached to any entity type (rma, bid, takeoff, job, etc.)
+# -------------------------------------------------------------------
+
+class File(db.Model):
+    __tablename__ = 'files'
+    id                = db.Column(db.Integer, primary_key=True)
+    entity_type       = db.Column(db.String(50), nullable=False, index=True)   # 'rma', 'bid', 'takeoff', 'job'
+    entity_id         = db.Column(db.String(100), nullable=False, index=True)  # e.g. RMA number, bid ID
+    category          = db.Column(db.String(50))                               # 'plan', 'markup', 'quote', 'photo', 'receipt'
+    original_filename = db.Column(db.String(512), nullable=False)
+    object_key        = db.Column(db.String(1024), nullable=False)             # R2 bucket key
+    mime_type         = db.Column(db.String(128))
+    size_bytes        = db.Column(db.BigInteger)
+    uploaded_by       = db.Column(db.String(128))
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    is_deleted        = db.Column(db.Boolean, default=False, index=True)
+
+    versions = db.relationship('FileVersion', backref='file', lazy='dynamic',
+                               order_by='FileVersion.version_number.desc()')
+
+
+class FileVersion(db.Model):
+    __tablename__ = 'file_versions'
+    id              = db.Column(db.Integer, primary_key=True)
+    file_id         = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=False, index=True)
+    version_number  = db.Column(db.Integer, nullable=False, default=1)
+    object_key      = db.Column(db.String(1024), nullable=False)
+    size_bytes      = db.Column(db.BigInteger)
+    change_note     = db.Column(db.String(512))
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by      = db.Column(db.String(128))
+
 
 # -------------------------------------------------------------------
 # Audit Trail / Sync Batch Metadata

@@ -1,16 +1,16 @@
 """Add dispatch planning tables (routes, stops, drivers, truck assignments)
 
-Revision ID: j4k5l6m7n8o9
-Revises: i3j4k5l6m7n8
-Create Date: 2026-03-29 00:00:00.000000
+Revision ID: m7n8o9p0q1r2
+Revises: l6m7n8o9p0q1
+Create Date: 2026-03-30 00:00:00.000000
 
 """
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = 'j4k5l6m7n8o9'
-down_revision = 'i3j4k5l6m7n8'
+revision = 'm7n8o9p0q1r2'
+down_revision = 'l6m7n8o9p0q1'
 branch_labels = None
 depends_on = None
 

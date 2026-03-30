@@ -3,15 +3,18 @@ import os
 from flask import Flask
 from flask_migrate import upgrade
 from .extensions import db, migrate
-from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, OTPCode, Pick, PickAssignment, PickTypes, Pickster, WorkOrder, WorkOrderAssignment  # noqa: F401
+from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, File, FileVersion, OTPCode, Pick, PickAssignment, PickTypes, Pickster, POSubmission, WorkOrder, WorkOrderAssignment  # noqa: F401
 from .Models.dispatch_models import DispatchRoute, DispatchRouteStop, DispatchDriver, DispatchTruckAssignment  # noqa: F401
-from .Routes.routes import main as main_blueprint
-from .Routes.dispatch_routes import dispatch as dispatch_blueprint
-from .Routes.sales_routes import sales as sales_blueprint
-from .Routes.auth_routes import auth as auth_blueprint
-from .runtime_settings import env_bool, get_database_url, is_fly_runtime, is_pooled_postgres_url
+from .Routes.main import main_bp as main_blueprint
+from .Routes.dispatch import dispatch_bp as dispatch_blueprint
+from .Routes.sales import sales_bp as sales_blueprint
+from .Routes.auth import auth_bp as auth_blueprint
+from .Routes.files import files as files_blueprint
+from .Routes.po_routes import po_bp as po_blueprint
+from .runtime_settings import env_bool, is_fly_runtime
 from .navigation import build_navigation, get_current_user_roles
 from .auth import get_current_user
+from .branch_utils import normalize_branch, sidebar_branch_choices, branch_label, expand_branch
 
 
 def _resolve_branched_alembic_state(app):
@@ -109,14 +112,25 @@ def create_app():
     app.register_blueprint(dispatch_blueprint)
     app.register_blueprint(sales_blueprint)
     app.register_blueprint(auth_blueprint)
+    app.register_blueprint(files_blueprint)
+    app.register_blueprint(po_blueprint)
 
     @app.context_processor
     def inject_navigation():
+        from flask import request, session
         current_roles = get_current_user_roles()
+
+        # Branch precedence: URL param > session > None
+        raw_branch = request.args.get("branch") or session.get("selected_branch") or ""
+        selected_branch = normalize_branch(raw_branch)
+
         return {
             "nav_sections": build_navigation(current_roles),
             "current_user_roles": current_roles,
             "current_user": get_current_user(),
+            "selected_branch": selected_branch,
+            "selected_branch_label": branch_label(selected_branch),
+            "branch_choices": sidebar_branch_choices(),
         }
 
     @app.before_request
@@ -139,14 +153,18 @@ def create_app():
         if not session.get("user_id"):
             return redirect(url_for("auth.login", next=request.url))
 
+    @app.route("/api/set-branch", methods=["POST"])
+    def api_set_branch():
+        from flask import jsonify, request, session
+        data = request.get_json(silent=True) or {}
+        raw = data.get("branch", "")
+        branch = normalize_branch(raw)
+        session["selected_branch"] = branch or ""
+        return jsonify({"ok": True, "branch": branch or "", "label": branch_label(branch)})
+
     fly_runtime = is_fly_runtime()
 
-    if app.config.get("VERCEL") or os.environ.get("VERCEL"):
-        primary_url = get_database_url()
-        if primary_url and not is_pooled_postgres_url(primary_url):
-            app.logger.warning("DATABASE_URL does not appear to be a pooled Postgres endpoint; burst traffic may exhaust connections.")
-
-    default_run_migrations = not (os.environ.get("VERCEL") or fly_runtime)
+    default_run_migrations = True
     run_migrations_on_start = env_bool("RUN_MIGRATIONS_ON_START", default_run_migrations)
     if run_migrations_on_start:
         with app.app_context():

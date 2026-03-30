@@ -1,92 +1,105 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container">
-    <h1 class="text-center">Open Picks</h1>
-    <div class="summary-box d-flex justify-content-around border p-3 mb-4" style="font-size: 1.2em; font-weight: bold;">
-        <p style="margin: 0; color: {{ 'green' if today_count > average_count else 'red' }}">
-            Picks completed today: {{ today_count }}
-        </p>
-        <p style="margin: 0;">
-            Will Calls today: {{ will_call_count }}
-        </p>
-        <p style="margin: 0;">
-            Daily Average: {{ average_count | round(0, 'common') }}
-        </p>
+<div class="container-fluid mt-4 pb-5 px-lg-5">
+    <div class="mb-4 animate-fade-in">
+        <h1 class="display-4 font-weight-bold mb-0 text-gradient">Open Picks</h1>
     </div>
-    <div class="row">
+
+    <div class="glass-card p-4 mb-4 animate-fade-in delay-1">
+        <div class="row text-center">
+            <div class="col-md-4 mb-3 mb-md-0">
+                <div class="stat-label">Picks Today</div>
+                <div class="h3 font-weight-bold text-primary mb-0" id="summaryToday">{{ today_count }}</div>
+            </div>
+            <div class="col-md-4 mb-3 mb-md-0">
+                <div class="stat-label">Will Calls Today</div>
+                <div class="h3 font-weight-bold text-success mb-0" id="summaryWillCalls">{{ will_call_count }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-label">Daily Average</div>
+                <div class="h3 font-weight-bold mb-0" style="color: var(--beisser-gold);" id="summaryAverage">{{ average_count | round(0, 'common') }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row animate-fade-in delay-2">
         <div class="col-md-6">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Order #</th>
-                        <th>Shpmt</th>
-                        <th>Picker</th>
-                        <th>Start Time</th>
-                        <th>Elapsed</th>
-                        <th>Type</th>
-                    </tr>
-                </thead>
-                <tbody id="picksTableBody1"></tbody>
-            </table>
+            <div class="glass-card">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Order #</th>
+                                <th>Shpmt</th>
+                                <th>Picker</th>
+                                <th>Start Time</th>
+                                <th>Elapsed</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="picksTableBody1"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
         <div class="col-md-6">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Order #</th>
-                        <th>Shpmt</th>
-                        <th>Picker</th>
-                        <th>Start Time</th>
-                        <th>Elapsed</th>
-                        <th>Type</th>
-                    </tr>
-                </thead>
-                <tbody id="picksTableBody2"></tbody>
-            </table>
+            <div class="glass-card">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Order #</th>
+                                <th>Shpmt</th>
+                                <th>Picker</th>
+                                <th>Start Time</th>
+                                <th>Elapsed</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="picksTableBody2"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     function fetchData() {
-        fetch('/api/pickers_picks')  // Adjusted to use the dedicated API endpoint
+        fetch('/api/pickers_picks')
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok: ' + response.statusText);
-                }
+                if (!response.ok) throw new Error('Network response was not ok: ' + response.statusText);
                 return response.json();
             })
             .then(data => {
                 const tbody1 = document.getElementById('picksTableBody1');
                 const tbody2 = document.getElementById('picksTableBody2');
-                const todayCountElement = document.querySelector('.summary-box p:first-child');
-                const willCallCountElement = document.querySelector('.summary-box p:nth-child(2)'); // Updated to select the second paragraph
-                const averageCountElement = document.querySelector('.summary-box p:last-child');
 
-                tbody1.innerHTML = '';  // Clear table body before repopulating
-                tbody2.innerHTML = '';  // Clear table body before repopulating
+                tbody1.innerHTML = '';
+                tbody2.innerHTML = '';
 
-                todayCountElement.innerHTML = `Picks completed today: ${data.today_count}`;
-                willCallCountElement.innerHTML = `Will Calls today: ${data.will_call_count}`;  // Update the will call count
-                averageCountElement.innerHTML = `Daily Average: ${Math.round(data.average_count)}`;
+                document.getElementById('summaryToday').textContent = data.today_count;
+                document.getElementById('summaryWillCalls').textContent = data.will_call_count;
+                document.getElementById('summaryAverage').textContent = Math.round(data.average_count);
 
                 data.picks.forEach((pick, index) => {
                     const formattedDate = new Date(pick.start_time).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
                     const formattedTime = new Date(pick.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
                     const orderLink = pick.order_url
-                        ? `<a href="${pick.order_url}" target="_blank">${pick.barcode_number}</a>`
+                        ? `<a href="${pick.order_url}" class="font-weight-bold text-primary">${pick.barcode_number}</a>`
                         : pick.barcode_number;
-                    const shipment = pick.shipment_num ? `<span class="badge badge-secondary">${pick.shipment_num}</span>` : '—';
+                    const shipment = pick.shipment_num ? `<span class="badge badge-light border">${pick.shipment_num}</span>` : '—';
                     const row = `<tr>
                                     <td>${orderLink}</td>
                                     <td>${shipment}</td>
-                                    <td>${pick.picker_name}</td>
-                                    <td>${formattedDate} ${formattedTime}</td>
+                                    <td class="font-weight-bold">${pick.picker_name}</td>
+                                    <td class="small">${formattedDate} ${formattedTime}</td>
                                     <td>${pick.elapsed_time}</td>
-                                    <td>${pick.pick_type}</td>
+                                    <td><span class="badge badge-light border">${pick.pick_type}</span></td>
                                  </tr>`;
                     if (index % 2 === 0) {
                         tbody1.innerHTML += row;
@@ -95,19 +108,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     }
                 });
             })
-            .catch(error => {
-                console.error('Error fetching data:', error);
-                // Optionally update the webpage to inform the user of the error
-            });
+            .catch(error => console.error('Error fetching data:', error));
     }
 
-    // Call fetchData every 60 seconds to update the page with the latest data.
     setInterval(fetchData, 60000);
-
-    // Also, fetch data immediately on page load.
     fetchData();
 });
 </script>
 {% endblock %}
-
-

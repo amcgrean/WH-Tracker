@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Open Purchase Orders{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h4 class="font-weight-bold mb-0"><i class="fas fa-list-alt mr-2 text-success"></i>Open Purchase Orders</h4>
+      <p class="text-muted small mb-0">
+        {% if branch_filter %}Branch: {{ branch_filter }}{% else %}All branches{% endif %}
+        — orders with open status in ERP.
+      </p>
+    </div>
+    {% if 'admin' in user_roles %}
+    <form method="GET" class="d-flex align-items-center" style="gap:8px;">
+      <select name="branch" class="form-control form-control-sm" style="width:auto;"
+              onchange="this.form.submit()">
+        <option value="">All branches</option>
+        {% for b in [('20GR','Grimes'), ('25BW','Birchwood'), ('40CV','Coralville'), ('10FD','Fort Dodge')] %}
+        <option value="{{ b[0] }}" {{ 'selected' if branch_param == b[0] else '' }}>{{ b[0] }} — {{ b[1] }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ 'warning' if category == 'warning' else 'info' }} py-2 small">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="card glass-panel">
+    <div class="card-body p-0">
+      {% if pos %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:.875rem;">
+          <thead class="thead-light">
+            <tr>
+              <th>PO Number</th>
+              <th>Supplier</th>
+              <th>Branch</th>
+              <th>Expected</th>
+              <th>ERP Status</th>
+              <th>Receiving</th>
+              <th>Check-Ins</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for po in pos %}
+            {% set count = submission_counts.get(po.po_number, 0) %}
+            <tr>
+              <td class="align-middle font-weight-semibold">{{ po.po_number or '—' }}</td>
+              <td class="align-middle text-muted small">{{ po.supplier_name or '—' }}</td>
+              <td class="align-middle">
+                {% if po.system_id %}
+                  <span class="badge badge-light border">{{ po.system_id }}</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="align-middle small text-muted" style="white-space:nowrap;">
+                {{ po.expect_date[:10] if po.expect_date else '—' }}
+              </td>
+              <td class="align-middle">
+                <span class="badge badge-secondary" style="font-size:.7rem;">{{ po.po_status or '—' }}</span>
+              </td>
+              <td class="align-middle small">
+                {% if po.receipt_count %}
+                  <span class="badge badge-info" style="font-size:.7rem;">{{ po.receipt_count }} receipt{{ 's' if po.receipt_count != 1 else '' }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="align-middle">
+                {% if count > 0 %}
+                <a href="{{ url_for('po.review_dashboard') }}?po_number={{ po.po_number }}"
+                   class="badge badge-primary" style="font-size:.75rem;">
+                  {{ count }} check-in{{ 's' if count != 1 else '' }}
+                </a>
+                {% else %}
+                <span class="text-muted small">None</span>
+                {% endif %}
+              </td>
+              <td class="align-middle">
+                {% if po.po_number %}
+                <a href="{{ url_for('po.open_po_detail', po_number=po.po_number) }}"
+                   class="btn btn-xs btn-outline-secondary">Details</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="fas fa-check-circle fa-2x mb-2 d-block text-success"></i>
+        No open purchase orders found{% if branch_filter %} for {{ branch_filter }}{% endif %}.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

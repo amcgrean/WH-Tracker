@@ -340,6 +340,23 @@ function loadSettings() {
   startEl.value = startEl.value || toISO(addBusinessDays(today, -7));
   endEl.value = endEl.value || toISO(addBusinessDays(today, 1));
 
+  // Initialize branch from global sidebar selection (if set)
+  const globalBranch = (window.GLOBAL_BRANCH || '').toUpperCase();
+  if (globalBranch && !branchEl.value) {
+    // Map canonical DSM to dispatch GRIMES_AREA
+    if (globalBranch === 'DSM') {
+      branchEl.value = 'GRIMES_AREA';
+    } else {
+      // Try to set exact match first
+      for (const opt of branchEl.options) {
+        if (opt.value.toUpperCase() === globalBranch) {
+          branchEl.value = opt.value;
+          break;
+        }
+      }
+    }
+  }
+
   const savedWidth = localStorage.getItem('dispatch_sidebar_px');
   if (savedWidth) app.style.gridTemplateColumns = `${savedWidth}px 6px 1fr`;
 
@@ -445,6 +462,28 @@ function loadSettings() {
   document.addEventListener('dispatch:vehicle-selected', (event) => showVehicleDetails(event.detail || {}));
   VehiclesOverlay.setBranch(selectedVehicleBranches());
   VehiclesOverlay.start();
+
+  /* ── Mobile tab switching ────────────────────────────────── */
+  const tabBar = document.getElementById('dispatchTabs');
+  if (tabBar) {
+    const sidebar = document.querySelector('.dispatch-console-shell .sidebar');
+    const mapwrap = document.querySelector('.dispatch-console-shell .mapwrap');
+    tabBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-tab]');
+      if (!btn) return;
+      tabBar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      if (tab === 'orders') {
+        sidebar.classList.add('tab-active');
+        mapwrap.classList.remove('tab-active');
+      } else {
+        sidebar.classList.remove('tab-active');
+        mapwrap.classList.add('tab-active');
+        map.invalidateSize();
+      }
+    });
+  }
 
   loadStops();
   setTimer();

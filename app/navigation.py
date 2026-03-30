@@ -75,43 +75,34 @@ NAV_SECTIONS = [
                 "label": "Sales Hub",
                 "endpoint": "sales.hub",
                 "icon": "fas fa-th",
-                "description": "Central dashboard for sales workflows.",
+                "description": "Personalized dashboard and workspace launcher.",
                 "roles": ["sales", "ops"],
                 "permissions": ["sales.view"],
             },
             {
-                "id": "order_status",
-                "label": "Quick Order Status",
-                "endpoint": "sales.order_status",
-                "icon": "fas fa-bolt",
-                "description": "Search open orders by number or customer.",
+                "id": "transactions",
+                "label": "Sales Transactions",
+                "endpoint": "sales.transactions",
+                "icon": "fas fa-exchange-alt",
+                "description": "Search and act on active orders across all statuses.",
                 "roles": ["sales", "ops", "delivery"],
                 "permissions": ["sales.orders"],
             },
             {
-                "id": "order_history",
-                "label": "Order History",
-                "endpoint": "sales.order_history",
+                "id": "purchase_history",
+                "label": "Purchase History",
+                "endpoint": "sales.history",
                 "icon": "fas fa-history",
-                "description": "Review historical customer orders.",
+                "description": "Research past purchases, pricing, and order patterns.",
                 "roles": ["sales", "ops"],
                 "permissions": ["sales.history"],
             },
             {
-                "id": "invoice_lookup",
-                "label": "Invoice Lookup",
-                "endpoint": "sales.invoice_lookup",
-                "icon": "fas fa-file-invoice-dollar",
-                "description": "Find invoices by customer, number, or date.",
-                "roles": ["sales", "ops"],
-                "permissions": ["sales.invoices"],
-            },
-            {
                 "id": "products",
-                "label": "Product Pricing",
+                "label": "Products & Stock",
                 "endpoint": "sales.products",
-                "icon": "fas fa-tags",
-                "description": "Browse products, pricing, and stock levels.",
+                "icon": "fas fa-boxes",
+                "description": "Browse products and check stock levels.",
                 "roles": ["sales", "ops"],
                 "permissions": ["sales.products"],
             },
@@ -120,27 +111,9 @@ NAV_SECTIONS = [
                 "label": "Reports & Analytics",
                 "endpoint": "sales.reports",
                 "icon": "fas fa-chart-area",
-                "description": "Open sales analytics and performance reports.",
+                "description": "Sales analytics, trends, and performance reports.",
                 "roles": ["sales", "ops"],
                 "permissions": ["sales.reports"],
-            },
-            {
-                "id": "rep_dashboard",
-                "label": "Rep Dashboard",
-                "endpoint": "sales.rep_dashboard",
-                "icon": "fas fa-tachometer-alt",
-                "description": "Personalized performance dashboard for sales reps.",
-                "roles": ["sales", "ops"],
-                "permissions": ["sales.rep_dashboard"],
-            },
-            {
-                "id": "awards",
-                "label": "Awards & Loyalty",
-                "endpoint": "sales.awards",
-                "icon": "fas fa-trophy",
-                "description": "View recognition, awards, and engagement programs.",
-                "roles": ["sales", "ops"],
-                "permissions": ["sales.awards"],
             },
         ],
     },
@@ -237,15 +210,42 @@ NAV_SECTIONS = [
         ],
     },
     # ------------------------------------------------------------------
-    # PURCHASING  (future)
+    # PURCHASING
     # ------------------------------------------------------------------
     {
         "id": "purchasing",
         "label": "Purchasing",
         "icon": "fas fa-shopping-cart",
-        "roles": ["purchasing", "ops", "admin"],
-        "coming_soon": True,
-        "items": [],
+        "roles": ["purchasing", "warehouse", "ops", "supervisor", "admin"],
+        "items": [
+            {
+                "id": "po_checkin",
+                "label": "PO Check-In",
+                "endpoint": "po.checkin",
+                "icon": "fas fa-camera",
+                "description": "Photograph and record incoming purchase orders.",
+                "roles": ["purchasing", "warehouse"],
+                "permissions": ["po.submit"],
+            },
+            {
+                "id": "po_review",
+                "label": "Review Submissions",
+                "endpoint": "po.review_dashboard",
+                "icon": "fas fa-clipboard-check",
+                "description": "Review and flag PO check-in submissions.",
+                "roles": ["ops", "supervisor", "admin"],
+                "permissions": ["po.review"],
+            },
+            {
+                "id": "po_open_pos",
+                "label": "Open POs",
+                "endpoint": "po.open_pos",
+                "icon": "fas fa-list-alt",
+                "description": "Browse open purchase orders and receiving status.",
+                "roles": ["supervisor", "admin"],
+                "permissions": ["po.open_pos"],
+            },
+        ],
     },
     # ------------------------------------------------------------------
     # ADMIN
@@ -306,6 +306,9 @@ def _normalize_claims(values: Iterable[str] | None) -> set[str]:
 
 
 def _is_allowed(required_roles: Iterable[str] | None, user_roles: set[str]) -> bool:
+    # admin always sees everything — mirrors the same bypass in auth.py
+    if "admin" in user_roles:
+        return True
     role_set = _normalize_claims(required_roles)
     return "*" in role_set or "*" in user_roles or bool(role_set & user_roles)
 

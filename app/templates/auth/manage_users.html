@@ -28,7 +28,7 @@
               <th>Rep / Employee ID</th>
               <th>Display Name</th>
               <th>Roles</th>
-              <th>Phone</th>
+              <th>Branch</th>
               <th>Last Login</th>
               <th>Status</th>
               <th></th>
@@ -53,7 +53,13 @@
                   <span class="text-muted small">none</span>
                 {% endfor %}
               </td>
-              <td class="align-middle small">{{ u.phone or '—' }}</td>
+              <td class="align-middle">
+                {% if u.branch %}
+                  <span class="badge badge-light border" style="font-size:.7rem;">{{ u.branch }}</span>
+                {% else %}
+                  <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
               <td class="align-middle small text-muted">
                 {{ u.last_login_at.strftime('%b %d %Y') if u.last_login_at else 'Never' }}
               </td>
@@ -102,7 +108,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" class="text-center text-muted py-4">
+              <td colspan="9" class="text-center text-muted py-4">
                 No users yet. <a href="{{ url_for('auth.add_user') }}">Add the first one.</a>
               </td>
             </tr>

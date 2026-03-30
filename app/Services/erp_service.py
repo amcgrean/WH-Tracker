@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from sqlalchemy import bindparam, create_engine, func, inspect, text
+from app.branch_utils import normalize_branch, expand_branch, expand_branch_filter
 from app.extensions import db
 from app.runtime_settings import (
     build_sql_connection_strings,
@@ -87,39 +88,12 @@ class ERPService:
 
     @staticmethod
     def _normalize_branch_system_id(branch_id):
-        if not branch_id:
-            return None
-        normalized = str(branch_id).strip()
-        if not normalized:
-            return None
-
-        branch_map = {
-            'all': None,
-            '20gr': '20GR',
-            'grimes': '20GR',
-            'grimesarea': '20GR',
-            '25bw': '25BW',
-            'birchwood': '25BW',
-            '10fd': '10FD',
-            'fortdodge': '10FD',
-            '40cv': '40CV',
-            'coralville': '40CV',
-        }
-        compact = normalized.lower().replace('-', '').replace('_', '').replace(' ', '').strip()
-        return branch_map.get(compact, normalized.upper())
+        """Delegate to shared branch_utils.normalize_branch."""
+        return normalize_branch(branch_id)
 
     def _expand_branch_filters(self, branches):
-        if not branches:
-            return []
-        raw_branches = [item.strip() for item in branches.split(",") if item.strip()]
-        expanded = []
-        for branch in raw_branches:
-            normalized = self._normalize_branch_system_id(branch)
-            if normalized == '20GR' and str(branch).strip().upper() in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
-                expanded.extend(["20GR", "25BW"])
-            elif normalized:
-                expanded.append(normalized)
-        return sorted(set(expanded))
+        """Delegate to shared branch_utils.expand_branch_filter."""
+        return expand_branch_filter(branches)
 
     def _mirror_so_detail_backorder_expr(self):
         columns = set(self._mirror_columns("erp_mirror_so_detail"))
@@ -536,7 +510,7 @@ class ERPService:
                 FROM wo_header wh
                 JOIN so_detail sod ON wh.source_id = sod.so_id AND wh.source_seq = sod.sequence
                 JOIN item i ON sod.item_ptr = i.item_ptr
-                WHERE wh.source_id = ? AND wh.source = 'SO'
+                WHERE wh.source_id = ? AND UPPER(COALESCE(wh.source, '')) = 'SO'
             """
             
             cursor.execute(query, (barcode,))
@@ -606,7 +580,7 @@ class ERPService:
                     JOIN erp_mirror_pick_detail pd
                         ON ph.pick_id = pd.pick_id
                        AND ph.system_id = pd.system_id
-                    WHERE ph.print_status = 'Pick Ticket'
+                    WHERE UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET'
                       AND UPPER(COALESCE(pd.tran_type, '')) = 'SO'
                     GROUP BY pd.system_id, CAST(pd.tran_id AS TEXT)
                 )
@@ -645,12 +619,10 @@ class ERPService:
                     ON ib.system_id = sod.system_id
                    AND CAST(ib.item_ptr AS TEXT) = CAST(sod.item_ptr AS TEXT)
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND cs.cust_key = soh.cust_key
-                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                   AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN shipment_rollup sh
                     ON sh.system_id = soh.system_id
                    AND sh.so_id = CAST(soh.so_id AS TEXT)
@@ -658,14 +630,14 @@ class ERPService:
                     ON ph.system_id = soh.system_id
                    AND ph.so_id = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
-                  AND soh.so_status != 'C'
+                  AND UPPER(COALESCE(soh.so_status, '')) != 'C'
                   AND (
-                    (soh.so_status IN ('K', 'P', 'S'))
-                    OR (soh.so_status = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
+                    (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
                     OR (CAST(soh.expect_date AS DATE) = :today)
                     OR (CAST(sh.ship_date AS DATE) = :today)
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
                 """,
                 {"today": today},
@@ -765,20 +737,20 @@ class ERPService:
                            MAX(ph.created_time) as created_time
                     FROM pick_header ph
                     JOIN pick_detail pd ON ph.pick_id = pd.pick_id AND ph.system_id = pd.system_id
-                    WHERE ph.print_status = 'Pick Ticket' AND pd.tran_type = 'SO'
+                    WHERE UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET' AND UPPER(COALESCE(pd.tran_type, '')) = 'SO'
                     GROUP BY pd.tran_id, pd.system_id
                 ) ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id
-                WHERE soh.so_status != 'C'
+                WHERE UPPER(COALESCE(soh.so_status, '')) != 'C'
                   AND (
-                    (soh.so_status IN ('K', 'P', 'S'))
-                    OR (soh.so_status = 'I' AND sh.invoice_date = '{today}')
+                    (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND sh.invoice_date = '{today}')
                     OR (soh.expect_date = '{today}')
                     OR (sh.ship_date = '{today}')
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 ORDER BY soh.so_id, ib.handling_code, sod.sequence
             """
-            
+
             cursor.execute(query)
             rows = cursor.fetchall()
             
@@ -823,27 +795,113 @@ class ERPService:
             print(f"ERP Connection Error (Picks): {e}")
             return []
 
-    def get_open_so_summary(self):
+    def get_open_so_summary(self, branch=None):
         """
         Fetches a summary of Open Sales Orders (Status 'K'), grouped by Handling Code.
+        Optional *branch* filters by system_id (expanded via branch_utils).
         Returns: List of dicts {so_number, customer_name, address, reference, handling_code, line_count}
         """
-        cache_key = 'open_so_summary'
+        cache_key = f'open_so_summary_{branch or "all"}'
         cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
 
-        result = self._get_open_so_summary_inner()
+        result = self._get_open_so_summary_inner(branch=branch)
         self._cache_set(cache_key, result)
         return result
 
-    def _get_open_so_summary_inner(self):
+    def get_open_order_board_summary(self, branch=None):
+        """
+        Fetches Open Sales Orders grouped at the SO level for /warehouse/board/orders.
+        Returns: List of dicts {so_number, customer_name, address, reference, line_count, handling_codes}
+        """
+        cache_key = f'open_order_board_summary_{branch or "all"}'
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        if self.central_db_mode:
+            # Reuse per-handling-code summary and aggregate to SO level
+            per_code = self.get_open_so_summary(branch=branch)
+            so_map = {}
+            for item in per_code:
+                so_num = item['so_number']
+                if so_num not in so_map:
+                    so_map[so_num] = {
+                        'so_number': so_num,
+                        'customer_name': item['customer_name'],
+                        'address': item['address'],
+                        'reference': item['reference'],
+                        'line_count': 0,
+                        'handling_codes': set(),
+                    }
+                so_map[so_num]['line_count'] += int(item.get('line_count') or 0)
+                handling_code = item.get('handling_code')
+                if handling_code:
+                    so_map[so_num]['handling_codes'].add(handling_code)
+
+            summary = []
+            for data in so_map.values():
+                data['handling_codes'] = sorted(list(data['handling_codes']))
+                summary.append(data)
+        else:
+            # Legacy fallback: reuse per-handling summary and aggregate in Python.
+            per_code_summary = self.get_open_so_summary(branch=branch)
+            so_map = {}
+            for item in per_code_summary:
+                so_num = item['so_number']
+                if so_num not in so_map:
+                    so_map[so_num] = {
+                        'so_number': so_num,
+                        'customer_name': item['customer_name'],
+                        'address': item['address'],
+                        'reference': item['reference'],
+                        'line_count': 0,
+                        'handling_codes': set(),
+                    }
+                so_map[so_num]['line_count'] += int(item.get('line_count') or 0)
+                handling_code = item.get('handling_code')
+                if handling_code:
+                    so_map[so_num]['handling_codes'].add(handling_code)
+
+            summary = []
+            for data in so_map.values():
+                data['handling_codes'] = sorted(list(data['handling_codes']))
+                summary.append(data)
+
+        so_numbers = [s['so_number'] for s in summary]
+        local_states = self._get_local_pick_states(so_numbers)
+        for item in summary:
+            item['local_pick_state'] = local_states.get(item['so_number'], 'Pick Printed')
+
+        self._cache_set(cache_key, summary)
+        return summary
+
+    def _get_open_so_summary_inner(self, branch=None):
         if self.central_db_mode:
             backorder_expr = self._mirror_so_detail_backorder_expr()
+            filters = [
+                "UPPER(COALESCE(soh.so_status, '')) = 'K'",
+                f"COALESCE({backorder_expr}, 0) = 0",
+            ]
+            params = {}
+            expanding = set()
+
+            # Optional branch filter — expand DSM etc.
+            if branch:
+                branch_ids = expand_branch(branch)
+                if branch_ids:
+                    filters.append("soh.system_id IN :branch_ids")
+                    params["branch_ids"] = branch_ids
+                    expanding.add("branch_ids")
+
+            where_clause = " AND ".join(filters)
+
             rows = self._mirror_query(
                 f"""
                 SELECT
                     soh.so_id,
+                    soh.system_id,
                     c.cust_name,
                     cs.address_1,
                     cs.city,
@@ -852,27 +910,25 @@ class ERPService:
                     COUNT(sod.sequence) AS line_count
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
-                    ON soh.system_id = sod.system_id
-                   AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
-                LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id
-                   AND ib.item_ptr = sod.item_ptr
+                    ON CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT) AND sod.system_id = soh.system_id
+                JOIN erp_mirror_item_branch ib
+                    ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND cs.cust_key = soh.cust_key
-                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
-                WHERE soh.is_deleted = false
-                  AND soh.so_status = 'K'
-                  AND COALESCE({backorder_expr}, 0) = 0
-                GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
+                    ON TRIM(cs.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
+                WHERE {where_clause}
+                GROUP BY soh.so_id, soh.system_id, c.cust_name, cs.address_1, cs.city,
+                         soh.reference, ib.handling_code
                 ORDER BY ib.handling_code, soh.so_id
-                """
+                """,
+                params=params,
+                expanding=expanding,
             )
             summary = [{
                 'so_number': str(row['so_id']),
+                'system_id': row['system_id'],
                 'customer_name': row['cust_name'] or 'Unknown',
                 'address': f"{row['address_1']}, {row['city']}" if row['address_1'] else 'No Address',
                 'reference': row['reference'],
@@ -907,7 +963,7 @@ class ERPService:
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR) 
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
-                WHERE soh.so_status = 'k' 
+                WHERE UPPER(COALESCE(soh.so_status, '')) = 'K'
                     AND sod.bo = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 ORDER BY ib.handling_code, soh.so_id
@@ -976,12 +1032,10 @@ class ERPService:
                     ON ib.system_id = sod.system_id
                    AND ib.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND cs.cust_key = soh.cust_key
-                   AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                   AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 WHERE soh.is_deleted = false AND {' AND '.join(filters)}
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
                 """,
@@ -1063,6 +1117,94 @@ class ERPService:
             print(f"ERP Connection Error (Hist Summary): {e}")
             return []
 
+    def get_so_sale_type(self, so_number):
+        """
+        Lightweight lookup: returns the sale_type for a single SO number.
+        Returns uppercase sale_type string, or None if not found.
+        """
+        if self.central_db_mode:
+            rows = self._mirror_query(
+                """
+                SELECT UPPER(COALESCE(soh.sale_type, '')) AS sale_type
+                FROM erp_mirror_so_header soh
+                WHERE soh.is_deleted = false
+                  AND CAST(soh.so_id AS TEXT) = :so_number
+                LIMIT 1
+                """,
+                {"so_number": str(so_number)},
+            )
+            if rows:
+                return rows[0]['sale_type'] or None
+            return None
+
+        self._require_central_db_for_cloud_mode()
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT TOP 1 UPPER(COALESCE(soh.sale_type, '')) AS sale_type
+                FROM so_header soh
+                WHERE soh.so_id = ?
+                """,
+                (so_number,),
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return row.sale_type if row else None
+        except Exception as e:
+            print(f"ERP Connection Error (SO Sale Type): {e}")
+            return None
+
+    def get_so_primary_handling_code(self, so_number):
+        """
+        Lightweight lookup: returns the most common handling_code across
+        line items for a single SO.  Returns uppercase string or None.
+        """
+        if self.central_db_mode:
+            rows = self._mirror_query(
+                """
+                SELECT UPPER(COALESCE(ib.handling_code, '')) AS handling_code,
+                       COUNT(*) AS cnt
+                FROM erp_mirror_so_detail sod
+                LEFT JOIN erp_mirror_item_branch ib
+                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
+                WHERE CAST(sod.so_id AS TEXT) = :so_number
+                  AND COALESCE(ib.handling_code, '') != ''
+                GROUP BY UPPER(COALESCE(ib.handling_code, ''))
+                ORDER BY cnt DESC
+                LIMIT 1
+                """,
+                {"so_number": str(so_number)},
+            )
+            if rows:
+                return rows[0]['handling_code'] or None
+            return None
+
+        self._require_central_db_for_cloud_mode()
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT TOP 1 UPPER(COALESCE(ib.handling_code, '')) AS handling_code,
+                       COUNT(*) AS cnt
+                FROM so_detail sod
+                JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
+                WHERE sod.so_id = ?
+                  AND COALESCE(ib.handling_code, '') != ''
+                GROUP BY UPPER(COALESCE(ib.handling_code, ''))
+                ORDER BY cnt DESC
+                """,
+                (so_number,),
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return row.handling_code if row else None
+        except Exception as e:
+            print(f"ERP Connection Error (SO Primary Handling Code): {e}")
+            return None
+
     def get_so_header(self, so_number):
         """
         Fetches header info (Customer, Reference, etc.) for a single Sales Order.
@@ -1086,9 +1228,10 @@ class ERPService:
                     sh.status_flag_delivery
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
@@ -1145,7 +1288,7 @@ class ERPService:
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                LEFT JOIN pick_header ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id AND ph.print_status = 'Pick Ticket'
+                LEFT JOIN pick_header ph ON soh.so_id = ph.so_id AND soh.system_id = ph.system_id AND UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET'
                 WHERE soh.so_id = ?
             """
             cursor.execute(query, (so_number,))
@@ -1283,15 +1426,15 @@ class ERPService:
                 params["branches"] = expanded
 
             if sale_types:
-                types = [item.strip() for item in sale_types.split(",") if item.strip()]
+                types = [item.strip().upper() for item in sale_types.split(",") if item.strip()]
                 if types:
-                    filters.append("soh.sale_type IN :sale_types")
+                    filters.append("UPPER(COALESCE(soh.sale_type, '')) IN :sale_types")
                     params["sale_types"] = types
 
             if status_filter:
                 statuses = [item.strip().upper() for item in status_filter.split(",") if item.strip()]
                 if statuses:
-                    filters.append("soh.so_status IN :statuses")
+                    filters.append("UPPER(COALESCE(soh.so_status, '')) IN :statuses")
                     params["statuses"] = statuses
 
             if route_id:
@@ -1324,9 +1467,10 @@ class ERPService:
                     soh.system_id AS branch
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE {' AND '.join(filters)}
@@ -1342,6 +1486,10 @@ class ERPService:
             results = []
             for row in rows:
                 obj = dict(row)
+                for text_key in ("shipto_name", "customer_name", "shipto_address", "address"):
+                    value = obj.get(text_key)
+                    if isinstance(value, str):
+                        obj[text_key] = value.strip()
                 # Coerce Decimal lat/lon from DB to float
                 if obj.get("lat") is not None:
                     obj["lat"] = float(obj["lat"])
@@ -1349,6 +1497,10 @@ class ERPService:
                     obj["lon"] = float(obj["lon"])
                 # Use DB ship-to/customer values even when GPS is still unresolved
                 if not obj.get("shipto_name") and obj.get("customer_name"):
+                    obj["shipto_name"] = obj["customer_name"]
+                if not obj.get("customer_name"):
+                    obj["customer_name"] = "Unknown Customer"
+                if not obj.get("shipto_name"):
                     obj["shipto_name"] = obj["customer_name"]
                 if not obj.get("address") and obj.get("shipto_address"):
                     obj["address"] = obj["shipto_address"]
@@ -1382,15 +1534,15 @@ class ERPService:
             params = [start, end]
 
             if sale_types:
-                types = [item.strip() for item in sale_types.split(",") if item.strip()]
+                types = [item.strip().upper() for item in sale_types.split(",") if item.strip()]
                 if types:
-                    filters.append(f"hdr.sale_type IN ({','.join('?' for _ in types)})")
+                    filters.append(f"UPPER(COALESCE(hdr.sale_type, '')) IN ({','.join('?' for _ in types)})")
                     params.extend(types)
 
             if status_filter:
-                statuses = [item.strip() for item in status_filter.split(",") if item.strip()]
+                statuses = [item.strip().upper() for item in status_filter.split(",") if item.strip()]
                 if statuses:
-                    filters.append(f"hdr.so_status IN ({','.join('?' for _ in statuses)})")
+                    filters.append(f"UPPER(COALESCE(hdr.so_status, '')) IN ({','.join('?' for _ in statuses)})")
                     params.extend(statuses)
 
             if route_id:
@@ -1402,14 +1554,7 @@ class ERPService:
                 params.append(driver)
 
             if branches:
-                raw_branches = [item.strip().upper() for item in branches.split(",") if item.strip()]
-                expanded = []
-                for branch in raw_branches:
-                    if branch in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
-                        expanded.extend(["20GR", "25BW"])
-                    else:
-                        expanded.append(branch)
-                expanded = sorted(set(expanded))
+                expanded = expand_branch_filter(branches)
                 if expanded:
                     filters.append(f"hdr.system_id IN ({','.join('?' for _ in expanded)})")
                     params.extend(expanded)
@@ -1894,9 +2039,9 @@ class ERPService:
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id AND CAST(soh.so_id AS TEXT) = CAST(sod.so_id AS TEXT)
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key) AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
@@ -1940,7 +2085,7 @@ class ERPService:
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
                 JOIN cust_shipto cs ON CAST(cs.cust_key AS VARCHAR) = CAST(soh.cust_key AS VARCHAR) AND CAST(cs.seq_num AS VARCHAR) = CAST(soh.shipto_seq_num AS VARCHAR)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE soh.so_status = 'k'
+                WHERE UPPER(COALESCE(soh.so_status, '')) = 'K'
                     AND sod.bo = 0
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, soh.system_id
                 ORDER BY soh.so_id
@@ -1970,25 +2115,32 @@ class ERPService:
             print(f"ERP Connection Error (Delivery Orders): {e}")
             return []
 
-    def get_sales_hub_metrics(self):
-        cached = self._cache_get('hub_metrics')
+    def get_sales_hub_metrics(self, rep_id=""):
+        cache_key = f'hub_metrics_{rep_id}' if rep_id else 'hub_metrics'
+        cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
-        result = self._get_sales_hub_metrics_inner()
-        return self._cache_set('hub_metrics', result)
+        result = self._get_sales_hub_metrics_inner(rep_id=rep_id)
+        return self._cache_set(cache_key, result)
 
-    def _get_sales_hub_metrics_inner(self):
+    def _get_sales_hub_metrics_inner(self, rep_id=""):
         if self.central_db_mode:
             today = date.today().isoformat()
+            params = {"today": today}
+            rep_clause = ""
+            if rep_id:
+                params["rep_id"] = rep_id
+                rep_clause = " AND (COALESCE(salesperson, '') = :rep_id OR COALESCE(order_writer, '') = :rep_id)"
             rows = self._mirror_query(
-                """
+                f"""
                 SELECT
                     COUNT(DISTINCT CASE WHEN UPPER(COALESCE(so_status, '')) = 'O' THEN so_id END) AS open_orders_count,
                     COUNT(DISTINCT CASE WHEN CAST(expect_date AS DATE) = :today THEN so_id END) AS total_orders_today
                 FROM erp_mirror_so_header
                 WHERE is_deleted = false
+                {rep_clause}
                 """,
-                {"today": today},
+                params,
             )
             row = rows[0] if rows else {}
             return {
@@ -2001,9 +2153,6 @@ class ERPService:
         cursor = conn.cursor()
         try:
             today = datetime.today().strftime('%Y-%m-%d')
-            # Note: SQL Server queries so_header directly (not the mirror tables), which does
-            # not have an is_deleted column. Soft-delete filtering is only applied on the
-            # PostgreSQL mirror tables (erp_mirror_so_header). This is intentional.
             cursor.execute(
                 """
                 SELECT
@@ -2041,7 +2190,7 @@ class ERPService:
                     COALESCE(SUM(sod.qty_ordered * sod.price), 0) AS open_orders_value
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
@@ -2089,19 +2238,31 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_order_status(self, q="", limit=100, branch="", open_only=True):
-        # Cache unfiltered list for 60 s; skip cache for searches, branch filters, or all-status mode
-        cache_key = f'order_status_{limit}' if not q and not branch and open_only else None
+    def get_sales_order_status(self, q="", limit=100, branch="", open_only=True, rep_id="",
+                               status="", date_from="", date_to="", page=1,
+                               sale_type="", exclude_sale_types="",
+                               customer_code="", salesperson="", shipto_seq=""):
+        # Cache unfiltered list for 60 s; skip cache when any filters are active
+        has_filters = q or branch or rep_id or status or date_from or date_to or page > 1 or sale_type or exclude_sale_types or customer_code or salesperson or shipto_seq
+        cache_key = f'order_status_{limit}' if not has_filters and open_only else None
         if cache_key:
             cached = self._cache_get(cache_key)
             if cached is not None:
                 return cached
-        result = self._get_sales_order_status_inner(q=q, limit=limit, branch=branch, open_only=open_only)
+        result = self._get_sales_order_status_inner(
+            q=q, limit=limit, branch=branch, open_only=open_only, rep_id=rep_id,
+            status=status, date_from=date_from, date_to=date_to, page=page,
+            sale_type=sale_type, exclude_sale_types=exclude_sale_types,
+            customer_code=customer_code, salesperson=salesperson, shipto_seq=shipto_seq,
+        )
         if cache_key:
             self._cache_set(cache_key, result)
         return result
 
-    def _get_sales_order_status_inner(self, q="", limit=100, branch="", open_only=True):
+    def _get_sales_order_status_inner(self, q="", limit=100, branch="", open_only=True,
+                                      rep_id="", status="", date_from="", date_to="", page=1,
+                                      sale_type="", exclude_sale_types="",
+                                      customer_code="", salesperson="", shipto_seq=""):
         if self.central_db_mode:
             sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
             if "line_no" in sod_columns:
@@ -2110,23 +2271,64 @@ class ERPService:
                 line_count_expr = "COUNT(DISTINCT sod.sequence) AS line_count"
             else:
                 line_count_expr = "COUNT(sod.id) AS line_count"
-            params = {"limit": limit}
+            params: dict = {"limit": limit}
             clauses = ["soh.is_deleted = false"]
-            if open_only:
-                clauses.append("soh.so_status = 'O'")
+            # Status filtering — explicit status param takes precedence over open_only flag
+            if status:
+                valid_statuses = [s.strip().upper() for s in status.split(',') if s.strip() and s.strip().isalpha() and len(s.strip()) == 1]
+                if valid_statuses:
+                    placeholders = ', '.join(f"'{s}'" for s in valid_statuses)
+                    clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
+            elif open_only:
+                clauses.append("UPPER(COALESCE(soh.so_status, '')) = 'O'")
             if q:
                 params["q"] = f"%{q}%"
                 clauses.append(
                     "(soh.so_id::text ILIKE :q"
                     " OR COALESCE(c.cust_name, '') ILIKE :q"
-                    " OR COALESCE(c.cust_code, '') ILIKE :q)"
+                    " OR COALESCE(c.cust_code, '') ILIKE :q"
+                    " OR COALESCE(soh.po_number, '') ILIKE :q"
+                    " OR COALESCE(soh.reference, '') ILIKE :q)"
                 )
             if branch:
                 system_id = self._normalize_branch_system_id(branch)
                 if system_id:
                     params["branch_id"] = system_id
                     clauses.append("soh.system_id = :branch_id")
+            if rep_id:
+                params["rep_id"] = rep_id
+                clauses.append(
+                    "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
+                )
+            if salesperson:
+                params["sp_filter"] = salesperson.strip()
+                clauses.append("COALESCE(soh.salesperson, '') = :sp_filter")
+            if customer_code:
+                params["cust_filter"] = customer_code.strip()
+                clauses.append("(TRIM(c.cust_code) = :cust_filter OR TRIM(soh.cust_key) = :cust_filter)")
+            if shipto_seq:
+                params["shipto_filter"] = shipto_seq.strip()
+                clauses.append("TRIM(CAST(soh.shipto_seq_num AS TEXT)) = :shipto_filter")
+            if date_from:
+                params["date_from"] = date_from
+                clauses.append("CAST(soh.expect_date AS DATE) >= :date_from")
+            if date_to:
+                params["date_to"] = date_to
+                clauses.append("CAST(soh.expect_date AS DATE) <= :date_to")
+            if sale_type:
+                valid_types = [t.strip().upper() for t in sale_type.split(',') if t.strip()]
+                if valid_types:
+                    type_ph = ', '.join(f"'{t}'" for t in valid_types)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) IN ({type_ph})")
+            if exclude_sale_types:
+                valid_excludes = [t.strip().upper() for t in exclude_sale_types.split(',') if t.strip()]
+                if valid_excludes:
+                    excl_ph = ', '.join(f"'{t}'" for t in valid_excludes)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) NOT IN ({excl_ph})")
             where_clause = "WHERE " + " AND ".join(clauses)
+            page = max(1, page)
+            offset = (page - 1) * limit
+            params["offset"] = offset
             rows = self._mirror_query(
                 f"""
                 SELECT
@@ -2142,19 +2344,22 @@ class ERPService:
                     '' AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    MAX(COALESCE(soh.salesperson, '')) AS salesperson,
+                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    MAX(COALESCE(soh.po_number, '')) AS po_number,
                     {line_count_expr}
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
-                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
-                ORDER BY MAX(soh.synced_at) DESC NULLS LAST, soh.so_id DESC
-                LIMIT :limit
+                ORDER BY MAX(soh.expect_date) DESC NULLS LAST, soh.so_id DESC
+                LIMIT :limit OFFSET :offset
                 """,
                 params,
             )
@@ -2170,26 +2375,68 @@ class ERPService:
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
-            params = []
-            clauses = ["UPPER(COALESCE(soh.so_status, '')) = 'O'"]
+            params_list = []
+            clauses = []
+            # Status filtering — explicit status param takes precedence over open_only flag
+            if status:
+                valid_statuses = [s.strip().upper() for s in status.split(',') if s.strip() and s.strip().isalpha() and len(s.strip()) == 1]
+                if valid_statuses:
+                    placeholders = ', '.join(f"'{s}'" for s in valid_statuses)
+                    clauses.append(f"UPPER(COALESCE(soh.so_status, '')) IN ({placeholders})")
+            elif open_only:
+                clauses.append("UPPER(COALESCE(soh.so_status, '')) = 'O'")
             if q:
                 like = f"%{q}%"
                 clauses.append(
                     "(CAST(soh.so_id AS VARCHAR(64)) LIKE ?"
                     " OR COALESCE(c.cust_name, '') LIKE ?"
-                    " OR COALESCE(c.cust_code, '') LIKE ?)"
+                    " OR COALESCE(c.cust_code, '') LIKE ?"
+                    " OR COALESCE(soh.po_number, '') LIKE ?"
+                    " OR COALESCE(soh.reference, '') LIKE ?)"
                 )
-                params.extend([like, like, like])
+                params_list.extend([like, like, like, like, like])
             if branch:
                 system_id = self._normalize_branch_system_id(branch)
                 if system_id:
                     clauses.append("soh.system_id = ?")
-                    params.append(system_id)
-            where_clause = "WHERE " + " AND ".join(clauses)
+                    params_list.append(system_id)
+            if rep_id:
+                clauses.append(
+                    "(COALESCE(soh.salesperson, '') = ? OR COALESCE(soh.order_writer, '') = ?)"
+                )
+                params_list.extend([rep_id, rep_id])
+            if salesperson:
+                clauses.append("COALESCE(soh.salesperson, '') = ?")
+                params_list.append(salesperson.strip())
+            if customer_code:
+                clauses.append("(RTRIM(c.cust_code) = ? OR RTRIM(soh.cust_key) = ?)")
+                params_list.extend([customer_code.strip(), customer_code.strip()])
+            if shipto_seq:
+                clauses.append("CAST(soh.shipto_seq_num AS VARCHAR(32)) = ?")
+                params_list.append(shipto_seq.strip())
+            if date_from:
+                clauses.append("CAST(soh.expect_date AS DATE) >= ?")
+                params_list.append(date_from)
+            if date_to:
+                clauses.append("CAST(soh.expect_date AS DATE) <= ?")
+                params_list.append(date_to)
+            if sale_type:
+                valid_types = [t.strip().upper() for t in sale_type.split(',') if t.strip()]
+                if valid_types:
+                    type_ph = ', '.join(f"'{t}'" for t in valid_types)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) IN ({type_ph})")
+            if exclude_sale_types:
+                valid_excludes = [t.strip().upper() for t in exclude_sale_types.split(',') if t.strip()]
+                if valid_excludes:
+                    excl_ph = ', '.join(f"'{t}'" for t in valid_excludes)
+                    clauses.append(f"UPPER(COALESCE(soh.sale_type, '')) NOT IN ({excl_ph})")
+            where_clause = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+            page = max(1, page)
+            offset = (page - 1) * limit
 
             cursor.execute(
                 f"""
-                SELECT TOP {int(limit)}
+                SELECT
                     CAST(soh.so_id AS VARCHAR(64)) AS so_number,
                     MAX(c.cust_name) AS customer_name,
                     MAX(c.cust_code) AS customer_code,
@@ -2201,6 +2448,9 @@ class ERPService:
                     '' AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    MAX(COALESCE(soh.salesperson, '')) AS salesperson,
+                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    MAX(COALESCE(soh.po_number, '')) AS po_number,
                     COUNT(DISTINCT sod.sequence) AS line_count
                 FROM so_header soh
                 LEFT JOIN cust c
@@ -2213,8 +2463,9 @@ class ERPService:
                 {where_clause}
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.expect_date) DESC, soh.so_id DESC
+                OFFSET {int(offset)} ROWS FETCH NEXT {int(limit)} ROWS ONLY
                 """,
-                params,
+                params_list,
             )
             rows = cursor.fetchall()
             return [
@@ -2229,6 +2480,9 @@ class ERPService:
                     "handling_code": "",
                     "sale_type": row.sale_type,
                     "ship_via": row.ship_via,
+                    "salesperson": row.salesperson,
+                    "order_writer": row.order_writer,
+                    "po_number": row.po_number,
                     "line_count": row.line_count,
                 }
                 for row in rows
@@ -2237,9 +2491,93 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_invoice_lookup(self, q="", date_from="", date_to="", status="", limit=50, branch=""):
+    def get_orders_by_shipment_date(self, date_field="ship_date", date_from="", date_to="",
+                                      rep_id="", branch="", limit=100, page=1):
+        """Query orders joined with shipments_header, filtering by ship_date or invoice_date."""
+        if not self.central_db_mode:
+            return []
+        sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
+        if "line_no" in sod_columns:
+            line_count_expr = "COUNT(DISTINCT sod.line_no) AS line_count"
+        elif "sequence" in sod_columns:
+            line_count_expr = "COUNT(DISTINCT sod.sequence) AS line_count"
+        else:
+            line_count_expr = "COUNT(sod.id) AS line_count"
+
+        db_col = "sh.invoice_date" if date_field == "invoice_date" else "sh.ship_date"
+        params: dict = {"limit": limit}
+        clauses = ["soh.is_deleted = false"]
+
+        if date_from:
+            params["date_from"] = date_from
+            clauses.append(f"CAST({db_col} AS DATE) >= :date_from")
+        if date_to:
+            params["date_to"] = date_to
+            clauses.append(f"CAST({db_col} AS DATE) <= :date_to")
+        if rep_id:
+            params["rep_id"] = rep_id
+            clauses.append(
+                "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
+            )
+        if branch:
+            system_id = self._normalize_branch_system_id(branch)
+            if system_id:
+                params["branch_id"] = system_id
+                clauses.append("soh.system_id = :branch_id")
+
+        where_clause = "WHERE " + " AND ".join(clauses)
+        page = max(1, page)
+        offset = (page - 1) * limit
+        params["offset"] = offset
+
+        rows = self._mirror_query(
+            f"""
+            SELECT
+                soh.so_id::text AS so_number,
+                MAX(c.cust_name) AS customer_name,
+                MAX(c.cust_code) AS customer_code,
+                MAX(cs.address_1) AS address_1,
+                MAX(cs.city) AS city,
+                MAX(soh.expect_date) AS expect_date,
+                MAX(sh.ship_date) AS ship_date,
+                MAX(sh.invoice_date) AS invoice_date,
+                MAX(soh.reference) AS reference,
+                MAX(soh.so_status) AS so_status,
+                '' AS handling_code,
+                MAX(soh.sale_type) AS sale_type,
+                MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                MAX(COALESCE(soh.salesperson, '')) AS salesperson,
+                MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                MAX(COALESCE(soh.po_number, '')) AS po_number,
+                {line_count_expr}
+            FROM erp_mirror_so_header soh
+            INNER JOIN erp_mirror_shipments_header sh
+                ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
+            LEFT JOIN erp_mirror_cust c
+                ON TRIM(c.cust_key) = TRIM(soh.cust_key)
+            LEFT JOIN erp_mirror_cust_shipto cs
+                ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
+            LEFT JOIN erp_mirror_so_detail sod
+                ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
+            {where_clause}
+            GROUP BY soh.system_id, soh.so_id
+            ORDER BY MAX({db_col}) DESC NULLS LAST, soh.so_id DESC
+            LIMIT :limit OFFSET :offset
+            """,
+            params,
+        )
+        return [
+            {
+                **dict(row),
+                "address": ", ".join(part for part in [row.get("address_1"), row.get("city")] if part),
+            }
+            for row in rows
+        ]
+
+    def get_sales_invoice_lookup(self, q="", date_from="", date_to="", status="", limit=50, branch="", rep_id=""):
         if self.central_db_mode:
-            params = {"limit": limit}
+            params: dict = {"limit": limit}
             if status and status.upper() in ('I', 'C'):
                 clauses = [f"UPPER(COALESCE(soh.so_status, '')) = '{status.upper()}'"]
             else:
@@ -2263,6 +2601,11 @@ class ERPService:
                 if system_id:
                     params["branch_id"] = system_id
                     clauses.append("soh.system_id = :branch_id")
+            if rep_id:
+                params["rep_id"] = rep_id
+                clauses.append(
+                    "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
+                )
 
             rows = self._mirror_query(
                 f"""
@@ -2272,10 +2615,13 @@ class ERPService:
                     MAX(c.cust_code) AS customer_code,
                     MAX(COALESCE(sh.invoice_date, soh.expect_date)) AS expect_date,
                     MAX(soh.reference) AS reference,
-                    MAX(soh.so_status) AS so_status
+                    MAX(soh.so_status) AS so_status,
+                    MAX(COALESCE(soh.salesperson, '')) AS salesperson,
+                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    MAX(COALESCE(soh.po_number, '')) AS po_number
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE {' AND '.join(clauses)}
@@ -2295,7 +2641,7 @@ class ERPService:
                 clauses = [f"UPPER(COALESCE(soh.so_status, '')) = '{status.upper()}'"]
             else:
                 clauses = ["UPPER(COALESCE(soh.so_status, '')) IN ('I', 'C')"]
-            params = []
+            params_list = []
             if q:
                 like = f"%{q}%"
                 clauses.append(
@@ -2303,18 +2649,18 @@ class ERPService:
                     " OR COALESCE(c.cust_name, '') LIKE ?"
                     " OR COALESCE(c.cust_code, '') LIKE ?)"
                 )
-                params.extend([like, like, like])
+                params_list.extend([like, like, like])
             if date_from:
                 clauses.append("CAST(COALESCE(sh.invoice_date, soh.expect_date) AS DATE) >= ?")
-                params.append(date_from)
+                params_list.append(date_from)
             if date_to:
                 clauses.append("CAST(COALESCE(sh.invoice_date, soh.expect_date) AS DATE) <= ?")
-                params.append(date_to)
+                params_list.append(date_to)
             if branch:
                 system_id = self._normalize_branch_system_id(branch)
                 if system_id:
                     clauses.append("soh.system_id = ?")
-                    params.append(system_id)
+                    params_list.append(system_id)
 
             cursor.execute(
                 f"""
@@ -2334,7 +2680,7 @@ class ERPService:
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(COALESCE(sh.invoice_date, soh.expect_date)) DESC, soh.so_id DESC
                 """,
-                params,
+                params_list,
             )
             rows = cursor.fetchall()
             return [
@@ -2352,9 +2698,9 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_customer_orders(self, customer_number, q="", limit=None, date_from="", date_to="", status="", branch="", page=1):
+    def get_sales_customer_orders(self, customer_number, q="", limit=None, date_from="", date_to="", status="", branch="", page=1, rep_id=""):
         # Cache per-customer full order lists for up to 60 s (skip cache when filtering/paginating)
-        cache_key = f'cust_orders_{customer_number}_{limit}' if not (q or date_from or date_to or status or branch or page > 1) else None
+        cache_key = f'cust_orders_{customer_number}_{limit}' if not (q or date_from or date_to or status or branch or page > 1 or rep_id) else None
         if cache_key:
             cached = self._cache_get(cache_key)
             if cached is not None:
@@ -2362,12 +2708,13 @@ class ERPService:
         result = self._get_sales_customer_orders_inner(
             customer_number=customer_number, q=q, limit=limit,
             date_from=date_from, date_to=date_to, status=status, branch=branch, page=page,
+            rep_id=rep_id,
         )
         if cache_key:
             self._cache_set(cache_key, result)
         return result
 
-    def _get_sales_customer_orders_inner(self, customer_number, q="", limit=None, date_from="", date_to="", status="", branch="", page=1):
+    def _get_sales_customer_orders_inner(self, customer_number, q="", limit=None, date_from="", date_to="", status="", branch="", page=1, rep_id=""):
         if self.central_db_mode:
             sod_columns = set(self._mirror_columns("erp_mirror_so_detail"))
             if "line_no" in sod_columns:
@@ -2376,7 +2723,7 @@ class ERPService:
                 line_count_expr = "COUNT(DISTINCT sod.sequence) AS line_count"
             else:
                 line_count_expr = "COUNT(sod.id) AS line_count"
-            params = {}
+            params: dict = {}
             clauses = ["soh.is_deleted = false"]
             if customer_number:
                 params["customer_number"] = f"%{customer_number}%"
@@ -2409,6 +2756,11 @@ class ERPService:
                 if system_id:
                     params["branch_id"] = system_id
                     clauses.append("soh.system_id = :branch_id")
+            if rep_id:
+                params["rep_id"] = rep_id
+                clauses.append(
+                    "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
+                )
             page = max(1, page)
             offset = (page - 1) * limit if limit else 0
             if limit:
@@ -2439,13 +2791,16 @@ class ERPService:
                     ) AS handling_code,
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
+                    MAX(COALESCE(soh.salesperson, '')) AS salesperson,
+                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    MAX(COALESCE(soh.po_number, '')) AS po_number,
                     {line_count_expr}
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key
-                    AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_so_detail sod
                     ON sod.system_id = soh.system_id AND CAST(sod.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 {where_clause}
@@ -2626,27 +2981,31 @@ class ERPService:
             cursor.close()
             conn.close()
 
-    def get_sales_reports(self, period_days=30, branch=""):
-        cache_key = f'sales_reports_{period_days}_{branch}' if not branch else None
+    def get_sales_reports(self, period_days=30, branch="", rep_id=""):
+        cache_key = f'sales_reports_{period_days}_{rep_id}' if not branch and not rep_id else None
         if cache_key:
             cached = self._cache_get(cache_key)
             if cached is not None:
                 return cached
-        result = self._get_sales_reports_inner(period_days=period_days, branch=branch)
+        result = self._get_sales_reports_inner(period_days=period_days, branch=branch, rep_id=rep_id)
         if cache_key:
             self._cache_set(cache_key, result)
         return result
 
-    def _get_sales_reports_inner(self, period_days=30, branch=""):
+    def _get_sales_reports_inner(self, period_days=30, branch="", rep_id=""):
         if self.central_db_mode:
             since = datetime.utcnow() - timedelta(days=period_days)
             params_base: dict = {"since": since}
             branch_clause = ""
+            rep_clause = ""
             if branch:
                 system_id = self._normalize_branch_system_id(branch)
                 if system_id:
                     params_base["branch_id"] = system_id
                     branch_clause = " AND system_id = :branch_id"
+            if rep_id:
+                params_base["rep_id"] = rep_id
+                rep_clause = " AND (COALESCE(salesperson, '') = :rep_id OR COALESCE(order_writer, '') = :rep_id)"
 
             daily_orders = self._mirror_query(
                 f"""
@@ -2658,14 +3017,18 @@ class ERPService:
                   AND expect_date IS NOT NULL
                   AND expect_date >= :since
                   {branch_clause}
+                  {rep_clause}
                 GROUP BY CAST(expect_date AS DATE)
                 ORDER BY CAST(expect_date AS DATE)
                 """,
                 params_base,
             )
             branch_join_clause = ""
+            rep_join_clause = ""
             if branch and "branch_id" in params_base:
                 branch_join_clause = " AND soh.system_id = :branch_id"
+            if rep_id:
+                rep_join_clause = " AND (COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
             top_customers = self._mirror_query(
                 f"""
                 SELECT
@@ -2674,10 +3037,11 @@ class ERPService:
                     COUNT(DISTINCT soh.so_id) AS order_count
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 WHERE soh.is_deleted = false
                   AND soh.expect_date >= :since
                   {branch_join_clause}
+                  {rep_join_clause}
                 GROUP BY c.cust_key
                 ORDER BY order_count DESC
                 LIMIT 15
@@ -2693,6 +3057,7 @@ class ERPService:
                 WHERE is_deleted = false
                   AND expect_date >= :since
                   {branch_clause}
+                  {rep_clause}
                 GROUP BY so_status
                 ORDER BY count DESC
                 """,
@@ -2777,6 +3142,46 @@ class ERPService:
             cursor.close()
             conn.close()
 
+    def get_customer_details(self, customer_number):
+        """Fetch master record for a single customer from erp_mirror_cust."""
+        if not customer_number or not self.central_db_mode:
+            return {}
+        rows = self._mirror_query(
+            """
+            SELECT
+                cust_key, cust_code, cust_name, phone, email,
+                balance, credit_limit, terms, branch_code
+            FROM erp_mirror_cust
+            WHERE is_deleted = false
+              AND (TRIM(cust_code) = :cust OR TRIM(cust_key) = :cust)
+            LIMIT 1
+            """,
+            {"cust": customer_number.strip()},
+        )
+        return dict(rows[0]) if rows else {}
+
+    def get_customer_ship_to_addresses(self, customer_number):
+        """Fetch all ship-to addresses for a customer from erp_mirror_cust_shipto."""
+        if not customer_number or not self.central_db_mode:
+            return []
+        rows = self._mirror_query(
+            """
+            SELECT
+                seq_num, shipto_name, address_1, address_2,
+                city, state, zip, phone, lat, lon
+            FROM erp_mirror_cust_shipto
+            WHERE is_deleted = false
+              AND TRIM(cust_key) IN (
+                  SELECT TRIM(cust_key) FROM erp_mirror_cust
+                  WHERE is_deleted = false
+                    AND (TRIM(cust_code) = :cust OR TRIM(cust_key) = :cust)
+              )
+            ORDER BY seq_num
+            """,
+            {"cust": customer_number.strip()},
+        )
+        return [dict(row) for row in rows]
+
     def get_sales_customers_search(self, q="", limit=10):
         """Fast customer type-ahead: queries the customer table directly instead of through orders."""
         if len(q) < 2:
@@ -2820,6 +3225,54 @@ class ERPService:
             cursor.close()
             conn.close()
 
+    def get_distinct_salespeople(self, branch=""):
+        """Return distinct salesperson IDs from open sales orders."""
+        if self.central_db_mode:
+            params: dict = {}
+            clauses = ["soh.is_deleted = false", "COALESCE(soh.salesperson, '') != ''"]
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    params["branch_id"] = system_id
+                    clauses.append("soh.system_id = :branch_id")
+            where_clause = "WHERE " + " AND ".join(clauses)
+            rows = self._mirror_query(
+                f"""
+                SELECT DISTINCT TRIM(soh.salesperson) AS rep_id
+                FROM erp_mirror_so_header soh
+                {where_clause}
+                ORDER BY rep_id
+                """,
+                params,
+            )
+            return [dict(row) for row in rows]
+
+        self._require_central_db_for_cloud_mode()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            clauses = ["COALESCE(soh.salesperson, '') != ''"]
+            params_list = []
+            if branch:
+                system_id = self._normalize_branch_system_id(branch)
+                if system_id:
+                    clauses.append("soh.system_id = ?")
+                    params_list.append(system_id)
+            where_clause = "WHERE " + " AND ".join(clauses)
+            cursor.execute(
+                f"""
+                SELECT DISTINCT RTRIM(soh.salesperson) AS rep_id
+                FROM so_header soh
+                {where_clause}
+                ORDER BY rep_id
+                """,
+                params_list,
+            )
+            return [{"rep_id": row.rep_id} for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+            conn.close()
+
     def get_open_work_orders(self):
         """
         Fetches all Open Work Orders (wo_status != 'C') from ERP.
@@ -2848,8 +3301,7 @@ class ERPService:
                 LEFT JOIN erp_mirror_so_header soh
                     ON CAST(soh.so_id AS TEXT) = CAST(wh.source_id AS TEXT)
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 WHERE wh.is_deleted = false
                   AND UPPER(COALESCE(wh.wo_status, '')) NOT IN ('COMPLETED', 'CANCELED', 'C')
                 ORDER BY wh.wo_id DESC
@@ -2890,7 +3342,7 @@ class ERPService:
                 LEFT JOIN item i ON sod.item_ptr = i.item_ptr
                 LEFT JOIN so_header soh ON wh.source_id = soh.so_id
                 LEFT JOIN cust c ON CAST(soh.cust_key AS VARCHAR) = CAST(c.cust_key AS VARCHAR)
-                WHERE wh.wo_status NOT IN ('Completed', 'Canceled')
+                WHERE UPPER(COALESCE(wh.wo_status, '')) NOT IN ('COMPLETED', 'CANCELED', 'C')
                 ORDER BY wh.wo_id DESC
             """
             
@@ -2952,21 +3404,21 @@ class ERPService:
                     MAX(sh.status_flag_delivery) AS status_flag_delivery
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND c.cust_key = soh.cust_key
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND cs.cust_key = soh.cust_key AND CAST(cs.seq_num AS TEXT) = CAST(soh.shipto_seq_num AS TEXT)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key) AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND CAST(sh.so_id AS TEXT) = CAST(soh.so_id AS TEXT)
                 WHERE soh.is_deleted = false
-                  AND soh.so_status != 'C'
+                  AND UPPER(COALESCE(soh.so_status, '')) != 'C'
                   {branch_filter}
                   AND (
                     (CAST(soh.expect_date AS DATE) = :today)
                     OR (CAST(sh.ship_date AS DATE) = :today)
-                    OR (soh.so_status = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
-                    OR (soh.so_status IN ('K', 'P', 'S') AND (CAST(soh.expect_date AS DATE) = :today OR CAST(soh.expect_date AS DATE) < :today))
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
+                    OR (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S') AND (CAST(soh.expect_date AS DATE) = :today OR CAST(soh.expect_date AS DATE) < :today))
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.so_id) DESC
                 """,
@@ -3045,15 +3497,15 @@ class ERPService:
                 LEFT JOIN cust c ON soh.system_id = c.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(c.cust_key AS INT)
                 LEFT JOIN cust_shipto cs ON soh.system_id = cs.system_id AND TRY_CAST(soh.cust_key AS INT) = TRY_CAST(cs.cust_key AS INT) AND TRY_CAST(soh.shipto_seq_num AS INT) = TRY_CAST(cs.seq_num AS INT)
                 LEFT JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE soh.so_status != 'C'
+                WHERE UPPER(COALESCE(soh.so_status, '')) != 'C'
                   {branch_filter}
                   AND (
                     (soh.expect_date = ?)
                     OR (sh.ship_date = ?)
-                    OR (soh.so_status = 'I' AND sh.invoice_date = ?)
-                    OR (soh.so_status IN ('K', 'P', 'S') AND (soh.expect_date = ? OR soh.expect_date < ?)) -- Show backlog too but avoid future ones
+                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND sh.invoice_date = ?)
+                    OR (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S') AND (soh.expect_date = ? OR soh.expect_date < ?)) -- Show backlog too but avoid future ones
                   )
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                 GROUP BY soh.system_id, soh.so_id
                 ORDER BY MAX(soh.so_id) DESC
             """
@@ -3123,7 +3575,7 @@ class ERPService:
                 WHERE soh.is_deleted = false
                   AND CAST(sh.ship_date AS DATE) >= CURRENT_DATE - (:days * INTERVAL '1 day')
                   AND CAST(sh.ship_date AS DATE) < CURRENT_DATE
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                   {branch_filter}
                 GROUP BY CAST(sh.ship_date AS DATE)
                 ORDER BY CAST(sh.ship_date AS DATE) DESC
@@ -3155,7 +3607,7 @@ class ERPService:
                 JOIN shipments_header sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
                 WHERE sh.ship_date >= CAST(DATEADD(day, -{days}, GETDATE()) AS DATE)
                   AND sh.ship_date < CAST(GETDATE() AS DATE)
-                  AND soh.sale_type NOT IN ('Direct', 'WillCall', 'XInstall', 'Hold')
+                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
                   {branch_filter}
                 GROUP BY sh.ship_date
                 ORDER BY sh.ship_date DESC

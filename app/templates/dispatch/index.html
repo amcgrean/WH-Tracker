@@ -280,7 +280,10 @@
 {% endblock %}
 
 {% block content %}
-<script>window.DISPATCH_API_BASE = "{{ url_for('dispatch.index')[:-1] }}";</script>
+<script>
+window.DISPATCH_API_BASE = "{{ url_for('dispatch.index')[:-1] }}";
+window.GLOBAL_BRANCH = "{{ selected_branch or '' }}";
+</script>
 
 <div class="dispatch-page">
   <!-- ═══ Command Bar ═══ -->

@@ -1,1 +1,1 @@
-from .routes import main as main_blueprint
+from .main import main_bp as main

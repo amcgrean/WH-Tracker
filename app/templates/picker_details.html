@@ -1,44 +1,68 @@
 {% extends 'base.html' %}
 
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.20/css/jquery.dataTables.min.css">
+{% endblock %}
+
 {% block content %}
-<div class="container">
-    <h1>Picks Detail for {{ picker.name }}</h1>
-    <table id="detailsTable" class="table">
-        <thead>
-            <tr>
-                <th>Barcode Number</th>
-                <th>Customer</th>
-                <th>Reference</th>
-                <th>Start Date/Time</th>
-                <th>Time to Complete</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for pick in picks %}
-            <tr>
-                <td><a href="{{ url_for('main.pick_detail', so_number=pick['barcode_number']) }}">{{
-                        pick['barcode_number'] }}</a></td>
-                <td>{{ pick['customer_name'] }}</td>
-                <td>{{ pick['reference'] }}</td>
-                <td>{{ pick['start_time'] }}</td>
-                <td>{{ pick['time_to_complete'] }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="container-fluid mt-4 pb-5 px-lg-5">
+    <nav aria-label="breadcrumb" class="mb-3 animate-fade-in">
+        <ol class="breadcrumb bg-transparent px-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.picker_stats') }}">Picker Stats</a></li>
+            <li class="breadcrumb-item active">{{ picker.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="mb-4 animate-fade-in">
+        <h1 class="display-4 font-weight-bold mb-0 text-gradient">{{ picker.name }}</h1>
+        <p class="text-muted lead mb-0">Pick history and performance detail</p>
+    </div>
+
+    <div class="glass-card animate-fade-in delay-1">
+        <div class="card-header-ops">
+            <i class="fas fa-list mr-2"></i> Pick History
+        </div>
+        <div class="table-responsive">
+            <table id="detailsTable" class="table table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Barcode Number</th>
+                        <th>Customer</th>
+                        <th>Reference</th>
+                        <th>Start Date/Time</th>
+                        <th>Time to Complete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pick in picks %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('main.pick_detail', so_number=pick['barcode_number']) }}" class="font-weight-bold text-primary">
+                                {{ pick['barcode_number'] }}
+                            </a>
+                        </td>
+                        <td>{{ pick['customer_name'] }}</td>
+                        <td>{{ pick['reference'] }}</td>
+                        <td class="small">{{ pick['start_time'] }}</td>
+                        <td><span class="badge badge-light border">{{ pick['time_to_complete'] }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.datatables.net/1.10.20/js/jquery.dataTables.min.js"></script>
 <script>
     $(document).ready(function () {
         $('#detailsTable').DataTable({
-            "order": [[1, "asc"]],
-            "pageLength": 10
+            "order": [[3, "desc"]],
+            "pageLength": 15
         });
     });
 </script>
-<link rel="stylesheet" href="https://cdn.datatables.net/1.10.20/css/jquery.dataTables.min.css">
 {% endblock %}
