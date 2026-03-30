@@ -1,0 +1,478 @@
+{% extends 'base.html' %}
+{% block title %}PO Check-In{% endblock %}
+
+{% block content %}
+<!-- CDN scripts for barcode scanning and image compression -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+
+<div class="container-fluid px-4 py-4" style="max-width:680px;">
+
+  <div class="d-flex align-items-center mb-4">
+    <div>
+      <h4 class="font-weight-bold mb-0"><i class="fas fa-camera mr-2 text-success"></i>PO Check-In</h4>
+      <p class="text-muted small mb-0">Photograph and record an incoming purchase order.</p>
+    </div>
+  </div>
+
+  <!-- Step indicator -->
+  <div class="d-flex align-items-center mb-4" id="stepIndicator">
+    <div class="step-dot active" id="dot1">1</div>
+    <div class="step-line flex-fill"></div>
+    <div class="step-dot" id="dot2">2</div>
+    <div class="step-line flex-fill"></div>
+    <div class="step-dot" id="dot3">3</div>
+  </div>
+
+  <!-- ── Step 1: PO Lookup ───────────────────────────────────────────── -->
+  <div id="step1" class="step-panel">
+    <div class="card glass-panel">
+      <div class="card-body">
+        <h6 class="font-weight-bold mb-3">Step 1 — Enter PO Number</h6>
+
+        <div class="input-group mb-2">
+          <input type="text" id="poInput" class="form-control form-control-lg"
+                 placeholder="e.g. PO-12345" autocomplete="off" autofocus>
+          <div class="input-group-append">
+            <button class="btn btn-outline-secondary" type="button" id="scanBtn"
+                    data-toggle="modal" data-target="#scanModal" title="Scan barcode">
+              <i class="fas fa-barcode"></i>
+            </button>
+          </div>
+        </div>
+        <small class="text-muted d-block mb-3">Type the PO number or scan a barcode.</small>
+
+        <button class="btn btn-success btn-block" id="lookupBtn">
+          <i class="fas fa-search mr-1"></i> Look Up PO
+        </button>
+
+        <!-- ERP result card (hidden until found) -->
+        <div id="poResult" class="mt-3 d-none">
+          <div class="alert alert-success py-2 mb-2" id="poFoundAlert">
+            <strong><i class="fas fa-check-circle mr-1"></i><span id="poResultNum"></span></strong>
+            <span class="text-muted ml-2" id="poResultSupplier"></span>
+            <span class="badge badge-secondary ml-2" id="poResultStatus"></span>
+          </div>
+          <button class="btn btn-success btn-block" id="step1NextBtn">
+            Continue <i class="fas fa-arrow-right ml-1"></i>
+          </button>
+        </div>
+
+        <div id="poError" class="alert alert-warning mt-3 d-none py-2">
+          <i class="fas fa-exclamation-triangle mr-1"></i>
+          <span id="poErrorMsg">PO not found. Please check the number and try again.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Step 2: Photo Capture ──────────────────────────────────────── -->
+  <div id="step2" class="step-panel d-none">
+    <div class="card glass-panel">
+      <div class="card-body">
+        <h6 class="font-weight-bold mb-1">Step 2 — Photograph the Shipment</h6>
+        <p class="text-muted small mb-3">Capture at least one photo of the received goods.</p>
+
+        <div class="d-flex mb-3">
+          <button class="btn btn-success mr-2" id="cameraBtn">
+            <i class="fas fa-camera mr-1"></i> Open Camera
+          </button>
+          <label class="btn btn-outline-secondary mb-0" for="fileInput">
+            <i class="fas fa-folder-open mr-1"></i> Choose File
+          </label>
+          <input type="file" id="fileInput" accept="image/*" class="d-none" multiple>
+        </div>
+
+        <!-- Photo gallery strip -->
+        <div id="photoGallery" class="d-flex flex-wrap mb-3" style="gap:8px;min-height:80px;">
+          <p class="text-muted small m-auto" id="noPhotosMsg">No photos yet.</p>
+        </div>
+
+        <!-- Upload progress -->
+        <div id="uploadProgress" class="d-none">
+          <div class="progress mb-2" style="height:6px;">
+            <div class="progress-bar bg-success" id="uploadBar" style="width:0%"></div>
+          </div>
+          <small class="text-muted" id="uploadStatus">Uploading photos…</small>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+          <button class="btn btn-outline-secondary" id="step2BackBtn">
+            <i class="fas fa-arrow-left mr-1"></i> Back
+          </button>
+          <button class="btn btn-success" id="step2NextBtn" disabled>
+            Continue <i class="fas fa-arrow-right ml-1"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Step 3: Notes & Submit ─────────────────────────────────────── -->
+  <div id="step3" class="step-panel d-none">
+    <div class="card glass-panel">
+      <div class="card-body">
+        <h6 class="font-weight-bold mb-3">Step 3 — Review &amp; Submit</h6>
+
+        <div class="alert alert-light border mb-3 py-2">
+          <strong id="confirmPoNum"></strong>
+          <span class="text-muted ml-2" id="confirmSupplier"></span>
+          <span class="badge badge-secondary ml-1" id="confirmPhotoCount"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="font-weight-semibold small">Notes <span class="text-muted">(optional)</span></label>
+          <textarea id="notesInput" class="form-control" rows="3"
+                    placeholder="e.g. Missing 3 boxes, damaged packaging on pallet 2…"></textarea>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+          <button class="btn btn-outline-secondary" id="step3BackBtn">
+            <i class="fas fa-arrow-left mr-1"></i> Back
+          </button>
+          <button class="btn btn-success px-4" id="submitBtn">
+            <span id="submitBtnText"><i class="fas fa-paper-plane mr-1"></i> Submit</span>
+            <span id="submitSpinner" class="d-none">
+              <span class="spinner-border spinner-border-sm mr-1"></span> Submitting…
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ── Barcode Scanner Modal ──────────────────────────────────────────── -->
+<div class="modal fade" id="scanModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="fas fa-barcode mr-2"></i>Scan Barcode</h6>
+        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+      </div>
+      <div class="modal-body p-2">
+        <div id="qrReader" style="width:100%;"></div>
+        <p class="text-muted small text-center mt-2 mb-0">Point camera at barcode or QR code</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Camera Capture Modal ───────────────────────────────────────────── -->
+<div class="modal fade" id="cameraModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="fas fa-camera mr-2"></i>Capture Photo</h6>
+        <button type="button" class="close" id="cameraClose" data-dismiss="modal"><span>&times;</span></button>
+      </div>
+      <div class="modal-body p-2 text-center">
+        <video id="cameraVideo" autoplay playsinline muted
+               style="width:100%;max-height:400px;background:#000;border-radius:4px;"></video>
+        <canvas id="cameraCanvas" class="d-none"></canvas>
+      </div>
+      <div class="modal-footer py-2 justify-content-center">
+        <button class="btn btn-success btn-lg px-5" id="captureBtn">
+          <i class="fas fa-circle mr-1"></i> Capture
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.step-dot {
+  width:32px; height:32px; border-radius:50%;
+  background:#e9ecef; color:#6c757d; font-weight:700; font-size:.85rem;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.step-dot.active { background:var(--beisser-green,#004526); color:#fff; }
+.step-dot.done   { background:#28a745; color:#fff; }
+.step-line { height:2px; background:#e9ecef; margin:0 6px; }
+.photo-thumb {
+  position:relative; width:80px; height:80px;
+  border-radius:6px; overflow:hidden;
+  border:2px solid #dee2e6;
+}
+.photo-thumb img { width:100%; height:100%; object-fit:cover; }
+.photo-thumb .remove-btn {
+  position:absolute; top:2px; right:2px;
+  background:rgba(0,0,0,.6); color:#fff;
+  border:none; border-radius:50%;
+  width:20px; height:20px; padding:0;
+  font-size:.65rem; cursor:pointer; line-height:1;
+}
+</style>
+
+<script>
+(function() {
+  // ── State ──────────────────────────────────────────────────────────────
+  var state = {
+    step: 1,
+    poNumber: '',
+    supplierName: '',
+    poStatus: '',
+    photos: [],        // {blob, dataUrl}
+    uploadedUrls: [],  // R2 public URLs after upload
+    uploading: false,
+  };
+
+  // ── DOM refs ───────────────────────────────────────────────────────────
+  var $ = function(id) { return document.getElementById(id); };
+
+  // ── Step transitions ───────────────────────────────────────────────────
+  function showStep(n) {
+    state.step = n;
+    [1,2,3].forEach(function(i) {
+      $('step' + i).classList.toggle('d-none', i !== n);
+      var dot = $('dot' + i);
+      dot.classList.remove('active', 'done');
+      if (i < n) dot.classList.add('done');
+      else if (i === n) dot.classList.add('active');
+    });
+  }
+
+  // ── Step 1: PO Lookup ─────────────────────────────────────────────────
+  function lookupPO() {
+    var num = $('poInput').value.trim();
+    if (!num) return;
+    $('lookupBtn').disabled = true;
+    $('lookupBtn').innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span> Looking up…';
+    $('poResult').classList.add('d-none');
+    $('poError').classList.add('d-none');
+
+    fetch('/po/api/po/' + encodeURIComponent(num))
+      .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+      .then(function(res) {
+        $('lookupBtn').disabled = false;
+        $('lookupBtn').innerHTML = '<i class="fas fa-search mr-1"></i> Look Up PO';
+        if (!res.ok || !res.data || !res.data.header) {
+          $('poErrorMsg').textContent = 'PO not found. Please check the number and try again.';
+          $('poError').classList.remove('d-none');
+          return;
+        }
+        var h = res.data.header;
+        state.poNumber = h.po_number || num;
+        state.supplierName = h.supplier_name || '';
+        state.poStatus = h.status || '';
+        $('poResultNum').textContent = state.poNumber;
+        $('poResultSupplier').textContent = state.supplierName;
+        $('poResultStatus').textContent = state.poStatus;
+        $('poResult').classList.remove('d-none');
+      })
+      .catch(function() {
+        $('lookupBtn').disabled = false;
+        $('lookupBtn').innerHTML = '<i class="fas fa-search mr-1"></i> Look Up PO';
+        $('poErrorMsg').textContent = 'Network error. Please try again.';
+        $('poError').classList.remove('d-none');
+      });
+  }
+
+  $('lookupBtn').addEventListener('click', lookupPO);
+  $('poInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') lookupPO();
+  });
+
+  $('step1NextBtn').addEventListener('click', function() {
+    showStep(2);
+  });
+
+  // ── Barcode scanner ────────────────────────────────────────────────────
+  var html5QrCode = null;
+  $('#scanModal').addEventListener('show.bs.modal', function() {
+    html5QrCode = new Html5Qrcode('qrReader');
+    html5QrCode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 150 } },
+      function(decodedText) {
+        $('poInput').value = decodedText.trim();
+        html5QrCode.stop();
+        $('#scanModal').dispatchEvent(new Event('hide'));
+        // Use Bootstrap jQuery modal hide
+        try { window.$('#scanModal').modal('hide'); } catch(e) {}
+        lookupPO();
+      },
+      function() {}
+    ).catch(function() {});
+  });
+  $('#scanModal').addEventListener('hide.bs.modal', function() {
+    if (html5QrCode) { try { html5QrCode.stop(); } catch(e) {} html5QrCode = null; }
+  });
+
+  // ── Step 2: Photo capture ─────────────────────────────────────────────
+  var cameraStream = null;
+
+  $('cameraBtn').addEventListener('click', function() {
+    window.$('#cameraModal').modal('show');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(function(stream) {
+        cameraStream = stream;
+        $('cameraVideo').srcObject = stream;
+      })
+      .catch(function() {
+        window.$('#cameraModal').modal('hide');
+        $('fileInput').click();
+      });
+  });
+
+  $('cameraClose').addEventListener('click', function() {
+    if (cameraStream) { cameraStream.getTracks().forEach(function(t) { t.stop(); }); cameraStream = null; }
+  });
+
+  $('captureBtn').addEventListener('click', function() {
+    var video = $('cameraVideo');
+    var canvas = $('cameraCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(function(blob) {
+      addPhoto(blob);
+      window.$('#cameraModal').modal('hide');
+      if (cameraStream) { cameraStream.getTracks().forEach(function(t) { t.stop(); }); cameraStream = null; }
+    }, 'image/jpeg', 0.85);
+  });
+
+  $('fileInput').addEventListener('change', function(e) {
+    Array.from(e.target.files).forEach(function(f) { addPhoto(f); });
+    e.target.value = '';
+  });
+
+  function addPhoto(blob) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      state.photos.push({ blob: blob, dataUrl: e.target.result });
+      renderGallery();
+    };
+    reader.readAsDataURL(blob);
+  }
+
+  function removePhoto(idx) {
+    state.photos.splice(idx, 1);
+    renderGallery();
+  }
+
+  function renderGallery() {
+    var gallery = $('photoGallery');
+    gallery.innerHTML = '';
+    if (state.photos.length === 0) {
+      gallery.innerHTML = '<p class="text-muted small m-auto" id="noPhotosMsg">No photos yet.</p>';
+      $('step2NextBtn').disabled = true;
+      return;
+    }
+    $('step2NextBtn').disabled = false;
+    state.photos.forEach(function(p, i) {
+      var div = document.createElement('div');
+      div.className = 'photo-thumb';
+      div.innerHTML = '<img src="' + p.dataUrl + '" alt="Photo ' + (i+1) + '">' +
+        '<button class="remove-btn" data-idx="' + i + '" title="Remove"><i class="fas fa-times"></i></button>';
+      gallery.appendChild(div);
+    });
+    gallery.querySelectorAll('.remove-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { removePhoto(parseInt(this.dataset.idx)); });
+    });
+  }
+
+  $('step2BackBtn').addEventListener('click', function() { showStep(1); });
+
+  $('step2NextBtn').addEventListener('click', function() {
+    uploadAllPhotos().then(function() { showStep(3); });
+  });
+
+  function uploadAllPhotos() {
+    if (state.photos.length === 0) return Promise.resolve();
+    $('uploadProgress').classList.remove('d-none');
+    $('step2NextBtn').disabled = true;
+    state.uploading = true;
+    state.uploadedUrls = [];
+    var total = state.photos.length;
+    var done = 0;
+
+    var compressionOptions = { maxWidthOrHeight: 1600, useWebWorker: true, initialQuality: 0.7 };
+
+    var promises = state.photos.map(function(p) {
+      return imageCompression(p.blob, compressionOptions)
+        .then(function(compressed) {
+          var fd = new FormData();
+          fd.append('file', compressed, 'photo.jpg');
+          fd.append('po_number', state.poNumber);
+          return fetch('/po/api/upload', { method: 'POST', body: fd });
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          done++;
+          $('uploadBar').style.width = Math.round(done / total * 100) + '%';
+          $('uploadStatus').textContent = 'Uploading ' + done + ' of ' + total + '…';
+          if (data.url) state.uploadedUrls.push(data.url);
+        });
+    });
+
+    return Promise.all(promises).then(function() {
+      state.uploading = false;
+      $('uploadProgress').classList.add('d-none');
+      $('step2NextBtn').disabled = false;
+    }).catch(function(err) {
+      state.uploading = false;
+      $('uploadStatus').textContent = 'Some uploads failed. Please try again.';
+    });
+  }
+
+  // ── Step 3: Submit ────────────────────────────────────────────────────
+  $('step3BackBtn').addEventListener('click', function() { showStep(2); });
+
+  document.addEventListener('step3shown', function() {
+    $('confirmPoNum').textContent = state.poNumber;
+    $('confirmSupplier').textContent = state.supplierName;
+    $('confirmPhotoCount').textContent = state.uploadedUrls.length + ' photo(s)';
+  });
+
+  // Intercept showStep to fire event
+  var _origShowStep = showStep;
+  showStep = function(n) {
+    _origShowStep(n);
+    if (n === 3) {
+      $('confirmPoNum').textContent = state.poNumber;
+      $('confirmSupplier').textContent = state.supplierName;
+      $('confirmPhotoCount').textContent = state.uploadedUrls.length + ' photo(s)';
+    }
+  };
+
+  $('submitBtn').addEventListener('click', function() {
+    $('submitBtnText').classList.add('d-none');
+    $('submitSpinner').classList.remove('d-none');
+    $('submitBtn').disabled = true;
+
+    fetch('/po/api/submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        po_number: state.poNumber,
+        image_urls: state.uploadedUrls,
+        supplier_name: state.supplierName,
+        po_status: state.poStatus,
+        notes: $('notesInput').value.trim() || null,
+      }),
+    })
+    .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+    .then(function(res) {
+      if (res.ok) {
+        window.location.href = '/po/history?submitted=1';
+      } else {
+        alert('Submission failed: ' + (res.data.error || 'Unknown error'));
+        $('submitBtnText').classList.remove('d-none');
+        $('submitSpinner').classList.add('d-none');
+        $('submitBtn').disabled = false;
+      }
+    })
+    .catch(function() {
+      alert('Network error. Please try again.');
+      $('submitBtnText').classList.remove('d-none');
+      $('submitSpinner').classList.add('d-none');
+      $('submitBtn').disabled = false;
+    });
+  });
+
+})();
+</script>
+{% endblock %}

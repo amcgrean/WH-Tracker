@@ -60,6 +60,18 @@
               <small class="text-muted">E.164 format. Used for SMS login in phase 2.</small>
             </div>
 
+            <div class="form-group" id="branchField">
+              <label class="font-weight-semibold small">Home Branch</label>
+              <select name="branch" class="form-control">
+                <option value="">— None (all branches) —</option>
+                <option value="20GR" {{ 'selected' if user and user.branch == '20GR' else '' }}>20GR — Grimes</option>
+                <option value="25BW" {{ 'selected' if user and user.branch == '25BW' else '' }}>25BW — Birchwood</option>
+                <option value="40CV" {{ 'selected' if user and user.branch == '40CV' else '' }}>40CV — Coralville</option>
+                <option value="10FD" {{ 'selected' if user and user.branch == '10FD' else '' }}>10FD — Fort Dodge</option>
+              </select>
+              <small class="text-muted">Required for <strong>purchasing</strong>, <strong>warehouse</strong>, and <strong>ops</strong> roles to scope PO submissions. Leave blank for supervisor/admin.</small>
+            </div>
+
             <div class="form-group">
               <label class="font-weight-semibold small">Roles</label>
               <div class="row">

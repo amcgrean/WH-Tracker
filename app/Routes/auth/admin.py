@@ -42,6 +42,7 @@ def add_user():
         display_name = (request.form.get("display_name") or "").strip()
         phone = (request.form.get("phone") or "").strip() or None
         roles = request.form.getlist("roles")
+        branch = (request.form.get("branch") or "").strip().upper() or None
 
         if not email:
             flash("Email is required.", "danger")
@@ -59,6 +60,7 @@ def add_user():
             display_name=display_name or None,
             phone=phone,
             roles=roles,
+            branch=branch,
             is_active=True,
         )
         db.session.add(user)
@@ -81,6 +83,7 @@ def edit_user(user_id):
         user.display_name = (request.form.get("display_name") or "").strip() or None
         user.phone = (request.form.get("phone") or "").strip() or None
         user.roles = request.form.getlist("roles")
+        user.branch = (request.form.get("branch") or "").strip().upper() or None
         db.session.commit()
         flash(f"User {user.email} updated.", "success")
         return redirect(url_for("auth.manage_users"))

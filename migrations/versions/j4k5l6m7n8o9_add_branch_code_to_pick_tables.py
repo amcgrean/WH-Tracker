@@ -17,17 +17,19 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('pick', sa.Column('branch_code', sa.String(32), nullable=True))
-    op.create_index('ix_pick_branch_code', 'pick', ['branch_code'])
+    # Use raw SQL with IF NOT EXISTS guards — columns/indexes may already exist
+    # if they were applied outside of Alembic.
+    op.execute("ALTER TABLE pick ADD COLUMN IF NOT EXISTS branch_code VARCHAR(32)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_pick_branch_code ON pick (branch_code)")
 
-    op.add_column('pick_assignments', sa.Column('branch_code', sa.String(32), nullable=True))
-    op.create_index('ix_pick_assignments_branch_code', 'pick_assignments', ['branch_code'])
+    op.execute("ALTER TABLE pick_assignments ADD COLUMN IF NOT EXISTS branch_code VARCHAR(32)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_pick_assignments_branch_code ON pick_assignments (branch_code)")
 
-    op.add_column('pickster', sa.Column('branch_code', sa.String(32), nullable=True))
-    op.create_index('ix_pickster_branch_code', 'pickster', ['branch_code'])
+    op.execute("ALTER TABLE pickster ADD COLUMN IF NOT EXISTS branch_code VARCHAR(32)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_pickster_branch_code ON pickster (branch_code)")
 
-    op.add_column('wo_assignments', sa.Column('branch_code', sa.String(32), nullable=True))
-    op.create_index('ix_wo_assignments_branch_code', 'wo_assignments', ['branch_code'])
+    op.execute("ALTER TABLE wo_assignments ADD COLUMN IF NOT EXISTS branch_code VARCHAR(32)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_wo_assignments_branch_code ON wo_assignments (branch_code)")
 
 
 def downgrade():

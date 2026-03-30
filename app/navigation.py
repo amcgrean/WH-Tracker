@@ -210,15 +210,42 @@ NAV_SECTIONS = [
         ],
     },
     # ------------------------------------------------------------------
-    # PURCHASING  (future)
+    # PURCHASING
     # ------------------------------------------------------------------
     {
         "id": "purchasing",
         "label": "Purchasing",
         "icon": "fas fa-shopping-cart",
-        "roles": ["purchasing", "ops", "admin"],
-        "coming_soon": True,
-        "items": [],
+        "roles": ["purchasing", "warehouse", "ops", "supervisor", "admin"],
+        "items": [
+            {
+                "id": "po_checkin",
+                "label": "PO Check-In",
+                "endpoint": "po.checkin",
+                "icon": "fas fa-camera",
+                "description": "Photograph and record incoming purchase orders.",
+                "roles": ["purchasing", "warehouse"],
+                "permissions": ["po.submit"],
+            },
+            {
+                "id": "po_review",
+                "label": "Review Submissions",
+                "endpoint": "po.review_dashboard",
+                "icon": "fas fa-clipboard-check",
+                "description": "Review and flag PO check-in submissions.",
+                "roles": ["ops", "supervisor", "admin"],
+                "permissions": ["po.review"],
+            },
+            {
+                "id": "po_open_pos",
+                "label": "Open POs",
+                "endpoint": "po.open_pos",
+                "icon": "fas fa-list-alt",
+                "description": "Browse open purchase orders and receiving status.",
+                "roles": ["supervisor", "admin"],
+                "permissions": ["po.open_pos"],
+            },
+        ],
     },
     # ------------------------------------------------------------------
     # ADMIN
@@ -279,6 +306,9 @@ def _normalize_claims(values: Iterable[str] | None) -> set[str]:
 
 
 def _is_allowed(required_roles: Iterable[str] | None, user_roles: set[str]) -> bool:
+    # admin always sees everything — mirrors the same bypass in auth.py
+    if "admin" in user_roles:
+        return True
     role_set = _normalize_claims(required_roles)
     return "*" in role_set or "*" in user_roles or bool(role_set & user_roles)
 

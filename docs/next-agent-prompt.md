@@ -1,138 +1,89 @@
-# Next Agent Prompt: Kiosk/TV Branch Filtering, PWA Icons & Cleanup
+# Next Agent Prompt — WH-Tracker (current as of 2026-03-30)
 
-## Context
-You are working on a Flask warehouse management app for Beisser Lumber. The full 8-phase UI/UX overhaul (Phases 0-7) is **COMPLETE** on `main-fly`. A critical customer-name/address bug was also fixed (all central_db_mode queries now use TRIM on cust_key/seq_num joins).
+## What You're Working On
 
-**Read the memory files first** at the path shown in `MEMORY.md`. Key files:
-- `project_ui_overhaul_status.md` — All phases done, deferred items listed
-- `project_branch_architecture.md` — Dual branch concept (sidebar filter vs kiosk URL)
-- `project_design_system.md` — CSS custom properties + reusable classes
-- `project_fly_deployment.md` — Fly.io app status
+Flask warehouse management app for Beisser Lumber (`wh-tracker-fly` on Fly.io). The app is live at https://wh-tracker-fly.fly.dev.
 
-Also read `docs/NEXT_AGENT_HANDOFF_2026-03-27.md` for the full session record.
+**Read memory files first** — they live at `.claude/projects/C--Users-amcgrean-python-wh-tracker-fly-WH-Tracker/memory/`. Start with `MEMORY.md` for the index.
 
-## What's Done (DO NOT redo)
-- **Phases 0-7 UI/UX overhaul** — all complete
-- **Customer name/address TRIM fix** (commit `9c86671`) — All 12 central_db_mode mirror queries in `erp_service.py` now use `TRIM(c.cust_key) = TRIM(soh.cust_key)` and `TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))`. This fixed blank customer names across delivery tracker, picks, order board, staged orders, sales orders, invoices, dashboard, and work orders.
-- `app/branch_utils.py` — Centralized branch logic (normalize, expand, validate, DSM->[20GR,25BW])
-- `app/static/css/style.css` — Full design system (~355 lines)
-- `app/templates/base.html` — Sidebar with branch selector, search, PWA manifest/SW registration
-- `app/templates/kiosk_base.html` / `tv_base.html` — Standalone shells (no sidebar)
-- All kiosk routes (`/kiosk/<branch>/...`) and TV routes (`/tv/<branch>/...`) exist in `app/Routes/routes.py`
-- All kiosk templates (7) in `app/templates/kiosk/` and TV templates (2) in `app/templates/tv/`
-- Helper functions `_kiosk_context(branch)` and `_tv_context(branch)` validate branch and build template context
+Also read `docs/NEXT_AGENT_HANDOFF_2026-03-30.md` for the full session record of what was just built.
 
 ---
 
-## Task 1: PWA Icons (quick)
+## Current State (as of 2026-03-30)
 
-Create two PNG icons and place in `app/static/icons/`:
-- `icon-192.png` (192x192)
-- `icon-512.png` (512x512)
+### What's Complete
+- **UI/UX overhaul Phases 0-7** — done (see `project_ui_overhaul_status.md`)
+- **PO Check-In blueprint** — routes, service layer, templates, migrations all deployed
+- **Auth** — OTP email login live via Resend; admin user created; `admin` role bypasses all nav/route checks
+- **Alembic head** — `l6m7n8o9p0q1` (`po_submissions` table created)
+- **R2 storage** — Fly secrets set; `po_service.py` wires R2 via boto3
 
-Design: Simple "B" or cubes/warehouse icon on solid green `#004526` background, white foreground. These are referenced by `app/static/manifest.json`. You can generate these programmatically with Python (Pillow) if you prefer — just make them clean and legible.
+### What's Not Done Yet (priority order)
+
+1. **Verify `app_po_*` DB views exist** — PO module won't work without them. Check then apply `sql/app_po_read_models.sql` from po-app repo if missing. Views: `app_po_search`, `app_po_header`, `app_po_detail`, `app_po_receiving_summary`.
+
+2. **Create users** — DB has only 1 user (amcgrean@beisserlumber.com, admin). All users must be added via `/auth/users` before they can log in.
+
+3. **End-to-end PO check-in test** — Needs a purchasing/warehouse user + a real PO number from ERP.
+
+4. **Kiosk/TV branch filtering** — Routes exist but show all branches with a notice. WorkOrder and TV board can be filtered; pick routes cannot yet. See `docs/next-agent-prompt.md` (previous version) for full spec — Task 2 in the kiosk/TV section.
+
+5. **UPLOAD_FOLDER durability** — Local disk, not durable on Fly. Low priority until credit/RMA upload feature is actively used.
+
+6. **Phase 2 auth (mobile app, future)** — SMS OTP + PIN login for warehouse/driver roles. Do not start until mobile app project begins.
 
 ---
 
-## Task 2: Kiosk/TV Branch-Aware Data Filtering (main task)
+## Architecture Rules (do not regress)
 
-### Current State
-All 13 kiosk/TV route functions in `app/Routes/routes.py` call `_kiosk_context(branch)` or `_tv_context(branch)` which **validates** the branch from the URL path — but then **ignores it for data queries**. Templates show a notice badge saying "Showing all branches."
+1. **TRIM joins** — `central_db_mode` queries joining on `cust_key` or `seq_num` must use `TRIM()`. See `memory/project_cust_key_trim_fix.md`.
+2. **No system_id on customer joins** — `erp_mirror_cust` / `erp_mirror_cust_shipto` are centralized. Never join them on `system_id`.
+3. **admin bypass is consistent** — `auth.py` `_user_has_role()` and `navigation.py` `_is_allowed()` both short-circuit for `admin`. Keep them in sync.
+4. **IF NOT EXISTS on migrations** — Any migration adding columns that may have been applied outside Alembic must use raw SQL with `IF NOT EXISTS`.
+5. **R2 for uploads** — New file upload flows use R2 via boto3. Never `UPLOAD_FOLDER` for new features.
+6. **No Supabase client** — SQLAlchemy + psycopg2 only. No `supabase-py`.
+7. **TRIM fix** — Do not remove TRIM from any existing ERP mirror joins.
+8. **Read before Edit** — Always read files before editing. Batch-read related files in parallel.
+9. **expand_branch_filter()** — Never use `== branch` when branch could be `DSM`. DSM expands to `['20GR', '25BW']`.
 
-### What Needs To Happen
+---
 
-**WorkOrder routes CAN be filtered** (WorkOrder model has `branch_code`):
-- `kiosk_work_orders(branch)` — Filter `WorkOrder.query` by `branch_code`
-- `kiosk_work_orders_open(branch, user_id)` — Filter open WOs by branch
-- `kiosk_work_order_scan(branch, user_id)` — Filter scannable WOs by branch
-- `kiosk_work_order_select(branch)` — Filter selectable WOs by branch
-- `kiosk_start_work_orders(branch)` — Validate selected WOs belong to branch
-- `kiosk_complete_work_order(branch, wo_id)` — Validate WO belongs to branch
+## Key Files
 
-**ERP mirror data CAN be filtered** (ERP tables have `branch_code`):
-- `tv_board_branch(branch, handling_code)` — The `erp_service` queries can filter by branch using `expand_branch_filter()` from `branch_utils` (this pattern is already used in sales/dispatch routes)
+| File | Purpose |
+|------|---------|
+| `app/Routes/po_routes.py` | PO blueprint — all routes |
+| `app/Services/po_service.py` | PO query functions |
+| `app/templates/po/` | 6 PO templates |
+| `app/Services/otp_service.py` | OTP email delivery; Phase 2 SMS stub |
+| `app/Routes/auth_routes.py` | Login/OTP/user management |
+| `app/Models/models.py` | AppUser (+ branch), POSubmission, OTPCode |
+| `app/navigation.py` | Nav sections + admin bypass in `_is_allowed()` |
+| `app/branch_utils.py` | Branch normalization, DSM expansion |
+| `app/Services/erp_service.py` | All ERP queries |
+| `app/static/css/style.css` | Global design system |
+| `config.py` | All env config including R2 vars |
 
-**Pick data CANNOT be filtered** (Pickster, Pick, PickAssignment have NO `branch_code`):
-- `kiosk_pickers(branch)` — Shows all pickers. Keep the "Showing all pickers" notice.
-- `kiosk_confirm_picker(branch, picker_id)` — No filtering possible.
-- `kiosk_input_pick(branch, picker_id, pick_type_id)` — No filtering possible.
-- `kiosk_complete_pick(branch, pick_id)` — No filtering possible.
-- `tv_open_picks(branch)` — Shows all open picks. Keep the notice.
+---
 
-### Implementation Pattern
-Follow the pattern already used in `app/Routes/sales_routes.py`:
-```python
-from app.branch_utils import normalize_branch, expand_branch_filter
+## Pitfalls
 
-# For WorkOrder queries:
-branch = ctx['kiosk_branch']  # Already normalized by _kiosk_context
-if branch:
-    branch_list = expand_branch_filter(branch)  # DSM -> ['20GR', '25BW']
-    query = query.filter(WorkOrder.branch_code.in_(branch_list))
+1. **Edit tool requires Read first** — always Read before editing. Parallel-read batches.
+2. **fly.toml has unstaged local changes** — don't accidentally commit it.
+3. **Migration conflicts** — If you hit `DuplicateColumn` or similar, use `IF NOT EXISTS` guards in raw SQL rather than the Alembic helpers.
+4. **Session not refreshed after deploy** — Users must log in again after a deploy to pick up session changes.
+5. **WorkOrder model** — verify `branch_code` column name before writing queries.
+6. **Schema drift** — `so_id` and `seq_num` have integer vs varchar drift between mirror tables. Always CAST in joins.
 
-# For ERP service queries:
-# Pass branch to erp_service methods that support it
+---
+
+## Fly.io Commands
+
+```bash
+fly deploy
+fly logs --app wh-tracker-fly --no-tail
+fly ssh console --app wh-tracker-fly -C "flask db current"
+fly ssh console --app wh-tracker-fly -C "flask db upgrade"
+fly secrets list --app wh-tracker-fly
 ```
-
-### DSM Special Case
-`DSM` is not a real branch — it expands to `['20GR', '25BW']` via `expand_branch_filter()`. Always use `expand_branch_filter()` rather than direct equality checks.
-
-### Template Updates
-After wiring the data filtering, update kiosk/TV templates to:
-1. Remove "Showing all branches" or "Showing all data" notices from branch-filtered views
-2. Keep the notice on pick-related views that genuinely can't filter
-3. Add a `branch-active-indicator` showing which branch is active (the `kiosk_branch` / `tv_branch` var is already in context)
-
----
-
-## Task 3: Cleanup the Legacy `warehouse/tv_board.html`
-
-There's a `app/templates/warehouse/tv_board.html` that's a legacy duplicate of `app/templates/tv/tv_board.html`. Check if any route still references it. If not, delete it. If so, update the route to use the `tv/` version.
-
----
-
-## Task 4: UPLOAD_FOLDER Durability
-
-The app uses local disk storage for uploads (`UPLOAD_FOLDER`). This is not durable across Fly machine replacement. Options:
-- Mount a Fly Volume to persist uploads
-- Switch to object storage (S3/R2)
-
-Check `app/__init__.py` and config for how `UPLOAD_FOLDER` is set up. Evaluate the simplest fix (likely a Fly Volume mount in `fly.toml`).
-
----
-
-## Task 5: Smoke Test All Routes
-
-After completing Tasks 2-3, verify that these URLs don't 500-error (you can check by reading the route code for obvious issues — you won't have a running server):
-- `/kiosk/20GR/pickers`
-- `/kiosk/20GR/work-orders`
-- `/tv/20GR/picks`
-- `/tv/20GR/board/Door1`
-- `/kiosk/DSM/work-orders` (tests DSM expansion)
-
----
-
-## Architecture Rules
-1. **No DB migrations** — pick data can't be filtered, don't add columns
-2. **Don't fake branch isolation** — if data can't filter, show a notice, don't filter by something unrelated
-3. **Preserve backward compatibility** — all existing URLs must keep working
-4. **Use `expand_branch_filter()`** — never do `== branch` when `branch` could be `DSM`
-5. **Use CSS custom properties** from `style.css` `:root` — don't hardcode colors/sizes
-6. **Branch precedence for shell pages:** URL param > localStorage > session > None
-7. **Branch identity for kiosk/TV:** URL path IS the branch. No session, no localStorage.
-8. **TRIM joins** — All central_db_mode mirror queries MUST use `TRIM()` on `cust_key` and `seq_num` joins (already done — don't regress)
-
-## Known Pitfalls
-1. **Edit tool requires Read first** — always Read files before editing. Batch-read in parallel.
-2. **Merge conflicts on push** — `app/__init__.py` and `app/templates/base.html` are hot files. `git fetch origin main-fly && git rebase origin/main-fly` before pushing.
-3. **fly.toml has unstaged changes** — don't accidentally stage it.
-4. **WorkOrder model** — Check `app/models.py` for the exact `branch_code` column name and any existing filter methods before writing queries.
-5. **ERP service** — `app/Services/erp_service.py` has existing branch filtering patterns. Follow them. All mirror queries now use TRIM on cust_key/seq_num — maintain this pattern for any new queries.
-6. **Schema drift** — `so_id` and `seq_num` have integer vs varchar drift between mirror tables and ERP source. Always use CAST/TRIM in joins.
-
-## Output Format
-When done, provide:
-1. Summary of changes (files changed, what was done)
-2. Which kiosk/TV routes are now branch-filtered vs still showing all data
-3. Any issues found or deferred items
-4. Commit and push to `main-fly`

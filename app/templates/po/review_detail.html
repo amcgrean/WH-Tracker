@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}Review — {{ submission.po_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4" style="max-width:860px;">
+
+  <div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('po.review_dashboard') }}" class="btn btn-sm btn-outline-secondary mr-3">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+      <h4 class="font-weight-bold mb-0">PO {{ submission.po_number }}</h4>
+      <p class="text-muted small mb-0">Submission review</p>
+    </div>
+    <div class="ml-auto">
+      {% if submission.status == 'reviewed' %}
+        <span class="badge badge-success px-3 py-2">Reviewed</span>
+      {% elif submission.status == 'flagged' %}
+        <span class="badge badge-danger px-3 py-2">Flagged</span>
+      {% else %}
+        <span class="badge badge-warning text-dark px-3 py-2">Pending Review</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('warning' if category == 'warning' else 'success') }} py-2 small">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="row">
+
+    <!-- Left: photos + submission info -->
+    <div class="col-lg-7 mb-4">
+
+      <!-- Photo gallery -->
+      <div class="card glass-panel mb-3">
+        <div class="card-header bg-transparent border-0 pt-3 pb-1">
+          <h6 class="font-weight-bold mb-0">
+            <i class="fas fa-images mr-2 text-muted"></i>Photos
+            <span class="badge badge-secondary ml-1">{{ (submission.image_urls or [])|length }}</span>
+          </h6>
+        </div>
+        <div class="card-body">
+          {% if submission.image_urls %}
+          <div class="d-flex flex-wrap" style="gap:8px;">
+            {% for url in submission.image_urls %}
+            <a href="{{ url }}" target="_blank" rel="noopener">
+              <img src="{{ url }}" alt="Photo {{ loop.index }}"
+                   style="width:120px;height:120px;object-fit:cover;border-radius:6px;border:2px solid #dee2e6;transition:.2s;"
+                   onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">No photos attached.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Submission metadata -->
+      <div class="card glass-panel">
+        <div class="card-header bg-transparent border-0 pt-3 pb-1">
+          <h6 class="font-weight-bold mb-0"><i class="fas fa-info-circle mr-2 text-muted"></i>Submission Details</h6>
+        </div>
+        <div class="card-body">
+          <dl class="row mb-0" style="font-size:.875rem;">
+            <dt class="col-5 text-muted">PO Number</dt>
+            <dd class="col-7 font-weight-semibold">{{ submission.po_number }}</dd>
+
+            <dt class="col-5 text-muted">Supplier</dt>
+            <dd class="col-7">{{ submission.supplier_name or '—' }}</dd>
+
+            <dt class="col-5 text-muted">ERP Status at Submit</dt>
+            <dd class="col-7">{{ submission.po_status or '—' }}</dd>
+
+            <dt class="col-5 text-muted">Submitted by</dt>
+            <dd class="col-7">{{ submission.submitted_username or '—' }}</dd>
+
+            <dt class="col-5 text-muted">Branch</dt>
+            <dd class="col-7">
+              {% if submission.branch %}
+                <span class="badge badge-light border">{{ submission.branch }}</span>
+              {% else %}—{% endif %}
+            </dd>
+
+            <dt class="col-5 text-muted">Submitted at</dt>
+            <dd class="col-7">
+              {{ submission.created_at.strftime('%b %d, %Y %I:%M %p') if submission.created_at else '—' }}
+            </dd>
+
+            {% if submission.notes %}
+            <dt class="col-5 text-muted">Worker Notes</dt>
+            <dd class="col-7">{{ submission.notes }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+
+    </div><!-- /col-lg-7 -->
+
+    <!-- Right: review form -->
+    <div class="col-lg-5 mb-4">
+      <div class="card glass-panel">
+        <div class="card-header bg-transparent border-0 pt-3 pb-1">
+          <h6 class="font-weight-bold mb-0"><i class="fas fa-pen mr-2 text-muted"></i>Review Action</h6>
+        </div>
+        <div class="card-body">
+          <form method="POST">
+            <div class="form-group">
+              <label class="font-weight-semibold small">Status</label>
+              <div>
+                {% for val, label, cls in [('reviewed','Mark Reviewed','success'), ('flagged','Flag for Follow-up','danger'), ('pending','Reset to Pending','warning')] %}
+                <div class="custom-control custom-radio mb-2">
+                  <input type="radio" class="custom-control-input" id="status_{{ val }}"
+                         name="status" value="{{ val }}"
+                         {{ 'checked' if submission.status == val else '' }}>
+                  <label class="custom-control-label" for="status_{{ val }}">
+                    <span class="badge badge-{{ cls }} {{ 'text-dark' if cls == 'warning' else '' }} mr-1">{{ label }}</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="font-weight-semibold small">Reviewer Notes <span class="text-muted">(optional)</span></label>
+              <textarea name="reviewer_notes" class="form-control" rows="4"
+                        placeholder="Notes visible to ops and supervisors…">{{ submission.reviewer_notes or '' }}</textarea>
+            </div>
+
+            {% if submission.reviewed_at %}
+            <div class="text-muted small mb-3">
+              Last reviewed {{ submission.reviewed_at.strftime('%b %d, %Y %I:%M %p') }}
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-success btn-block">
+              <i class="fas fa-save mr-1"></i> Save Review
+            </button>
+          </form>
+        </div>
+      </div>
+    </div><!-- /col-lg-5 -->
+
+  </div><!-- /row -->
+</div>
+{% endblock %}
