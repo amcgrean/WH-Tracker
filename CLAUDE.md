@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-WH-Tracker (Beisser Ops) is a Flask warehouse operations platform covering pick/pack, dispatch, sales order tracking, and ERP integration. Python 3.11, PostgreSQL primary DB, optional SQL Server ERP fallback.
+WH-Tracker (being rebranded to **LiveEdge**) is a Flask warehouse operations platform covering pick/pack, dispatch, sales order tracking, file storage, and ERP integration. Python 3.11, PostgreSQL primary DB, optional SQL Server ERP fallback. Deployed on **Fly.io** (Vercel project has been deleted).
 
 ## Quick Reference
 
@@ -26,21 +26,29 @@ No formal test suite — test scripts are ad-hoc (`test_*.py` in root).
 
 ```
 app/
-  Routes/           # Flask Blueprints (main, sales, dispatch, auth)
-  Services/         # Business logic (erp_service.py is ~145KB, the core ERP layer)
-  Models/models.py  # All SQLAlchemy models
-  templates/        # Jinja2 (base.html has blocks: title, head, content, scripts, navbar)
-  static/           # CSS (style.css has design system), JS, icons
+  Routes/              # Flask Blueprints (each is a package or module)
+    main/              # Pick/pack, work orders, admin (split into sub-modules)
+    sales/             # Sales orders, transactions, customer workspace
+    dispatch/          # Delivery tracking, route management
+    auth/              # Passwordless OTP login
+    files.py           # File upload/download via R2
+  Services/            # Business logic
+    erp_service.py     # Core ERP layer (~145KB)
+    storage_service.py # Cloudflare R2 client (S3-compatible via boto3)
+  Models/models.py     # All SQLAlchemy models
+  templates/           # Jinja2 (base.html has blocks: title, head, content, scripts, navbar)
+  static/              # CSS (style.css has design system), JS, icons
 ```
 
 ### Blueprints
 
-| Blueprint | Prefix | File | Purpose |
-|-----------|--------|------|---------|
-| `main` | `/` | `routes.py` | Picks, picksters, work orders, admin |
-| `sales` | `/sales` | `sales_routes.py` | Sales orders, transactions, customer workspace |
-| `dispatch` | `/dispatch` | `dispatch_routes.py` | Delivery tracking, route management |
-| `auth` | `/auth` | `auth_routes.py` | Passwordless OTP login |
+| Blueprint | Prefix | Module | Purpose |
+|-----------|--------|--------|---------|
+| `main_bp` | `/` | `Routes.main` | Picks, picksters, work orders, admin |
+| `sales_bp` | `/sales` | `Routes.sales` | Sales orders, transactions, customer workspace |
+| `dispatch_bp` | `/dispatch` | `Routes.dispatch` | Delivery tracking, route management |
+| `auth_bp` | `/auth` | `Routes.auth` | Passwordless OTP login |
+| `files` | `/files` | `Routes.files` | File upload/download/list via R2 |
 
 ### Database Architecture
 
@@ -106,6 +114,33 @@ Delivery type filtering: exclude `('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD', 'CM
 - `/sales/api/customers/shipto/<customer_code>` — Ship-to addresses for a customer
 - `/sales/api/transactions` — JSON order data with all filters
 - `/sales/api/customers/search?q=` — Customer search for global search bar
+
+## File Storage (Cloudflare R2)
+
+Files are stored in Cloudflare R2 (S3-compatible) via `StorageService` (`app/Services/storage_service.py`). Metadata is tracked in PostgreSQL via `File` and `FileVersion` models.
+
+### Configuration (Fly secrets)
+- `R2_ACCESS_KEY_ID` — R2 API access key
+- `R2_SECRET_ACCESS_KEY` — R2 API secret key
+- `R2_ENDPOINT_URL` — `https://<account_id>.r2.cloudflarestorage.com`
+- `R2_BUCKET` — `liveedgefiles` (default)
+
+### Models
+- **`File`** — polymorphic attachment: `entity_type` + `entity_id` link to any parent (e.g. `work_order/123`, `po/456`). Tracks `original_filename`, `object_key`, `mime_type`, `size_bytes`, `uploaded_by`. Supports soft-delete (`is_deleted`).
+- **`FileVersion`** — version history per file: `version_number`, `object_key`, `change_note`.
+
+### R2 Object Key Format
+`{entity_type}/{entity_id}/{timestamp}_{filename}` — built by `StorageService.build_object_key()`.
+
+### Files Blueprint (`/files`)
+- `POST /files/upload` — multipart upload, creates File + FileVersion
+- `GET /files/<id>` — redirect to presigned R2 URL
+- `GET /files/<id>/info` — JSON metadata with version history
+- `DELETE /files/<id>` — soft-delete
+- `GET /files/entity/<type>/<id>` — list files for an entity
+
+### Usage Pattern
+To attach files to a new entity type (e.g. purchase orders), just use `entity_type='po'` and `entity_id=<po_number>` — no schema changes needed.
 
 ## UI Design System
 
@@ -174,6 +209,16 @@ Every variable used in Jinja2 templates must be passed via `render_template()`. 
 
 ## Deployment
 
-- **Vercel** (serverless) or **Fly.io** (VMs) or **Docker**
+- **Fly.io** (primary) — auto-runs migrations on startup (`RUN_MIGRATIONS_ON_START` defaults to `True` on Fly)
 - Auth gated by `AUTH_REQUIRED` env var
 - ERP sync worker runs separately (`SYNC_INTERVAL_SECONDS=5`)
+- File storage via Cloudflare R2 (secrets set in Fly dashboard)
+
+## Consolidation Roadmap
+
+This app is the single operational platform. Other apps are being merged in:
+- **po-app** (`amcgrean/po-app`, TypeScript) — Purchase order management. Next to be migrated. DB tables likely already exist since it shares the same Postgres. R2 storage already configured.
+- **estimating-app** / **beisser-takeoff** — Estimating/takeoff tools. Future migration. Will need file attachments (R2 ready for this).
+- **po-pics** (`amcgrean/po-pics`, TypeScript) — PO photo capture. Will fold into PO module.
+
+The app is being rebranded from "WH-Tracker / Beisser Ops" to **LiveEdge** (separate effort in progress).
