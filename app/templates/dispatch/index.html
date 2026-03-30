@@ -6,101 +6,275 @@
 {{ super() }}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-  :root { --dispatch-sidebar-width: 420px; --divider-width: 6px; }
-  .dispatch-console-page { padding: 1.5rem; }
-  .dispatch-console-shell { display:grid; grid-template-columns: var(--dispatch-sidebar-width) var(--divider-width) 1fr; min-height: calc(100vh - 17rem); background:#fff; border-radius: 1.25rem; overflow:hidden; box-shadow: var(--shadow-md); }
-  body.dense { font-size: 13px; }
-  .dispatch-console-shell .sidebar { overflow:hidden; display:flex; flex-direction:column; border-right:1px solid #ddd; background:#fff; min-height:0; }
-  .dispatch-console-shell .toolbar { display:flex; align-items:center; gap:12px; padding:8px 10px; border-bottom:1px solid #eee; flex-wrap:wrap; background:#fafafa; }
-  .dispatch-console-shell .toolbar input[type="date"], .dispatch-console-shell .toolbar select, .dispatch-console-shell .toolbar input[type="text"] { padding:4px 6px; }
-  .swatch { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:middle; border:1px solid rgba(0,0,0,0.15); }
-  .filter-chip { display:inline-flex; align-items:center; gap:6px; margin-right:12px; }
-  .gridwrap { flex:1; overflow-y:auto; min-height:0; }
-  .dispatch-console-shell table { width:100%; border-collapse:collapse; }
-  .dispatch-console-shell th, .dispatch-console-shell td { padding:6px 8px; border-bottom:1px solid #eee; text-align:left; }
-  .dispatch-console-shell th { position:sticky; top:0; background:#f7f7f7; cursor:pointer; }
-  .dispatch-console-shell td:first-child, .dispatch-console-shell th:first-child { width:140px; }
-  .dispatch-console-shell tr.selected { background:#fff6d5; }
-  .statusbar { padding:6px 10px; border-top:1px solid #eee; background:#fafafa; font-size:13px; display:flex; justify-content:space-between; gap:10px; }
-  #divider { background:#e7e7e7; cursor:col-resize; }
-  #divider:hover { background:#d7d7d7; }
-  .mapwrap { position:relative; min-height: 680px; }
-  #map { height:100%; width:100%; min-height: 680px; }
-  .gear { position:absolute; right:10px; top:10px; z-index:400; background:#fff; border:1px solid #ddd; border-radius:6px; padding:4px 8px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.1); }
-  #modalBackdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:1000; }
-  #settingsModal { width:min(560px, 92vw); background:#fff; border-radius:10px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,.25); }
-  #settingsModal h3 { margin:0 0 10px 0; }
-  #settingsModal .row { display:flex; gap:10px; align-items:center; margin:8px 0; }
-  #settingsModal label { min-width:160px; }
-  #settingsModal input[type="number"] { width:90px; }
-  #settingsModal .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
-  .btn { padding:6px 12px; border-radius:8px; border:1px solid #ccc; background:#f6f6f6; cursor:pointer; }
-  .btn.primary { background:#1f77b4; color:#fff; border-color:#1f77b4; }
-  #detailPanel { position:absolute; right:0; top:0; bottom:0; width:420px; background:#fff; box-shadow:-2px 0 14px rgba(0,0,0,.15); transform:translateX(100%); transition:transform 160ms ease; display:flex; flex-direction:column; z-index:500; }
-  #detailPanel.open { transform:translateX(0%); }
-  #detailHead { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #eee; }
-  #detailBody { overflow:auto; padding:10px 14px; }
-  #detailBody table { width:100%; border-collapse:collapse; }
-  #detailBody th, #detailBody td { padding:6px 8px; border-bottom:1px solid #eee; font-size:13px; }
-  #detailBody th { text-align:left; position:sticky; top:0; background:#fafafa; }
-  .pill-meta { display:inline-block; padding:2px 6px; border-radius:6px; background:#f3f3f3; margin-left:6px; font-size:12px; }
-  .muted { color:#666; }
-  .btn-icon { border:0; background:transparent; cursor:pointer; padding:4px 6px; }
-  .btn-primary { background:#1f77b4; color:#fff; padding:6px 10px; border:0; border-radius:6px; cursor:pointer; }
-
-  /* Mobile tab navigation */
-  .dispatch-tabs { display:none; }
-
-  @media (max-width: 1199.98px) {
-    .dispatch-console-shell { grid-template-columns: 1fr; min-height: auto; }
-    #divider { display: none; }
-    .dispatch-tabs {
-      display: flex;
-      background: #fff;
-      border-bottom: 2px solid #eee;
-      border-radius: 1.25rem 1.25rem 0 0;
-      overflow: hidden;
-    }
-    .dispatch-tabs button {
-      flex: 1;
-      padding: 12px 8px;
-      border: none;
-      background: transparent;
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: #666;
-      cursor: pointer;
-      transition: all 0.15s;
-      border-bottom: 3px solid transparent;
-    }
-    .dispatch-tabs button.active {
-      color: #1f77b4;
-      border-bottom-color: #1f77b4;
-      background: rgba(31,119,180,0.05);
-    }
-    .dispatch-console-shell .sidebar,
-    .dispatch-console-shell .mapwrap {
-      display: none;
-    }
-    .dispatch-console-shell .sidebar.tab-active,
-    .dispatch-console-shell .mapwrap.tab-active {
-      display: flex;
-      flex-direction: column;
-    }
-    .dispatch-console-shell .mapwrap.tab-active {
-      display: block;
-      min-height: 60vh;
-    }
-    .mapwrap #map { min-height: 60vh; }
+  :root {
+    --route-panel-w: 320px;
+    --detail-panel-w: 0px;
+    --cmd-bar-h: auto;
+    --dispatch-green: #004526;
+    --dispatch-gold: #c5a059;
   }
 
-  @media (max-width: 767.98px) {
-    .dispatch-console-page { padding: 0.75rem; }
-    .dispatch-console-shell .toolbar { gap:6px; padding:6px 8px; }
-    .dispatch-console-shell .toolbar label { font-size:0.8rem; }
-    .dispatch-console-shell .toolbar input,
-    .dispatch-console-shell .toolbar select { font-size:0.85rem; }
-    .dispatch-console-shell th, .dispatch-console-shell td { padding:8px 6px; font-size:0.85rem; }
+  .dispatch-page { padding: 0; height: calc(100vh - 56px); display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Command Bar ── */
+  .cmd-bar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #fff; flex-wrap: wrap; flex-shrink: 0; z-index: 10;
+    border-bottom: 2px solid var(--dispatch-gold);
+  }
+  .cmd-bar .kpi-tile {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 4px 12px; border-radius: 8px; background: rgba(255,255,255,0.08);
+    min-width: 64px; cursor: default;
+  }
+  .cmd-bar .kpi-tile .kpi-value { font-size: 20px; font-weight: 700; line-height: 1.1; }
+  .cmd-bar .kpi-tile .kpi-label { font-size: 10px; text-transform: uppercase; opacity: 0.7; letter-spacing: 0.5px; }
+  .cmd-bar input, .cmd-bar select {
+    padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1); color: #fff; font-size: 13px;
+  }
+  .cmd-bar input::placeholder { color: rgba(255,255,255,0.4); }
+  .cmd-bar .cmd-btn {
+    padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #fff; cursor: pointer; font-size: 13px;
+    transition: background 0.15s;
+  }
+  .cmd-bar .cmd-btn:hover { background: rgba(255,255,255,0.18); }
+  .cmd-bar .cmd-btn.active { background: var(--dispatch-gold); color: #1a1a2e; border-color: var(--dispatch-gold); }
+  .cmd-spacer { flex: 1; }
+  .cmd-separator { width: 1px; height: 28px; background: rgba(255,255,255,0.15); }
+
+  /* ── Truck Panel (collapsible) ── */
+  .truck-panel {
+    display: none; background: #f8f9fa; border-bottom: 1px solid #dee2e6;
+    padding: 10px 14px; overflow-x: auto; flex-shrink: 0;
+  }
+  .truck-panel.open { display: block; }
+  .truck-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .truck-panel th { text-align: left; padding: 4px 8px; border-bottom: 2px solid #dee2e6; font-weight: 600; white-space: nowrap; }
+  .truck-panel td { padding: 5px 8px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  .truck-panel select, .truck-panel input { padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px; }
+  .truck-status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .truck-status.moving { background: #2ca02c; }
+  .truck-status.idle { background: #ff7f0e; }
+  .truck-status.off { background: #ccc; }
+
+  /* ── Main Grid ── */
+  .dispatch-grid {
+    display: grid;
+    grid-template-columns: var(--route-panel-w) 1fr var(--detail-panel-w);
+    flex: 1; overflow: hidden; min-height: 0;
+  }
+
+  /* ── Route Panel (left) ── */
+  .route-panel {
+    display: flex; flex-direction: column; border-right: 1px solid #dee2e6;
+    background: #fff; overflow: hidden;
+  }
+  .route-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; border-bottom: 1px solid #eee; background: #fafafa;
+    font-weight: 600; font-size: 13px; flex-shrink: 0;
+  }
+  .route-panel-header .btn-new-route {
+    padding: 3px 10px; border-radius: 6px; border: 1px solid var(--dispatch-green);
+    background: var(--dispatch-green); color: #fff; cursor: pointer; font-size: 12px;
+  }
+  .route-panel-tabs {
+    display: flex; border-bottom: 1px solid #eee; flex-shrink: 0;
+  }
+  .route-panel-tabs .tab {
+    flex: 1; text-align: center; padding: 6px 0; font-size: 12px; cursor: pointer;
+    border-bottom: 2px solid transparent; color: #666; font-weight: 500;
+  }
+  .route-panel-tabs .tab.active { color: var(--dispatch-green); border-bottom-color: var(--dispatch-green); }
+  .route-panel-body { flex: 1; overflow-y: auto; }
+
+  /* Unassigned stops list */
+  .stop-list { list-style: none; margin: 0; padding: 0; }
+  .stop-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    border-bottom: 1px solid #f0f0f0; cursor: pointer; font-size: 12px;
+    transition: background 0.1s;
+  }
+  .stop-item:hover { background: #f7f9fc; }
+  .stop-item.selected { background: #fff6d5; }
+  .stop-item.dragging { opacity: 0.5; }
+  .stop-item .pick-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .stop-item .pick-dot.picked { background: #2ca02c; }
+  .stop-item .pick-dot.partial { background: #ff7f0e; }
+  .stop-item .pick-dot.not-picked { background: #d62728; }
+  .stop-item .stop-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .stop-item .stop-meta { display: flex; gap: 6px; font-size: 11px; color: #888; flex-shrink: 0; }
+  .stop-item .badge-sm {
+    padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  }
+  .badge-value { background: #e8f5e9; color: #2e7d32; }
+  .badge-weight { background: #e3f2fd; color: #1565c0; }
+  .badge-credit-hold { background: #ffebee; color: #c62828; }
+
+  /* Route cards */
+  .route-card {
+    border-bottom: 1px solid #eee; background: #fff;
+  }
+  .route-card-header {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    cursor: pointer; font-size: 13px;
+  }
+  .route-card-header:hover { background: #f7f9fc; }
+  .route-card-color { width: 4px; height: 28px; border-radius: 2px; flex-shrink: 0; }
+  .route-card-info { flex: 1; }
+  .route-card-name { font-weight: 600; }
+  .route-card-meta { font-size: 11px; color: #888; }
+  .route-card-status {
+    padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase;
+  }
+  .status-draft { background: #f5f5f5; color: #666; }
+  .status-planned { background: #e3f2fd; color: #1565c0; }
+  .status-dispatched { background: #e8f5e9; color: #2e7d32; }
+  .status-in_progress { background: #fff3e0; color: #e65100; }
+  .status-completed { background: #f3e5f5; color: #6a1b9a; }
+  .route-card-body {
+    display: none; padding: 0 12px 8px;
+  }
+  .route-card.expanded .route-card-body { display: block; }
+  .route-card-body .stop-list-route { list-style: none; margin: 0; padding: 0; }
+  .route-card-body .route-stop-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 0;
+    font-size: 12px; border-bottom: 1px solid #f5f5f5; cursor: grab;
+  }
+  .route-stop-seq { width: 18px; text-align: center; font-weight: 600; color: #999; font-size: 11px; }
+  .route-drop-zone {
+    padding: 12px; text-align: center; color: #aaa; font-size: 12px;
+    border: 2px dashed #ddd; border-radius: 8px; margin: 6px 0;
+    transition: all 0.15s;
+  }
+  .route-drop-zone.drag-over { border-color: var(--dispatch-green); color: var(--dispatch-green); background: #f0faf4; }
+
+  /* ── Map ── */
+  .map-container { position: relative; overflow: hidden; }
+  #map { height: 100%; width: 100%; }
+  .map-legend {
+    position: absolute; left: 10px; top: 10px; background: rgba(255,255,255,0.95);
+    border: 1px solid #ddd; padding: 8px 12px; border-radius: 8px; z-index: 400;
+    font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .map-legend-title { font-weight: 600; margin-bottom: 4px; }
+  .vehicle-status-bar {
+    position: absolute; left: 10px; bottom: 10px; background: rgba(255,255,255,0.95);
+    border: 1px solid #ddd; padding: 4px 10px; border-radius: 6px; z-index: 400;
+    font-size: 12px;
+  }
+
+  /* ── Detail Panel (right flyout) ── */
+  .detail-panel {
+    display: flex; flex-direction: column; border-left: 1px solid #dee2e6;
+    background: #fff; overflow: hidden; width: 0;
+    transition: width 0.2s ease;
+  }
+  .detail-panel.open { width: 420px; }
+  .dispatch-grid.detail-open { grid-template-columns: var(--route-panel-w) 1fr 420px; }
+  .detail-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid #eee; flex-shrink: 0;
+    background: #fafafa;
+  }
+  .detail-header h3 { margin: 0; font-size: 15px; }
+  .detail-close {
+    background: none; border: none; font-size: 18px; cursor: pointer; color: #999;
+    padding: 2px 6px; border-radius: 4px;
+  }
+  .detail-close:hover { background: #f0f0f0; color: #333; }
+  .detail-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+
+  /* Detail sections */
+  .detail-section { margin-bottom: 16px; }
+  .detail-section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    color: #888; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #f0f0f0;
+  }
+  .detail-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  .detail-row .label { color: #888; }
+  .detail-row .value { font-weight: 500; }
+
+  /* Timeline stepper */
+  .timeline-stepper {
+    display: flex; align-items: center; gap: 0; padding: 8px 0;
+  }
+  .timeline-step {
+    display: flex; flex-direction: column; align-items: center; flex: 1;
+    position: relative; font-size: 10px;
+  }
+  .timeline-step .step-dot {
+    width: 12px; height: 12px; border-radius: 50%; background: #ddd;
+    border: 2px solid #ddd; z-index: 1;
+  }
+  .timeline-step.active .step-dot { background: var(--dispatch-green); border-color: var(--dispatch-green); }
+  .timeline-step.completed .step-dot { background: var(--dispatch-green); border-color: var(--dispatch-green); }
+  .timeline-step .step-label { margin-top: 4px; color: #999; text-align: center; }
+  .timeline-step.active .step-label, .timeline-step.completed .step-label { color: var(--dispatch-green); font-weight: 600; }
+  .timeline-line {
+    flex: 1; height: 2px; background: #ddd; margin-top: -18px; z-index: 0;
+  }
+  .timeline-line.completed { background: var(--dispatch-green); }
+
+  /* Line items table */
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .detail-table th { text-align: left; padding: 4px 6px; border-bottom: 2px solid #eee; font-weight: 600; position: sticky; top: 0; background: #fff; }
+  .detail-table td { padding: 4px 6px; border-bottom: 1px solid #f5f5f5; }
+
+  /* Credit bar */
+  .credit-bar { height: 6px; border-radius: 3px; background: #e0e0e0; overflow: hidden; margin: 4px 0; }
+  .credit-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+  /* Action buttons */
+  .action-buttons { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
+  .action-btn {
+    padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd;
+    background: #fff; cursor: pointer; font-size: 12px; font-weight: 500;
+    transition: all 0.15s;
+  }
+  .action-btn:hover:not(:disabled) { background: #f7f7f7; border-color: #bbb; }
+  .action-btn.primary { background: var(--dispatch-green); color: #fff; border-color: var(--dispatch-green); }
+  .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Keyboard shortcut overlay ── */
+  .shortcuts-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999;
+    display: none; align-items: center; justify-content: center;
+  }
+  .shortcuts-overlay.open { display: flex; }
+  .shortcuts-modal {
+    background: #fff; border-radius: 12px; padding: 24px; max-width: 480px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .shortcuts-modal h3 { margin: 0 0 12px; }
+  .shortcut-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+  .shortcut-key { background: #f5f5f5; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; border: 1px solid #ddd; }
+
+  /* ── Settings Modal ── */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none;
+    align-items: center; justify-content: center; z-index: 1000;
+  }
+  .modal-backdrop.open { display: flex; }
+  .settings-modal {
+    width: min(560px, 92vw); background: #fff; border-radius: 12px;
+    padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  }
+  .settings-modal h3 { margin: 0 0 12px; }
+  .settings-row { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+  .settings-row label { min-width: 160px; font-size: 13px; }
+  .settings-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 1199.98px) {
+    .dispatch-grid { grid-template-columns: 1fr; }
+    .route-panel { display: none; }
+    .detail-panel { display: none; }
   }
 </style>
 {% endblock %}
@@ -110,118 +284,174 @@
 window.DISPATCH_API_BASE = "{{ url_for('dispatch.index')[:-1] }}";
 window.GLOBAL_BRANCH = "{{ selected_branch or '' }}";
 </script>
-<div class="dispatch-console-page">
-  <div class="d-flex justify-content-between align-items-center flex-wrap mb-3 px-1">
-    <div>
-      <h1 class="h3 mb-1">Dispatch Console</h1>
-      <p class="text-muted mb-0">The dispatch workspace now uses the same shared sidebar navigation as the rest of the site.</p>
+
+<div class="dispatch-page">
+  <!-- ═══ Command Bar ═══ -->
+  <div class="cmd-bar" id="cmdBar">
+    <div class="kpi-tile" title="Total stops for today">
+      <span class="kpi-value" id="kpiTotal">--</span>
+      <span class="kpi-label">Stops</span>
     </div>
+    <div class="kpi-tile" title="Unassigned to any route">
+      <span class="kpi-value" id="kpiUnassigned">--</span>
+      <span class="kpi-label">Unassigned</span>
+    </div>
+    <div class="kpi-tile" title="Routes planned today">
+      <span class="kpi-value" id="kpiRoutes">--</span>
+      <span class="kpi-label">Routes</span>
+    </div>
+    <div class="kpi-tile" title="Trucks dispatched">
+      <span class="kpi-value" id="kpiTrucks">--</span>
+      <span class="kpi-label">Trucks Out</span>
+    </div>
+
+    <div class="cmd-separator"></div>
+
+    <label style="font-size:12px;">Date
+      <input type="date" id="cmdDate" style="width:130px;">
+    </label>
+    <label style="font-size:12px;">Branch
+      <select id="cmdBranch" style="width:140px;">
+        <option value="">All</option>
+        <option value="GRIMES_AREA">Grimes Area</option>
+        <option value="20GR">20GR</option>
+        <option value="25BW">25BW</option>
+        <option value="10FD">10FD</option>
+        <option value="40CV">40CV</option>
+      </select>
+    </label>
+    <button class="cmd-btn" id="cmdLoad" title="Reload data"><i class="fas fa-sync-alt"></i> Load</button>
+
+    <div class="cmd-spacer"></div>
+
+    <input type="text" id="cmdSearch" placeholder="Search orders, customers..." style="width:200px;">
+
+    <div class="cmd-separator"></div>
+
+    <button class="cmd-btn" id="cmdTrucks" title="Truck assignments">
+      <i class="fas fa-truck"></i> Trucks <span id="truckBadge"></span>
+    </button>
+    <button class="cmd-btn" id="cmdSettings" title="Settings"><i class="fas fa-cog"></i></button>
+    <button class="cmd-btn" id="cmdShortcuts" title="Keyboard shortcuts (?)"><i class="fas fa-keyboard"></i></button>
   </div>
-  <div class="dispatch-tabs" id="dispatchTabs">
-    <button class="active" data-tab="orders"><i class="fas fa-list mr-1"></i>Orders</button>
-    <button data-tab="map"><i class="fas fa-map mr-1"></i>Map</button>
-  </div>
-  <div id="app" class="dispatch-console-shell">
-    <div class="sidebar tab-active">
-      <div class="toolbar">
-        <label>Exp. Date Start <input id="startDate" type="date"></label>
-        <label>Exp. Date End <input id="endDate" type="date"></label>
-        <label>Branch
-          <select id="branch">
-            <option value="">All</option>
-            <option value="GRIMES_AREA">Grimes Area (20GR+25BW)</option>
-            <option value="20GR">20GR</option>
-            <option value="25BW">25BW</option>
-            <option value="10FD">10FD</option>
-            <option value="40CV">40CV</option>
-          </select>
-        </label>
-        <label>Basemap
-          <select id="basemap">
-            <option value="street">Street</option>
-            <option value="sat">Satellite</option>
-          </select>
-        </label>
-        <label>Refresh (sec)
-          <input id="refresh" type="number" min="0" step="1" value="20" style="width:72px;">
-        </label>
-        <button id="loadBtn" class="btn">Load</button>
-        <input id="search" type="text" placeholder="Search..."/>
-      </div>
-      <div class="toolbar" style="border-top:1px solid #eee;">
-        <label class="filter-chip"><span id="swK" class="swatch"></span><input id="showK" type="checkbox" checked><span>Picked (K)</span></label>
-        <label class="filter-chip"><span id="swS" class="swatch"></span><input id="showS" type="checkbox" checked><span>Staged/Ship (S)</span></label>
-        <label class="filter-chip"><span id="swB" class="swatch"></span><input id="showB" type="checkbox" checked><span>Backorder (B)</span></label>
-        <label class="filter-chip"><span id="swCM" class="swatch"></span><input id="showCM" type="checkbox" checked><span>Credit (CM)</span></label>
-      </div>
-      <div class="gridwrap">
-        <table id="grid">
-          <thead>
-            <tr>
-              <th data-key="_sel">Actions</th>
-              <th data-key="id">Order</th>
-              <th data-key="doc_kind">Type</th>
-              <th data-key="shipto_name">Ship To</th>
-              <th data-key="address">Address</th>
-              <th data-key="expected_date">Expected</th>
-              <th data-key="so_status">Status</th>
-              <th data-key="branch">Branch</th>
-              <th data-key="route_id">Route</th>
-              <th data-key="shipment_num">Shipment #</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="statusbar">
-        <div id="status">ready</div>
-        <div><button id="manifestBtn" class="btn">Create Manifest PDF (0/10)</button></div>
+
+  <!-- ═══ Truck Assignment Panel (collapsible) ═══ -->
+  <div class="truck-panel" id="truckPanel">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+      <strong style="font-size:13px;"><i class="fas fa-truck"></i> Truck Assignments</strong>
+      <div style="display:flex; gap:6px;">
+        <button class="cmd-btn" id="copyYesterday" style="font-size:11px; padding:3px 8px;">Copy Yesterday</button>
+        <button class="cmd-btn" id="seedDrivers" style="font-size:11px; padding:3px 8px;">Seed Drivers from ERP</button>
       </div>
     </div>
-    <div id="divider" title="Drag to resize"></div>
-    <div class="mapwrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Truck</th>
+          <th>Status</th>
+          <th>Driver</th>
+          <th>Route</th>
+          <th>Last Location</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="truckTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- ═══ Main Grid ═══ -->
+  <div class="dispatch-grid" id="dispatchGrid">
+
+    <!-- ── Route Panel (left) ── -->
+    <div class="route-panel" id="routePanel">
+      <div class="route-panel-header">
+        <span>Routes</span>
+        <button class="btn-new-route" id="btnNewRoute"><i class="fas fa-plus"></i> New Route</button>
+      </div>
+      <div class="route-panel-tabs">
+        <div class="tab active" data-tab="unassigned">Unassigned</div>
+        <div class="tab" data-tab="routes">Routes</div>
+        <div class="tab" data-tab="all">All Stops</div>
+      </div>
+      <div class="route-panel-body" id="routePanelBody">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- ── Map (center) ── -->
+    <div class="map-container">
       <div id="map"></div>
-      <button id="gear" class="gear" title="Settings">Settings</button>
-      <div id="vehicleStatus" style="position:absolute; left:10px; bottom:10px; background:#fff; border:1px solid #ddd; padding:4px 8px; border-radius:6px; z-index:350; font-size:12px;"></div>
-      <div id="mapLegend" style="position:absolute; left:10px; top:10px; background:rgba(255,255,255,.94); border:1px solid #ddd; padding:8px 10px; border-radius:8px; z-index:360; font-size:12px; box-shadow:0 1px 4px rgba(0,0,0,.08);">
-        <div style="font-weight:600; margin-bottom:6px;">Map Key</div>
-        <div style="display:flex; align-items:center; gap:8px; margin:3px 0;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#1f77b4; border:2px solid #fff;"></span><span>Verified stop</span></div>
-        <div style="display:flex; align-items:center; gap:8px; margin:3px 0;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#1f77b4; border:2px dashed #334155; opacity:.7;"></span><span>Unverified stop GPS</span></div>
-        <div style="display:flex; align-items:center; gap:8px; margin:3px 0;"><span style="display:inline-block; width:18px; height:12px; border-radius:3px; background:#1f77b4; border:2px solid #fff;"></span><span>Samsara truck</span></div>
+      <div class="map-legend" id="mapLegend">
+        <div class="map-legend-title">Legend</div>
+        <div id="mapLegendContent"></div>
       </div>
-      <div id="detailPanel" aria-hidden="true">
-        <div id="detailHead">
-          <div>
-            <div id="detailTitle" style="font-weight:700;">Order</div>
-            <div class="muted" id="detailSubtitle"></div>
-          </div>
-          <button id="detailClose" class="btn-icon" aria-label="Close details">X</button>
+      <div class="vehicle-status-bar" id="vehicleStatus"></div>
+    </div>
+
+    <!-- ── Detail Panel (right flyout) ── -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <div>
+          <h3 id="detailTitle">Order</h3>
+          <div style="font-size:12px; color:#888;" id="detailSubtitle"></div>
         </div>
-        <div id="detailBody">
-          <div id="detailMeta" style="margin-bottom:10px;"></div>
-          <table>
-            <thead><tr><th>Line</th><th>Item</th><th>Description</th><th>Qty Ord</th><th>Qty Ship</th><th>UOM</th><th>Weight</th></tr></thead>
-            <tbody id="detailLines"></tbody>
-          </table>
-        </div>
+        <button class="detail-close" id="detailClose">&times;</button>
+      </div>
+      <div class="detail-body" id="detailBody">
+        <!-- Timeline -->
+        <div class="detail-section" id="detailTimeline"></div>
+        <!-- Order Summary -->
+        <div class="detail-section" id="detailSummary"></div>
+        <!-- Line Items -->
+        <div class="detail-section" id="detailLines"></div>
+        <!-- Customer Credit -->
+        <div class="detail-section" id="detailCredit"></div>
+        <!-- Work Orders -->
+        <div class="detail-section" id="detailWorkOrders"></div>
+        <!-- Pick Status -->
+        <div class="detail-section" id="detailPicks"></div>
+        <!-- Actions -->
+        <div class="detail-section" id="detailActions"></div>
       </div>
     </div>
   </div>
 </div>
-<div id="modalBackdrop" role="dialog" aria-modal="true" style="display:none;">
-  <div id="settingsModal">
+
+<!-- ═══ Settings Modal ═══ -->
+<div class="modal-backdrop" id="settingsBackdrop">
+  <div class="settings-modal">
     <h3>Settings</h3>
-    <div class="row"><label for="refreshSec">Refresh (seconds)</label><input id="refreshSec" type="number" min="0" step="1" value="20"/></div>
-    <div class="row"><label for="denseRows">Dense table rows</label><input id="denseRows" type="checkbox"/></div>
-    <div class="row"><label for="rememberBranch">Remember branch</label><input id="rememberBranch" type="checkbox" checked/></div>
-    <div class="row"><label for="colorK">Picked (K)</label><input id="colorK" type="color" value="#2ca02c"/></div>
-    <div class="row"><label for="colorS">Staged/Ship (S)</label><input id="colorS" type="color" value="#1f77b4"/></div>
-    <div class="row"><label for="colorB">Backorder (B)</label><input id="colorB" type="color" value="#ff7f0e"/></div>
-    <div class="row"><label for="colorCM">Credit (CM)</label><input id="colorCM" type="color" value="#d62728"/></div>
-    <div class="row"><label for="prefBranch">Default branch</label><select id="prefBranch"><option value="">All</option><option value="GRIMES_AREA">Grimes Area</option><option value="20GR">20GR</option><option value="25BW">25BW</option><option value="10FD">10FD</option><option value="40CV">40CV</option></select></div>
-    <div class="row"><label for="prefBasemap">Default basemap</label><select id="prefBasemap"><option value="street">Street</option><option value="sat">Satellite</option></select></div>
-    <div class="row"><label for="prefRefresh">Toolbar refresh</label><input id="prefRefresh" type="number" min="0" step="1" value="20"/></div>
-    <div class="actions"><button id="cancelSettings" class="btn">Cancel</button><button id="saveSettings" class="btn primary">Save</button></div>
+    <div class="settings-row"><label>Auto-refresh (seconds)</label><input id="settRefresh" type="number" min="0" step="1" value="30" style="width:80px;"></div>
+    <div class="settings-row"><label>Default branch</label>
+      <select id="settBranch"><option value="">All</option><option value="GRIMES_AREA">Grimes Area</option><option value="20GR">20GR</option><option value="25BW">25BW</option><option value="10FD">10FD</option><option value="40CV">40CV</option></select>
+    </div>
+    <div class="settings-row"><label>Default basemap</label>
+      <select id="settBasemap"><option value="street">Street</option><option value="sat">Satellite</option></select>
+    </div>
+    <div class="settings-row"><label>Picked (K)</label><input id="colorK" type="color" value="#2ca02c"></div>
+    <div class="settings-row"><label>Staged/Ship (S)</label><input id="colorS" type="color" value="#1f77b4"></div>
+    <div class="settings-row"><label>Backorder (B)</label><input id="colorB" type="color" value="#ff7f0e"></div>
+    <div class="settings-row"><label>Credit (CM)</label><input id="colorCM" type="color" value="#d62728"></div>
+    <div class="settings-actions">
+      <button class="action-btn" id="settCancel">Cancel</button>
+      <button class="action-btn primary" id="settSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Keyboard Shortcuts Overlay ═══ -->
+<div class="shortcuts-overlay" id="shortcutsOverlay">
+  <div class="shortcuts-modal">
+    <h3>Keyboard Shortcuts</h3>
+    <div class="shortcut-row"><span>Show shortcuts</span><span class="shortcut-key">?</span></div>
+    <div class="shortcut-row"><span>Search</span><span class="shortcut-key">/</span></div>
+    <div class="shortcut-row"><span>New route</span><span class="shortcut-key">n</span></div>
+    <div class="shortcut-row"><span>Close / Deselect</span><span class="shortcut-key">Esc</span></div>
+    <div class="shortcut-row"><span>Navigate stops</span><span class="shortcut-key">↑ ↓</span></div>
+    <div class="shortcut-row"><span>Open detail</span><span class="shortcut-key">Enter</span></div>
+    <div class="shortcut-row"><span>Assign to route 1-9</span><span class="shortcut-key">1-9</span></div>
+    <div class="shortcut-row"><span>Print manifest</span><span class="shortcut-key">Ctrl+P</span></div>
+    <div style="text-align:right; margin-top:12px;"><button class="action-btn" onclick="document.getElementById('shortcutsOverlay').classList.remove('open')">Close</button></div>
   </div>
 </div>
 {% endblock %}
@@ -229,5 +459,5 @@ window.GLOBAL_BRANCH = "{{ selected_branch or '' }}";
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{{ url_for('static', filename='dispatch/vehicles.js') }}"></script>
-<script src="{{ url_for('static', filename='dispatch/demo.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='dispatch/dispatch-app.js') }}"></script>
 {% endblock %}

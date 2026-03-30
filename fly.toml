@@ -3,6 +3,9 @@
 app = "wh-tracker-fly"
 primary_region = "ord"
 
+[deploy]
+  strategy = "rolling"
+
 [build]
 
 [env]
@@ -21,7 +24,7 @@ primary_region = "ord"
 
   [[http_service.checks]]
     interval = "30s"
-    timeout = "5s"
-    grace_period = "20s"
+    timeout = "10s"
+    grace_period = "60s"
     method = "GET"
     path = "/healthz"

@@ -1,6 +1,6 @@
 import csv
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,7 +11,10 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 import qrcode
+from sqlalchemy import func, text
+
 from app.branch_utils import expand_branch_filter
+from app.extensions import db
 from app.runtime_settings import build_sql_connection_strings, sql_connection_configured
 
 try:
@@ -414,6 +417,425 @@ class DispatchService:
         finally:
             cur.close()
             conn.close()
+
+    # ------------------------------------------------------------------
+    # Route CRUD
+    # ------------------------------------------------------------------
+
+    def get_routes_for_date(
+        self, route_date: date, branch: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        from app.Models.dispatch_models import DispatchRoute
+
+        q = DispatchRoute.query.filter_by(route_date=route_date)
+        if branch:
+            branches = self._expand_branch(branch)
+            q = q.filter(DispatchRoute.branch_code.in_(branches))
+        routes = q.order_by(DispatchRoute.route_name).all()
+        return [r.to_dict() for r in routes]
+
+    def create_route(
+        self,
+        route_date: date,
+        route_name: str,
+        branch_code: str,
+        driver_name: Optional[str] = None,
+        truck_id: Optional[str] = None,
+        notes: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        from app.Models.dispatch_models import DispatchRoute
+
+        route = DispatchRoute(
+            route_date=route_date,
+            route_name=route_name,
+            branch_code=branch_code,
+            driver_name=driver_name,
+            truck_id=truck_id,
+            notes=notes,
+            created_by=user_id,
+        )
+        db.session.add(route)
+        db.session.commit()
+        return route.to_dict()
+
+    def update_route(self, route_id: int, **kwargs) -> Optional[Dict[str, Any]]:
+        from app.Models.dispatch_models import DispatchRoute
+
+        route = DispatchRoute.query.get(route_id)
+        if not route:
+            return None
+        allowed = (
+            "route_name",
+            "driver_name",
+            "truck_id",
+            "status",
+            "notes",
+            "branch_code",
+        )
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(route, key, value)
+        db.session.commit()
+        return route.to_dict()
+
+    def delete_route(self, route_id: int) -> bool:
+        from app.Models.dispatch_models import DispatchRoute
+
+        route = DispatchRoute.query.get(route_id)
+        if not route:
+            return False
+        db.session.delete(route)
+        db.session.commit()
+        return True
+
+    # ------------------------------------------------------------------
+    # Route Stop CRUD
+    # ------------------------------------------------------------------
+
+    def add_stops_to_route(
+        self, route_id: int, stop_defs: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        from app.Models.dispatch_models import DispatchRoute, DispatchRouteStop
+
+        route = DispatchRoute.query.get(route_id)
+        if not route:
+            return []
+
+        max_seq = (
+            db.session.query(func.max(DispatchRouteStop.sequence))
+            .filter_by(route_id=route_id)
+            .scalar()
+            or 0
+        )
+
+        created = []
+        for i, stop_def in enumerate(stop_defs):
+            stop = DispatchRouteStop(
+                route_id=route_id,
+                so_id=stop_def["so_id"],
+                shipment_num=stop_def.get("shipment_num"),
+                sequence=max_seq + i + 1,
+                notes=stop_def.get("notes"),
+            )
+            db.session.add(stop)
+            created.append(stop)
+
+        db.session.commit()
+        return [s.to_dict() for s in created]
+
+    def reorder_stops(self, route_id: int, ordered_stop_ids: List[int]) -> bool:
+        from app.Models.dispatch_models import DispatchRouteStop
+
+        stops = DispatchRouteStop.query.filter_by(route_id=route_id).all()
+        stop_map = {s.id: s for s in stops}
+
+        for seq, stop_id in enumerate(ordered_stop_ids, start=1):
+            if stop_id in stop_map:
+                stop_map[stop_id].sequence = seq
+
+        db.session.commit()
+        return True
+
+    def remove_stop(self, route_id: int, stop_id: int) -> bool:
+        from app.Models.dispatch_models import DispatchRouteStop
+
+        stop = DispatchRouteStop.query.filter_by(
+            id=stop_id, route_id=route_id
+        ).first()
+        if not stop:
+            return False
+        db.session.delete(stop)
+        db.session.commit()
+        return True
+
+    # ------------------------------------------------------------------
+    # Driver Roster
+    # ------------------------------------------------------------------
+
+    def get_drivers(self, branch: Optional[str] = None) -> List[Dict[str, Any]]:
+        from app.Models.dispatch_models import DispatchDriver
+
+        q = DispatchDriver.query.filter_by(is_active=True)
+        if branch:
+            branches = self._expand_branch(branch)
+            q = q.filter(
+                db.or_(
+                    DispatchDriver.branch_code.in_(branches),
+                    DispatchDriver.branch_code.is_(None),
+                )
+            )
+        return [d.to_dict() for d in q.order_by(DispatchDriver.name).all()]
+
+    def create_driver(
+        self,
+        name: str,
+        phone: Optional[str] = None,
+        default_truck_id: Optional[str] = None,
+        branch_code: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        from app.Models.dispatch_models import DispatchDriver
+
+        driver = DispatchDriver(
+            name=name,
+            phone=phone,
+            default_truck_id=default_truck_id,
+            branch_code=branch_code,
+            notes=notes,
+        )
+        db.session.add(driver)
+        db.session.commit()
+        return driver.to_dict()
+
+    def update_driver(self, driver_id: int, **kwargs) -> Optional[Dict[str, Any]]:
+        from app.Models.dispatch_models import DispatchDriver
+
+        driver = DispatchDriver.query.get(driver_id)
+        if not driver:
+            return None
+        allowed = ("name", "phone", "default_truck_id", "branch_code", "is_active", "notes")
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(driver, key, value)
+        db.session.commit()
+        return driver.to_dict()
+
+    def seed_drivers_from_erp(self, branch: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Pull distinct driver names from recent shipment headers and create
+        roster entries for any not already present."""
+        from app.Models.dispatch_models import DispatchDriver
+        from app.Models.models import ERPMirrorShipmentHeader
+
+        cutoff = datetime.utcnow() - timedelta(days=90)
+        q = (
+            db.session.query(ERPMirrorShipmentHeader.driver)
+            .filter(
+                ERPMirrorShipmentHeader.driver.isnot(None),
+                ERPMirrorShipmentHeader.driver != "",
+                ERPMirrorShipmentHeader.is_deleted.is_(False),
+                ERPMirrorShipmentHeader.synced_at >= cutoff,
+            )
+            .distinct()
+        )
+        if branch:
+            branches = self._expand_branch(branch)
+            q = q.filter(ERPMirrorShipmentHeader.branch_code.in_(branches))
+
+        existing_names = {
+            d.name.upper()
+            for d in DispatchDriver.query.with_entities(DispatchDriver.name).all()
+        }
+
+        created = []
+        for (driver_name,) in q.all():
+            name = driver_name.strip()
+            if not name or name.upper() in existing_names:
+                continue
+            driver = DispatchDriver(name=name, branch_code=branch)
+            db.session.add(driver)
+            existing_names.add(name.upper())
+            created.append(driver)
+
+        db.session.commit()
+        return [d.to_dict() for d in created]
+
+    # ------------------------------------------------------------------
+    # Truck Assignments
+    # ------------------------------------------------------------------
+
+    def get_truck_assignments(
+        self, assignment_date: date, branch: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        from app.Models.dispatch_models import DispatchTruckAssignment
+
+        q = DispatchTruckAssignment.query.filter_by(assignment_date=assignment_date)
+        if branch:
+            branches = self._expand_branch(branch)
+            q = q.filter(DispatchTruckAssignment.branch_code.in_(branches))
+        return [a.to_dict() for a in q.order_by(DispatchTruckAssignment.samsara_vehicle_name).all()]
+
+    def upsert_truck_assignment(
+        self,
+        assignment_date: date,
+        samsara_vehicle_id: str,
+        samsara_vehicle_name: Optional[str],
+        branch_code: str,
+        driver_id: Optional[int] = None,
+        route_id: Optional[int] = None,
+        notes: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        from app.Models.dispatch_models import DispatchTruckAssignment, DispatchRoute
+
+        assignment = DispatchTruckAssignment.query.filter_by(
+            assignment_date=assignment_date,
+            samsara_vehicle_id=samsara_vehicle_id,
+        ).first()
+
+        if assignment:
+            assignment.driver_id = driver_id
+            assignment.route_id = route_id
+            if samsara_vehicle_name:
+                assignment.samsara_vehicle_name = samsara_vehicle_name
+            if notes is not None:
+                assignment.notes = notes
+        else:
+            assignment = DispatchTruckAssignment(
+                assignment_date=assignment_date,
+                branch_code=branch_code,
+                samsara_vehicle_id=samsara_vehicle_id,
+                samsara_vehicle_name=samsara_vehicle_name,
+                driver_id=driver_id,
+                route_id=route_id,
+                notes=notes,
+                created_by=user_id,
+            )
+            db.session.add(assignment)
+
+        # Also update the route's truck_id if a route is assigned
+        if route_id:
+            route = DispatchRoute.query.get(route_id)
+            if route:
+                route.truck_id = samsara_vehicle_id
+
+        db.session.commit()
+        return assignment.to_dict()
+
+    def copy_previous_assignments(
+        self, target_date: date, branch: str, user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Copy the most recent day's truck assignments as a starting point."""
+        from app.Models.dispatch_models import DispatchTruckAssignment
+
+        branches = self._expand_branch(branch)
+
+        # Find most recent assignment date before target
+        prev_date = (
+            db.session.query(func.max(DispatchTruckAssignment.assignment_date))
+            .filter(
+                DispatchTruckAssignment.assignment_date < target_date,
+                DispatchTruckAssignment.branch_code.in_(branches),
+            )
+            .scalar()
+        )
+        if not prev_date:
+            return []
+
+        prev_assignments = DispatchTruckAssignment.query.filter_by(
+            assignment_date=prev_date
+        ).filter(DispatchTruckAssignment.branch_code.in_(branches)).all()
+
+        created = []
+        for prev in prev_assignments:
+            # Skip if already exists for target date
+            existing = DispatchTruckAssignment.query.filter_by(
+                assignment_date=target_date,
+                samsara_vehicle_id=prev.samsara_vehicle_id,
+            ).first()
+            if existing:
+                continue
+
+            new_assignment = DispatchTruckAssignment(
+                assignment_date=target_date,
+                branch_code=prev.branch_code,
+                samsara_vehicle_id=prev.samsara_vehicle_id,
+                samsara_vehicle_name=prev.samsara_vehicle_name,
+                driver_id=prev.driver_id,
+                route_id=None,  # Don't copy route — routes are date-specific
+                created_by=user_id,
+            )
+            db.session.add(new_assignment)
+            created.append(new_assignment)
+
+        db.session.commit()
+        return [a.to_dict() for a in created]
+
+    # ------------------------------------------------------------------
+    # KPIs
+    # ------------------------------------------------------------------
+
+    def get_daily_kpis(
+        self, kpi_date: date, branch: Optional[str] = None
+    ) -> Dict[str, Any]:
+        from app.Models.dispatch_models import (
+            DispatchRoute,
+            DispatchRouteStop,
+            DispatchTruckAssignment,
+        )
+        from app.Models.models import ERPMirrorShipmentHeader, ERPMirrorSalesOrderHeader
+
+        branches = self._expand_branch(branch) if branch else None
+
+        # Route counts
+        route_q = DispatchRoute.query.filter_by(route_date=kpi_date)
+        if branches:
+            route_q = route_q.filter(DispatchRoute.branch_code.in_(branches))
+        routes = route_q.all()
+        routes_planned = sum(1 for r in routes if r.status in ("planned", "dispatched", "in_progress", "completed"))
+        routes_dispatched = sum(1 for r in routes if r.status in ("dispatched", "in_progress"))
+
+        # Stop counts from local route stops
+        route_ids = [r.id for r in routes]
+        assigned_stop_count = 0
+        if route_ids:
+            assigned_stop_count = DispatchRouteStop.query.filter(
+                DispatchRouteStop.route_id.in_(route_ids)
+            ).count()
+
+        # Truck assignments
+        truck_q = DispatchTruckAssignment.query.filter_by(assignment_date=kpi_date)
+        if branches:
+            truck_q = truck_q.filter(DispatchTruckAssignment.branch_code.in_(branches))
+        trucks_assigned = truck_q.filter(DispatchTruckAssignment.route_id.isnot(None)).count()
+
+        # ERP shipment counts for today
+        ship_q = ERPMirrorShipmentHeader.query.filter(
+            ERPMirrorShipmentHeader.is_deleted.is_(False),
+        )
+        if branches:
+            ship_q = ship_q.filter(ERPMirrorShipmentHeader.branch_code.in_(branches))
+
+        # SO counts — open orders expected today
+        so_q = ERPMirrorSalesOrderHeader.query.filter(
+            ERPMirrorSalesOrderHeader.is_deleted.is_(False),
+            ERPMirrorSalesOrderHeader.expect_date >= datetime.combine(kpi_date, datetime.min.time()),
+            ERPMirrorSalesOrderHeader.expect_date < datetime.combine(kpi_date + timedelta(days=1), datetime.min.time()),
+            ERPMirrorSalesOrderHeader.so_status.notin_(["I", "C", "X", "CAN", "CANCEL"]),
+        )
+        if branches:
+            so_q = so_q.filter(ERPMirrorSalesOrderHeader.branch_code.in_(branches))
+        total_stops = so_q.count()
+
+        return {
+            "date": kpi_date.isoformat(),
+            "total_stops": total_stops,
+            "unassigned": max(0, total_stops - assigned_stop_count),
+            "routes_planned": routes_planned,
+            "routes_dispatched": routes_dispatched,
+            "routes_total": len(routes),
+            "trucks_out": trucks_assigned,
+            "assigned_stops": assigned_stop_count,
+        }
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _expand_branch(branch: Optional[str]) -> List[str]:
+        """Expand a branch string (possibly comma-separated or alias) to a list
+        of canonical branch codes."""
+        if not branch:
+            return []
+        raw = [b.strip().upper() for b in branch.split(",") if b.strip()]
+        expanded: List[str] = []
+        for b in raw:
+            if b in ("GRIMES", "GRIMES AREA", "GRIMES_AREA"):
+                expanded.extend(["20GR", "25BW"])
+            else:
+                expanded.append(b)
+        return sorted(set(expanded))
 
     def generate_manifest_pdf(self, items: List[Dict[str, Any]]) -> BytesIO:
         buffer = BytesIO()

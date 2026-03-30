@@ -4,6 +4,7 @@ from flask import Flask
 from flask_migrate import upgrade
 from .extensions import db, migrate
 from .Models.models import AppUser, CreditImage, CustomerNote, ERPMirrorArOpen, ERPMirrorArOpenDetail, ERPMirrorCustomer, ERPMirrorCustomerShipTo, ERPMirrorItem, ERPMirrorItemBranch, ERPMirrorItemUomConv, ERPMirrorPickDetailNormalized, ERPMirrorPickHeaderNormalized, ERPMirrorPrintTransaction, ERPMirrorPrintTransactionDetail, ERPMirrorSalesOrderHeader, ERPMirrorSalesOrderLine, ERPMirrorShipmentHeader, ERPMirrorShipmentLine, ERPSyncBatch, ERPSyncState, ERPSyncTableState, File, FileVersion, OTPCode, Pick, PickAssignment, PickTypes, Pickster, POSubmission, WorkOrder, WorkOrderAssignment  # noqa: F401
+from .Models.dispatch_models import DispatchRoute, DispatchRouteStop, DispatchDriver, DispatchTruckAssignment  # noqa: F401
 from .Routes.main import main_bp as main_blueprint
 from .Routes.dispatch import dispatch_bp as dispatch_blueprint
 from .Routes.sales import sales_bp as sales_blueprint
@@ -77,7 +78,32 @@ def _resolve_branched_alembic_state(app):
 
 
 def _run_migrations(app):
-    """Run pending Alembic migrations, recovering from branched-state errors."""
+    """Run pending Alembic migrations, recovering from branched-state errors.
+
+    Uses a PostgreSQL advisory lock so that only one Fly machine runs
+    migrations at a time — the others skip and let the winner handle DDL.
+    """
+    from sqlalchemy import text
+
+    # Try to grab an advisory lock (non-blocking).  If another machine
+    # already holds it we simply skip migrations on this instance.
+    MIGRATION_LOCK_ID = 7483201  # arbitrary but fixed
+    lock_acquired = False
+    try:
+        with db.engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT pg_try_advisory_lock(:id)"),
+                {"id": MIGRATION_LOCK_ID},
+            )
+            lock_acquired = result.scalar()
+    except Exception:
+        # Non-PostgreSQL (e.g. SQLite in dev) — just proceed without locking.
+        lock_acquired = True
+
+    if not lock_acquired:
+        app.logger.info("Another machine holds the migration lock — skipping migrations.")
+        return
+
     try:
         upgrade()
         return
@@ -146,7 +172,11 @@ def create_app():
         if not app.config.get("AUTH_REQUIRED"):
             return
         from flask import redirect, request, session, url_for
-        public_endpoints = {"auth.login", "auth.verify", "auth.resend", "static", "main.root_health"}
+        public_endpoints = {
+            "auth.login", "auth.verify", "auth.resend", "static",
+            "main.root_health",        # Fly.io health checks
+            "dispatch.health",          # dispatch health check
+        }
         if request.endpoint in public_endpoints:
             return
         # Kiosk and TV routes run on wall-mounted devices without user sessions
