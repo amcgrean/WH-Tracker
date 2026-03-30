@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}My PO Submissions{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h4 class="font-weight-bold mb-0"><i class="fas fa-history mr-2 text-success"></i>My Submissions</h4>
+      <p class="text-muted small mb-0">Last 30 days — your PO check-in history.</p>
+    </div>
+    <a href="{{ url_for('po.checkin') }}" class="btn btn-sm btn-success">
+      <i class="fas fa-camera mr-1"></i> New Check-In
+    </a>
+  </div>
+
+  {% if request.args.get('submitted') %}
+  <div class="alert alert-success py-2 mb-4">
+    <i class="fas fa-check-circle mr-1"></i> Your submission was recorded successfully.
+  </div>
+  {% endif %}
+
+  <!-- Status filter tabs -->
+  <div class="mb-3">
+    {% for s in [('all','All'), ('pending','Pending'), ('reviewed','Reviewed'), ('flagged','Flagged')] %}
+    <a href="{{ url_for('po.history', status=s[0]) }}"
+       class="btn btn-sm mr-1 {{ 'btn-success' if status_filter == s[0] else 'btn-outline-secondary' }}">
+      {{ s[1] }}
+      {% if s[0] == 'all' %}<span class="badge badge-light ml-1">{{ total }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="card glass-panel">
+    <div class="card-body p-0">
+      {% if submissions %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:.875rem;">
+          <thead class="thead-light">
+            <tr>
+              <th style="width:72px;">Photo</th>
+              <th>PO Number</th>
+              <th>Supplier</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sub in submissions %}
+            <tr>
+              <td class="align-middle p-2">
+                {% if sub.image_urls and sub.image_urls[0] %}
+                <img src="{{ sub.image_urls[0] }}" alt="Photo"
+                     style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #dee2e6;">
+                {% else %}
+                <div style="width:60px;height:60px;background:#f8f9fa;border-radius:4px;border:1px solid #dee2e6;display:flex;align-items:center;justify-content:center;">
+                  <i class="fas fa-image text-muted"></i>
+                </div>
+                {% endif %}
+              </td>
+              <td class="align-middle font-weight-semibold">{{ sub.po_number }}</td>
+              <td class="align-middle text-muted small">{{ sub.supplier_name or '—' }}</td>
+              <td class="align-middle">
+                {% if sub.status == 'reviewed' %}
+                  <span class="badge badge-success">Reviewed</span>
+                {% elif sub.status == 'flagged' %}
+                  <span class="badge badge-danger">Flagged</span>
+                {% else %}
+                  <span class="badge badge-warning text-dark">Pending</span>
+                {% endif %}
+                {% if sub.reviewer_notes %}
+                <small class="d-block text-muted mt-1" style="max-width:180px;white-space:normal;">{{ sub.reviewer_notes[:80] }}{% if sub.reviewer_notes|length > 80 %}…{% endif %}</small>
+                {% endif %}
+              </td>
+              <td class="align-middle small text-muted" style="white-space:nowrap;">
+                {{ sub.created_at.strftime('%b %d, %Y') if sub.created_at else '—' }}<br>
+                <span style="font-size:.75rem;">{{ sub.created_at.strftime('%I:%M %p') if sub.created_at else '' }}</span>
+              </td>
+              <td class="align-middle small text-muted">
+                {{ sub.notes[:60] if sub.notes else '—' }}{% if sub.notes and sub.notes|length > 60 %}…{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      {% if total_pages > 1 %}
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" style="font-size:.85rem;">
+        <span class="text-muted">{{ total }} submission{{ 's' if total != 1 else '' }}</span>
+        <div>
+          {% if page > 1 %}
+          <a href="{{ url_for('po.history', status=status_filter, page=page-1) }}"
+             class="btn btn-sm btn-outline-secondary mr-1">
+            <i class="fas fa-chevron-left"></i>
+          </a>
+          {% endif %}
+          <span class="text-muted">Page {{ page }} of {{ total_pages }}</span>
+          {% if page < total_pages %}
+          <a href="{{ url_for('po.history', status=status_filter, page=page+1) }}"
+             class="btn btn-sm btn-outline-secondary ml-1">
+            <i class="fas fa-chevron-right"></i>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+        No submissions found for the selected filter.
+        <div class="mt-2">
+          <a href="{{ url_for('po.checkin') }}" class="btn btn-sm btn-success">
+            <i class="fas fa-camera mr-1"></i> Start a Check-In
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

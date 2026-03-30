@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% block title %}PO {{ po_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('po.open_pos') }}" class="btn btn-sm btn-outline-secondary mr-3">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+      <h4 class="font-weight-bold mb-0">PO {{ po_number }}</h4>
+      <p class="text-muted small mb-0">Purchase order detail &amp; receiving summary</p>
+    </div>
+  </div>
+
+  {% set header = po.header or {} %}
+
+  <!-- Header card -->
+  <div class="card glass-panel mb-4">
+    <div class="card-header bg-transparent border-0 pt-3 pb-1">
+      <h6 class="font-weight-bold mb-0"><i class="fas fa-file-alt mr-2 text-muted"></i>PO Header</h6>
+    </div>
+    <div class="card-body">
+      <div class="row" style="font-size:.875rem;">
+        <div class="col-md-4 mb-2">
+          <span class="text-muted small d-block">Supplier</span>
+          <strong>{{ header.get('supplier_name') or '—' }}</strong>
+        </div>
+        <div class="col-md-2 mb-2">
+          <span class="text-muted small d-block">Status</span>
+          <span class="badge badge-secondary">{{ header.get('po_status') or '—' }}</span>
+        </div>
+        <div class="col-md-2 mb-2">
+          <span class="text-muted small d-block">Branch</span>
+          {% if header.get('system_id') %}
+            <span class="badge badge-light border">{{ header.get('system_id') }}</span>
+          {% else %}—{% endif %}
+        </div>
+        <div class="col-md-2 mb-2">
+          <span class="text-muted small d-block">Expected</span>
+          {{ (header.get('expect_date') or '')[:10] or '—' }}
+        </div>
+        <div class="col-md-2 mb-2">
+          <span class="text-muted small d-block">Order Date</span>
+          {{ (header.get('order_date') or '')[:10] or '—' }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+
+    <!-- Line items -->
+    <div class="col-lg-8 mb-4">
+      <div class="card glass-panel">
+        <div class="card-header bg-transparent border-0 pt-3 pb-1 d-flex align-items-center justify-content-between">
+          <h6 class="font-weight-bold mb-0"><i class="fas fa-boxes mr-2 text-muted"></i>Line Items</h6>
+          <span class="badge badge-secondary">{{ (po.lines or [])|length }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% if po.lines %}
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" style="font-size:.825rem;">
+              <thead class="thead-light">
+                <tr>
+                  <th>#</th>
+                  <th>Item Code</th>
+                  <th>Description</th>
+                  <th class="text-right">Qty</th>
+                  <th class="text-right">Unit Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for line in po.lines %}
+                <tr>
+                  <td class="text-muted">{{ line.get('line_number') or loop.index }}</td>
+                  <td><code class="small">{{ line.get('item_code') or line.get('item_ptr') or '—' }}</code></td>
+                  <td class="text-muted">{{ line.get('description') or '—' }}</td>
+                  <td class="text-right">{{ line.get('qty_ordered') or line.get('qty') or '—' }}</td>
+                  <td class="text-right">
+                    {% if line.get('unit_cost') %}${{ "%.2f"|format(line.get('unit_cost')|float) }}{% else %}—{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-4 small">No line items available.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Receiving summary -->
+    <div class="col-lg-4 mb-4">
+      <div class="card glass-panel mb-3">
+        <div class="card-header bg-transparent border-0 pt-3 pb-1">
+          <h6 class="font-weight-bold mb-0"><i class="fas fa-truck-loading mr-2 text-muted"></i>Receiving Summary</h6>
+        </div>
+        <div class="card-body" style="font-size:.875rem;">
+          {% set rs = po.receiving_summary or {} %}
+          {% if rs %}
+          <dl class="row mb-0">
+            <dt class="col-7 text-muted">Receipt Count</dt>
+            <dd class="col-5">{{ rs.get('receipt_count') or '0' }}</dd>
+            <dt class="col-7 text-muted">Total Qty Received</dt>
+            <dd class="col-5">{{ rs.get('qty_received_total') or '—' }}</dd>
+            <dt class="col-7 text-muted">First Receipt</dt>
+            <dd class="col-5 small">{{ (rs.get('first_receive_date') or '')[:10] or '—' }}</dd>
+            <dt class="col-7 text-muted">Latest Receipt</dt>
+            <dd class="col-5 small">{{ (rs.get('last_receive_date') or '')[:10] or '—' }}</dd>
+            <dt class="col-7 text-muted">Latest Status</dt>
+            <dd class="col-5">
+              {% if rs.get('latest_recv_status') %}
+                <span class="badge badge-secondary" style="font-size:.7rem;">{{ rs.get('latest_recv_status') }}</span>
+              {% else %}—{% endif %}
+            </dd>
+          </dl>
+          {% else %}
+          <p class="text-muted small mb-0">No receiving data available.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+
+  <!-- Check-in photos gallery -->
+  <div class="card glass-panel">
+    <div class="card-header bg-transparent border-0 pt-3 pb-1 d-flex align-items-center justify-content-between">
+      <h6 class="font-weight-bold mb-0">
+        <i class="fas fa-camera mr-2 text-muted"></i>Check-In Submissions
+      </h6>
+      <span class="badge badge-secondary">{{ submissions|length }}</span>
+    </div>
+    <div class="card-body">
+      {% if submissions %}
+      <div class="row">
+        {% for sub in submissions %}
+        <div class="col-sm-6 col-md-4 col-lg-3 mb-3">
+          <div class="card border" style="font-size:.8rem;">
+            {% if sub.image_urls %}
+            <div class="d-flex flex-wrap p-1" style="gap:4px;">
+              {% for url in sub.image_urls[:4] %}
+              <a href="{{ url }}" target="_blank" rel="noopener">
+                <img src="{{ url }}" alt=""
+                     style="width:{{ '48' if sub.image_urls|length > 1 else '100' }}px;height:48px;object-fit:cover;border-radius:3px;">
+              </a>
+              {% endfor %}
+              {% if sub.image_urls|length > 4 %}
+              <div style="width:48px;height:48px;background:#f8f9fa;border-radius:3px;display:flex;align-items:center;justify-content:center;">
+                <small class="text-muted">+{{ sub.image_urls|length - 4 }}</small>
+              </div>
+              {% endif %}
+            </div>
+            {% else %}
+            <div class="p-2 text-center text-muted"><i class="fas fa-image"></i></div>
+            {% endif %}
+            <div class="card-body py-2 px-2">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                {% if sub.status == 'reviewed' %}
+                  <span class="badge badge-success" style="font-size:.65rem;">Reviewed</span>
+                {% elif sub.status == 'flagged' %}
+                  <span class="badge badge-danger" style="font-size:.65rem;">Flagged</span>
+                {% else %}
+                  <span class="badge badge-warning text-dark" style="font-size:.65rem;">Pending</span>
+                {% endif %}
+                <a href="{{ url_for('po.review_detail', submission_id=sub.id) }}"
+                   class="btn btn-xs btn-outline-secondary">Review</a>
+              </div>
+              <div class="text-muted">{{ sub.submitted_username or '—' }}</div>
+              <div class="text-muted" style="font-size:.75rem;">
+                {{ sub.created_at.strftime('%b %d, %Y %I:%M %p') if sub.created_at else '—' }}
+              </div>
+              {% if sub.notes %}
+              <div class="mt-1 text-muted" style="font-size:.75rem;">{{ sub.notes[:60] }}{% if sub.notes|length > 60 %}…{% endif %}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center text-muted py-4">
+        <i class="fas fa-camera fa-2x mb-2 d-block"></i>
+        No check-in submissions for this PO yet.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

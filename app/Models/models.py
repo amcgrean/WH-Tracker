@@ -1,3 +1,5 @@
+import uuid as _uuid
+
 from app.extensions import db
 from datetime import datetime  # If you're using datetime for the DateTime columns
 
@@ -127,6 +129,8 @@ class AppUser(db.Model):
     phone = db.Column(db.String(32), nullable=True)
     # JSON array of role strings e.g. ["sales", "ops"]
     roles = db.Column(db.JSON, nullable=False, default=list)
+    # Home branch code e.g. "20GR" — used for PO module scoping. NULL = all branches.
+    branch = db.Column(db.String(16), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
@@ -138,6 +142,35 @@ class AppUser(db.Model):
 
     def __repr__(self):
         return f'<AppUser {self.email}>'
+
+
+class POSubmission(db.Model):
+    """PO check-in submission — records a warehouse worker photographing received goods."""
+    __tablename__ = 'po_submissions'
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(_uuid.uuid4()))
+    po_number = db.Column(db.Text, nullable=False)
+    image_urls = db.Column(db.JSON, nullable=False, default=list)
+    supplier_name = db.Column(db.Text, nullable=True)
+    supplier_key = db.Column(db.Text, nullable=True)
+    po_status = db.Column(db.Text, nullable=True)     # ERP status at submission time
+    notes = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending/reviewed/flagged
+    submitted_by = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    submitted_username = db.Column(db.Text, nullable=True)  # denormalized — name at submit time
+    branch = db.Column(db.Text, nullable=True)              # denormalized from AppUser.branch
+    reviewer_notes = db.Column(db.Text, nullable=True)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    reviewed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    submitter = db.relationship('AppUser', foreign_keys=[submitted_by],
+                                backref=db.backref('po_submissions_submitted', lazy=True))
+    reviewer_user = db.relationship('AppUser', foreign_keys=[reviewed_by],
+                                    backref=db.backref('po_submissions_reviewed', lazy=True))
+
+    def __repr__(self):
+        return f'<POSubmission {self.id} PO={self.po_number} status={self.status}>'
 
 
 class OTPCode(db.Model):

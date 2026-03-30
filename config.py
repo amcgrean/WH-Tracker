@@ -31,10 +31,13 @@ class Config(object):
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads/credits')
 
     # Cloudflare R2 object storage (S3-compatible)
-    R2_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID')
-    R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
-    R2_BUCKET = os.environ.get('R2_BUCKET', 'liveedgefiles')
-    R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL')  # https://<account_id>.r2.cloudflarestorage.com
+    # Used by both the file storage feature and PO check-in photo uploads.
+    R2_ENDPOINT_URL      = os.environ.get('R2_ENDPOINT_URL', '')
+    R2_ACCESS_KEY_ID     = os.environ.get('R2_ACCESS_KEY_ID', '')
+    R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '')
+    R2_BUCKET            = os.environ.get('R2_BUCKET', 'wh-tracker-files')      # general file storage
+    R2_BUCKET_NAME       = os.environ.get('R2_BUCKET_NAME', 'po-checkin-photos') # PO check-in photos
+    R2_PUBLIC_URL        = os.environ.get('R2_PUBLIC_URL', '').rstrip('/')       # public base URL
 
     require_strong_secret = env_bool(
         "REQUIRE_STRONG_SECRET_KEY",
