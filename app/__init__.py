@@ -78,7 +78,32 @@ def _resolve_branched_alembic_state(app):
 
 
 def _run_migrations(app):
-    """Run pending Alembic migrations, recovering from branched-state errors."""
+    """Run pending Alembic migrations, recovering from branched-state errors.
+
+    Uses a PostgreSQL advisory lock so that only one Fly machine runs
+    migrations at a time — the others skip and let the winner handle DDL.
+    """
+    from sqlalchemy import text
+
+    # Try to grab an advisory lock (non-blocking).  If another machine
+    # already holds it we simply skip migrations on this instance.
+    MIGRATION_LOCK_ID = 7483201  # arbitrary but fixed
+    lock_acquired = False
+    try:
+        with db.engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT pg_try_advisory_lock(:id)"),
+                {"id": MIGRATION_LOCK_ID},
+            )
+            lock_acquired = result.scalar()
+    except Exception:
+        # Non-PostgreSQL (e.g. SQLite in dev) — just proceed without locking.
+        lock_acquired = True
+
+    if not lock_acquired:
+        app.logger.info("Another machine holds the migration lock — skipping migrations.")
+        return
+
     try:
         upgrade()
         return
