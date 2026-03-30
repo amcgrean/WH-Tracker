@@ -48,7 +48,7 @@
               <td class="align-middle">{{ u.display_name or '—' }}</td>
               <td class="align-middle">
                 {% for r in (u.roles or []) %}
-                  <span class="badge badge-{{ 'danger' if r == 'admin' else ('primary' if r in ['ops','supervisor'] else 'secondary') }} mr-1" style="font-size:.7rem;">{{ r }}</span>
+                  <span class="badge badge-{{ 'danger' if r == 'admin' else ('info' if r == 'manager' else ('primary' if r in ['ops','supervisor'] else 'secondary')) }} mr-1" style="font-size:.7rem;">{{ r }}</span>
                 {% else %}
                   <span class="text-muted small">none</span>
                 {% endfor %}
@@ -159,6 +159,7 @@
                     {% else %}
                       <option value="warehouse">warehouse</option>
                     {% endif %}
+                    <option value="manager">manager</option>
                     <option value="supervisor">supervisor</option>
                     <option value="ops">ops</option>
                   </select>

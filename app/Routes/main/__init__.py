@@ -8,6 +8,7 @@ from app.Routes.main import (  # noqa: E402, F401
     work_orders,
     warehouse,
     delivery,
+    operations,
     credits,
     search,
     supervisor,
