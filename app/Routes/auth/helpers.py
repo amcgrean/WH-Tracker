@@ -1,5 +1,6 @@
 AVAILABLE_ROLES = [
     "admin",
+    "manager",
     "ops",
     "warehouse",
     "supervisor",

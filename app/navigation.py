@@ -21,7 +21,7 @@ NAV_SECTIONS = [
         "id": "dispatch",
         "label": "Dispatch",
         "icon": "fas fa-route",
-        "roles": ["delivery", "dispatch", "sales", "ops"],
+        "roles": ["delivery", "dispatch", "sales", "ops", "manager"],
         "items": [
             {
                 "id": "dispatch_console",
@@ -40,6 +40,15 @@ NAV_SECTIONS = [
                 "description": "Track scheduled deliveries and branch status.",
                 "roles": ["delivery", "dispatch", "sales", "ops"],
                 "permissions": ["delivery.view"],
+            },
+            {
+                "id": "delivery_reporting",
+                "label": "Delivery Reporting",
+                "endpoint": "main.operations_delivery_reporting",
+                "icon": "fas fa-chart-bar",
+                "description": "Manager dashboard for same-day delivery performance.",
+                "roles": ["ops", "manager"],
+                "permissions": ["delivery.reporting"],
             },
             {
                 "id": "fleet_map",

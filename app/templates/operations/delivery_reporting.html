@@ -1,0 +1,716 @@
+{% extends "base.html" %}
+{% block title %}Operations Delivery Reporting{% endblock %}
+
+{% block search_nav %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4 ops-delivery-report-page">
+    <div class="ops-report-hero glass-card p-4 mb-4">
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
+            <div class="mb-3 mb-lg-0">
+                <span class="ops-kicker">Operations Manager Dashboard</span>
+                <h1 class="mb-2">Delivery reporting for same-day performance</h1>
+                <p class="text-muted mb-3">Non-direct delivered orders across 20GR, 25BW, 10FD, and 40CV, with store comparison at the center.</p>
+                <div class="d-flex flex-wrap align-items-center">
+                    <span class="store-chip">20GR</span>
+                    <span class="store-chip">25BW</span>
+                    <span class="store-chip">10FD</span>
+                    <span class="store-chip">40CV</span>
+                    <span class="report-note ml-2">Available to users with <code>manager</code>, <code>ops</code>, or <code>admin</code> access.</span>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center justify-content-lg-end">
+                <div class="btn-group btn-group-sm mr-2 mb-2 mb-lg-0" role="group">
+                    <button class="btn btn-ops-primary window-toggle active" data-window="30d">Last 30 Days</button>
+                    <button class="btn btn-outline-secondary window-toggle" data-window="12m">Last 12 Months</button>
+                </div>
+                <a id="exportDetailsBtn" class="btn btn-outline-dark btn-sm mb-2 mb-lg-0" href="#">
+                    <i class="fas fa-download mr-1"></i>Export detail rows
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-panel p-3 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <div class="small text-uppercase text-muted font-weight-bold mb-2">Sale Type Filter</div>
+                <div id="saleTypePills" class="pill-row"></div>
+            </div>
+            <div class="text-right mt-3 mt-md-0">
+                <div class="small text-uppercase text-muted font-weight-bold">Last refresh</div>
+                <div id="reportGeneratedAt" class="font-weight-bold">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reportError" class="alert alert-danger d-none"></div>
+    <div id="reportLoading" class="glass-panel p-4 text-center mb-4">
+        <div class="spinner-border text-success mb-3" role="status"></div>
+        <div class="font-weight-bold">Loading delivery report...</div>
+    </div>
+
+    <div id="reportContent" class="d-none">
+        <div id="kpiGrid" class="row mb-4"></div>
+
+        <div class="row mb-4">
+            <div class="col-xl-7 mb-4 mb-xl-0">
+                <div class="glass-card h-100">
+                    <div class="section-header">
+                        <div>
+                            <div class="section-eyebrow">Store comparison</div>
+                            <h2>Same-day delivery % by store</h2>
+                        </div>
+                    </div>
+                    <div class="p-3 p-md-4">
+                        <canvas id="storeComparisonChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-5">
+                <div class="glass-card h-100">
+                    <div class="section-header">
+                        <div>
+                            <div class="section-eyebrow">Side by side</div>
+                            <h2>Store comparison table</h2>
+                        </div>
+                    </div>
+                    <div class="table-responsive px-3 pb-3">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Store</th>
+                                    <th>Delivered</th>
+                                    <th>Same-day %</th>
+                                    <th>After-noon</th>
+                                    <th>Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="storeComparisonTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card mb-4">
+            <div class="section-header flex-column flex-lg-row align-items-lg-center">
+                <div>
+                    <div class="section-eyebrow">Trend view</div>
+                    <h2>Store performance trend</h2>
+                </div>
+                <div class="d-flex flex-wrap align-items-center mt-3 mt-lg-0">
+                    <label class="small text-uppercase text-muted font-weight-bold mb-0 mr-2">Secondary metric</label>
+                    <select id="secondaryMetricSelect" class="custom-select custom-select-sm">
+                        <option value="delivered_orders">Delivered orders</option>
+                        <option value="same_day_after_noon_count">Same-day-after-noon count</option>
+                    </select>
+                </div>
+            </div>
+            <div class="p-3 p-md-4">
+                <canvas id="trendChart" height="120"></canvas>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-lg-6 mb-4 mb-lg-0">
+                <div class="glass-card h-100">
+                    <div class="section-header flex-column flex-md-row align-items-md-center">
+                        <div>
+                            <div class="section-eyebrow">Breakdown</div>
+                            <h2>By sale type</h2>
+                        </div>
+                        <div class="btn-group btn-group-sm mt-3 mt-md-0" role="group">
+                            <button class="btn btn-outline-secondary breakdown-scope active" data-scope="combined">Combined</button>
+                            <button class="btn btn-outline-secondary breakdown-scope" data-scope="store">By store</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive px-3 pb-3">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th id="saleTypeBreakdownLeadHeader">Sale type</th>
+                                    <th>Delivered</th>
+                                    <th>Same-day %</th>
+                                    <th>Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="saleTypeBreakdownTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="glass-card h-100">
+                    <div class="section-header">
+                        <div>
+                            <div class="section-eyebrow">Breakdown</div>
+                            <h2>Sale type + ship-via bucket</h2>
+                        </div>
+                    </div>
+                    <div class="table-responsive px-3 pb-3">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th id="shipViaBreakdownLeadHeader">Sale type</th>
+                                    <th>Ship-via bucket</th>
+                                    <th>Delivered</th>
+                                    <th>Same-day %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shipViaBreakdownTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card">
+            <div class="section-header flex-column flex-lg-row align-items-lg-center">
+                <div>
+                    <div class="section-eyebrow">Order detail</div>
+                    <h2>Delivered order rows</h2>
+                </div>
+                <div class="text-muted small mt-2 mt-lg-0">
+                    <span id="detailCountLabel">0 rows</span> shown in-app. Export downloads the full filtered detail set.
+                </div>
+            </div>
+            <div class="table-responsive px-3 pb-3">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Store</th>
+                            <th>Ship date</th>
+                            <th>SO</th>
+                            <th>Sale type</th>
+                            <th>Ship-via bucket</th>
+                            <th>Order date</th>
+                            <th>Order time</th>
+                            <th>Same-day</th>
+                            <th>After-noon</th>
+                            <th>Lines</th>
+                            <th>Items</th>
+                            <th>Qty</th>
+                            <th>Pieces</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    const reportState = {
+        payload: null,
+        activeSaleType: 'All',
+        activeWindow: '30d',
+        breakdownScope: 'combined',
+        secondaryMetric: 'delivered_orders',
+        charts: {},
+    };
+
+    const storePalette = {
+        '20GR': '#0b5d3c',
+        '25BW': '#c78a32',
+        '10FD': '#1565c0',
+        '40CV': '#8e3b46'
+    };
+
+    function fmtPct(value) {
+        return `${Number(value || 0).toFixed(1)}%`;
+    }
+
+    function fmtQty(value) {
+        return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+
+    function fmtBool(value) {
+        return value ? 'Yes' : 'No';
+    }
+
+    function setLoading(isLoading) {
+        document.getElementById('reportLoading').classList.toggle('d-none', !isLoading);
+        document.getElementById('reportContent').classList.toggle('d-none', isLoading);
+    }
+
+    function showError(message) {
+        const errorEl = document.getElementById('reportError');
+        errorEl.textContent = message;
+        errorEl.classList.remove('d-none');
+    }
+
+    function clearError() {
+        document.getElementById('reportError').classList.add('d-none');
+    }
+
+    async function fetchReport() {
+        setLoading(true);
+        clearError();
+        try {
+            const params = new URLSearchParams({
+                sale_type: reportState.activeSaleType,
+                detail_limit: '250'
+            });
+            const response = await fetch(`/api/ops/delivery-reporting?${params.toString()}`);
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.detail || payload.error || 'Report request failed.');
+            }
+            reportState.payload = payload;
+            reportState.activeSaleType = payload.sale_type_filter || reportState.activeSaleType;
+            renderReport();
+        } catch (error) {
+            showError(error.message || 'Unable to load delivery reporting.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function renderReport() {
+        if (!reportState.payload) return;
+        renderSaleTypePills();
+        renderGeneratedAt();
+        renderWindowButtons();
+        renderExportLink();
+        renderKpis();
+        renderStoreComparison();
+        renderTrendChart();
+        renderBreakdowns();
+        renderDetails();
+    }
+
+    function renderGeneratedAt() {
+        const generatedAt = reportState.payload.generated_at || '';
+        document.getElementById('reportGeneratedAt').textContent = generatedAt ? new Date(generatedAt).toLocaleString() : 'Unavailable';
+    }
+
+    function renderSaleTypePills() {
+        const container = document.getElementById('saleTypePills');
+        container.innerHTML = '';
+        (reportState.payload.available_sale_types || []).forEach(label => {
+            const button = document.createElement('button');
+            button.className = `pill-btn ${label === reportState.activeSaleType ? 'active' : ''}`;
+            button.textContent = label;
+            button.addEventListener('click', () => {
+                if (reportState.activeSaleType === label) return;
+                reportState.activeSaleType = label;
+                fetchReport();
+            });
+            container.appendChild(button);
+        });
+    }
+
+    function renderWindowButtons() {
+        document.querySelectorAll('.window-toggle').forEach(button => {
+            const isActive = button.dataset.window === reportState.activeWindow;
+            button.classList.toggle('active', isActive);
+            button.classList.toggle('btn-ops-primary', isActive);
+            button.classList.toggle('btn-outline-secondary', !isActive);
+        });
+    }
+
+    function currentWindowPayload() {
+        return reportState.payload.windows[reportState.activeWindow];
+    }
+
+    function renderKpis() {
+        const metrics = currentWindowPayload().summary;
+        const cards = [
+            ['Delivered orders', metrics.delivered_orders, 'fas fa-truck'],
+            ['Same-day delivered', metrics.same_day_delivered_orders, 'fas fa-bolt'],
+            ['Same-day delivery %', fmtPct(metrics.same_day_delivery_pct), 'fas fa-percentage'],
+            ['Same-day after-noon', metrics.same_day_after_noon_count, 'fas fa-clock'],
+            ['After-noon share', fmtPct(metrics.after_noon_share_of_same_day_deliveries), 'fas fa-sun'],
+            ['Total shipped qty', fmtQty(metrics.total_shipped_qty), 'fas fa-boxes'],
+            ['Reference piece count', fmtQty(metrics.reference_piece_count), 'fas fa-ruler-combined'],
+        ];
+
+        const grid = document.getElementById('kpiGrid');
+        grid.innerHTML = cards.map(([label, value, icon]) => `
+            <div class="col-sm-6 col-lg mb-3">
+                <div class="metric-card glass-panel h-100">
+                    <div class="metric-icon"><i class="${icon}"></i></div>
+                    <div class="metric-label">${label}</div>
+                    <div class="metric-value">${value}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderStoreComparison() {
+        const rows = currentWindowPayload().store_comparison.filter(row => row.store !== 'Combined');
+        const totalRow = currentWindowPayload().store_comparison.find(row => row.store === 'Combined');
+        document.getElementById('storeComparisonTable').innerHTML = [...rows, totalRow].filter(Boolean).map(row => `
+            <tr class="${row.store === 'Combined' ? 'font-weight-bold table-light' : ''}">
+                <td>${row.store}</td>
+                <td>${row.delivered_orders}</td>
+                <td>${fmtPct(row.same_day_delivery_pct)}</td>
+                <td>${row.same_day_after_noon_count}</td>
+                <td>${fmtQty(row.total_shipped_qty)}</td>
+            </tr>
+        `).join('');
+
+        const ctx = document.getElementById('storeComparisonChart').getContext('2d');
+        const data = {
+            labels: rows.map(row => row.store),
+            datasets: [
+                {
+                    label: 'Same-day delivery %',
+                    data: rows.map(row => row.same_day_delivery_pct),
+                    backgroundColor: rows.map(row => storePalette[row.store] || '#004526'),
+                    borderRadius: 12
+                }
+            ]
+        };
+
+        if (reportState.charts.storeComparison) {
+            reportState.charts.storeComparison.destroy();
+        }
+        reportState.charts.storeComparison = new Chart(ctx, {
+            type: 'bar',
+            data,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: value => `${value}%`
+                        }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderTrendChart() {
+        const trendSource = reportState.activeWindow === '30d'
+            ? reportState.payload.trends.daily_30d
+            : reportState.payload.trends.monthly_12m;
+
+        const labelKey = reportState.activeWindow === '30d' ? 'date' : 'label';
+        const labels = [...new Set(trendSource.map(row => row[labelKey]))];
+        const stores = ['20GR', '25BW', '10FD', '40CV'];
+        const primaryDatasets = stores.map(store => ({
+            label: `${store} same-day %`,
+            data: labels.map(label => {
+                const match = trendSource.find(row => row.store === store && row[labelKey] === label);
+                return match ? match.same_day_delivery_pct : 0;
+            }),
+            borderColor: storePalette[store],
+            backgroundColor: 'transparent',
+            borderWidth: 3,
+            tension: 0.28,
+            yAxisID: 'y'
+        }));
+
+        const secondaryMetric = reportState.secondaryMetric;
+        const combinedSecondary = labels.map(label => {
+            return trendSource
+                .filter(row => row[labelKey] === label)
+                .reduce((sum, row) => sum + Number(row[secondaryMetric] || 0), 0);
+        });
+
+        const datasets = primaryDatasets.concat([{
+            label: secondaryMetric === 'same_day_after_noon_count' ? 'Combined same-day-after-noon count' : 'Combined delivered orders',
+            data: combinedSecondary,
+            type: 'bar',
+            backgroundColor: 'rgba(197, 160, 89, 0.28)',
+            borderColor: '#c5a059',
+            borderWidth: 1,
+            yAxisID: 'y1'
+        }]);
+
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        if (reportState.charts.trend) {
+            reportState.charts.trend.destroy();
+        }
+        reportState.charts.trend = new Chart(ctx, {
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'bottom' }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: { callback: value => `${value}%` }
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderBreakdowns() {
+        const windowPayload = currentWindowPayload();
+        const saleTypeRows = reportState.breakdownScope === 'combined'
+            ? windowPayload.sale_type_totals
+            : windowPayload.sale_type_totals_by_store;
+        const shipViaRows = reportState.breakdownScope === 'combined'
+            ? windowPayload.sale_type_ship_via_totals
+            : windowPayload.sale_type_ship_via_totals_by_store;
+
+        document.getElementById('saleTypeBreakdownLeadHeader').textContent = reportState.breakdownScope === 'combined' ? 'Sale type' : 'Store';
+        document.getElementById('shipViaBreakdownLeadHeader').textContent = reportState.breakdownScope === 'combined' ? 'Sale type' : 'Store';
+
+        document.getElementById('saleTypeBreakdownTable').innerHTML = saleTypeRows.map(row => `
+            <tr>
+                <td>${reportState.breakdownScope === 'combined' ? row.sale_type_group : row.store}</td>
+                <td>${row.delivered_orders}</td>
+                <td>${fmtPct(row.same_day_delivery_pct)}</td>
+                <td>${fmtQty(row.total_shipped_qty)}</td>
+            </tr>
+        `).join('');
+
+        document.getElementById('shipViaBreakdownTable').innerHTML = shipViaRows.map(row => `
+            <tr>
+                <td>${reportState.breakdownScope === 'combined' ? row.sale_type_group : row.store}</td>
+                <td>${row.ship_via_bucket}</td>
+                <td>${row.delivered_orders}</td>
+                <td>${fmtPct(row.same_day_delivery_pct)}</td>
+            </tr>
+        `).join('');
+
+        document.querySelectorAll('.breakdown-scope').forEach(button => {
+            const active = button.dataset.scope === reportState.breakdownScope;
+            button.classList.toggle('active', active);
+        });
+    }
+
+    function renderDetails() {
+        const details = currentWindowPayload().details || [];
+        document.getElementById('detailCountLabel').textContent = `${details.length} rows`;
+        document.getElementById('detailTable').innerHTML = details.map(row => `
+            <tr>
+                <td>${row.store}</td>
+                <td>${row.ship_date}</td>
+                <td>${row.so_id}</td>
+                <td>
+                    <div class="font-weight-bold">${row.sale_type_group}</div>
+                    <div class="text-muted small">${row.sale_type}</div>
+                </td>
+                <td>${row.ship_via_bucket}</td>
+                <td>${row.order_date || '-'}</td>
+                <td>${row.order_time || '-'}</td>
+                <td>${fmtBool(row.same_day_flag)}</td>
+                <td>${fmtBool(row.same_day_after_noon_flag)}</td>
+                <td>${row.shipped_line_count}</td>
+                <td>${row.unique_item_count}</td>
+                <td>${fmtQty(row.total_shipped_qty)}</td>
+                <td>${fmtQty(row.reference_piece_count)}</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderExportLink() {
+        const params = new URLSearchParams({
+            sale_type: reportState.activeSaleType,
+            window: reportState.activeWindow
+        });
+        document.getElementById('exportDetailsBtn').href = `/api/ops/delivery-reporting/export?${params.toString()}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.window-toggle').forEach(button => {
+            button.addEventListener('click', () => {
+                reportState.activeWindow = button.dataset.window;
+                renderReport();
+            });
+        });
+
+        document.querySelectorAll('.breakdown-scope').forEach(button => {
+            button.addEventListener('click', () => {
+                reportState.breakdownScope = button.dataset.scope;
+                renderBreakdowns();
+            });
+        });
+
+        document.getElementById('secondaryMetricSelect').addEventListener('change', (event) => {
+            reportState.secondaryMetric = event.target.value;
+            renderTrendChart();
+        });
+
+        fetchReport();
+    });
+</script>
+
+<style>
+    .ops-delivery-report-page {
+        --ops-cream: #f6f2e9;
+        --ops-ink: #1e2a24;
+        --ops-card-border: rgba(0, 69, 38, 0.08);
+    }
+
+    .ops-report-hero {
+        background:
+            radial-gradient(circle at top left, rgba(197, 160, 89, 0.18), transparent 34%),
+            linear-gradient(135deg, rgba(0, 69, 38, 0.06), rgba(255, 255, 255, 0.78));
+        border: 1px solid var(--ops-card-border);
+    }
+
+    .ops-kicker {
+        display: inline-block;
+        margin-bottom: 0.75rem;
+        padding: 0.3rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(0, 69, 38, 0.1);
+        color: var(--beisser-green);
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .ops-report-hero h1 {
+        font-size: clamp(2rem, 3vw, 3rem);
+        color: var(--ops-ink);
+    }
+
+    .store-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 0.5rem 0.5rem 0;
+        padding: 0.45rem 0.75rem;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid rgba(0, 69, 38, 0.12);
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        font-size: 0.78rem;
+    }
+
+    .report-note {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+
+    .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+    }
+
+    .pill-btn {
+        border: 1px solid rgba(0, 69, 38, 0.15);
+        background: #fff;
+        color: var(--ops-ink);
+        border-radius: 999px;
+        padding: 0.5rem 0.95rem;
+        font-weight: 700;
+        transition: 0.2s ease;
+    }
+
+    .pill-btn.active,
+    .pill-btn:hover {
+        background: var(--beisser-green);
+        color: #fff;
+        border-color: var(--beisser-green);
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 1.2rem 1.2rem 0.4rem;
+    }
+
+    .section-eyebrow {
+        color: #86652b;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+
+    .section-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: var(--ops-ink);
+    }
+
+    .metric-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 150px;
+        border-radius: 18px;
+        padding: 1rem;
+        border: 1px solid var(--ops-card-border);
+        background:
+            linear-gradient(135deg, rgba(255,255,255,0.92), rgba(246,242,233,0.86));
+    }
+
+    .metric-icon {
+        width: 42px;
+        height: 42px;
+        margin-bottom: 0.85rem;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 69, 38, 0.1);
+        color: var(--beisser-green);
+    }
+
+    .metric-label {
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.72rem;
+        font-weight: 800;
+        margin-bottom: 0.45rem;
+    }
+
+    .metric-value {
+        font-size: clamp(1.4rem, 2vw, 2rem);
+        font-weight: 800;
+        color: var(--ops-ink);
+        line-height: 1.1;
+    }
+
+    .table thead th {
+        border-top: 0;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 0.7rem;
+    }
+
+    #secondaryMetricSelect {
+        min-width: 220px;
+    }
+
+    @media (max-width: 767.98px) {
+        .ops-report-hero,
+        .glass-panel,
+        .glass-card {
+            border-radius: 18px;
+        }
+
+        .section-header {
+            padding: 1rem 1rem 0.25rem;
+        }
+    }
+</style>
+{% endblock %}

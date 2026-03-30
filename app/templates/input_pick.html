@@ -1,21 +1,36 @@
-{% extends 'base.html' %}
+{% extends "kiosk_base.html" %}
 
 {% block title %}Input Pick{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>Input Pick for {{ picker.name }}</h1>
-    <form id="pickForm" action="{{ url_for('main.start_pick', picker_id=picker.id, pick_type_id=pick_type_id) }}" method="post">
-        <div class="form-group">
-            <label for="barcodeInput">Barcode:</label>
-            <input type="text" class="form-control" id="barcodeInput" name="barcode" pattern="[0-9\s\-]+" required autofocus>
-            <small class="form-text text-muted">Enter the barcode. Only numbers, spaces, and hyphens are allowed.</small>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6 text-center">
+        <h2 class="mb-2" style="font-weight:800; color:#004526;">
+            <i class="fas fa-barcode mr-2"></i>Scan Barcode
+        </h2>
+        <p class="text-muted mb-4" style="font-size:1.1rem;">
+            Picker: <strong>{{ picker.name }}</strong>
+        </p>
+
+        <form id="pickForm" action="{{ url_for('main.start_pick', picker_id=picker.id, pick_type_id=pick_type_id) }}" method="post">
+            <div class="mb-4">
+                <input type="text" class="kiosk-input text-center" id="barcodeInput" name="barcode"
+                       placeholder="Scan or type barcode..." pattern="[0-9\\s\\-]+" required autofocus autocomplete="off">
+                <small class="d-block text-muted mt-2">Numbers, spaces, and hyphens only.</small>
+            </div>
+            <button type="submit" class="kiosk-btn kiosk-btn-primary d-block w-100">
+                <i class="fas fa-check mr-2"></i>Submit Pick
+            </button>
+        </form>
+
+        <div class="mt-4">
+            <a href="{{ url_for('main.confirm_picker', picker_id=picker.id) }}" class="text-muted font-weight-bold" style="font-size:1.1rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Back
+            </a>
         </div>
-        <button type="submit" class="btn btn-primary">Submit</button>
-    </form>
+    </div>
 </div>
 {% endblock %}
-
 
 {% block scripts %}
 <script>
@@ -28,5 +43,8 @@
         }
         return true;
     };
+    document.addEventListener('click', function() {
+        document.getElementById('barcodeInput').focus();
+    });
 </script>
 {% endblock %}
