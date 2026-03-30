@@ -172,7 +172,11 @@ def create_app():
         if not app.config.get("AUTH_REQUIRED"):
             return
         from flask import redirect, request, session, url_for
-        public_endpoints = {"auth.login", "auth.verify", "auth.resend", "static"}
+        public_endpoints = {
+            "auth.login", "auth.verify", "auth.resend", "static",
+            "main.root_health",        # Fly.io health checks
+            "dispatch.health",          # dispatch health check
+        }
         if request.endpoint in public_endpoints:
             return
         if not session.get("user_id"):
