@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" fill="none">
+  <!-- Live-edge wood slab icon -->
+  <g transform="translate(0,4)">
+    <!-- Stylized live-edge slab shape -->
+    <path d="M4 8 C6 3, 12 1, 18 2 C22 3, 26 2, 30 4 L30 28 C28 30, 24 31, 18 30 C12 29, 8 31, 4 28 Z" fill="#004526"/>
+    <path d="M8 12 C10 10, 14 9, 18 10 C22 11, 25 10, 28 12 L28 24 C26 26, 22 27, 18 26 C14 25, 10 26, 8 24 Z" fill="#006834"/>
+    <!-- Wood grain lines -->
+    <path d="M10 15 C13 14, 16 14, 20 15 C23 16, 25 15, 27 16" stroke="#c5a059" stroke-width="0.8" fill="none" opacity="0.6"/>
+    <path d="M10 19 C14 18, 17 18, 21 19 C24 20, 26 19, 27 20" stroke="#c5a059" stroke-width="0.8" fill="none" opacity="0.4"/>
+  </g>
+  <!-- "LIVEEDGE" text -->
+  <text x="40" y="18" font-family="Inter, -apple-system, sans-serif" font-weight="800" font-size="18" fill="#004526" letter-spacing="-0.5">LIVE</text>
+  <text x="88" y="18" font-family="Inter, -apple-system, sans-serif" font-weight="400" font-size="18" fill="#004526" letter-spacing="-0.5">EDGE</text>
+  <!-- "by Beisser Lumber" tagline -->
+  <text x="40" y="32" font-family="Inter, -apple-system, sans-serif" font-weight="600" font-size="7.5" fill="#6c757d" letter-spacing="1.2" text-transform="uppercase">BEISSER LUMBER</text>
+</svg>
