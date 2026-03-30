@@ -54,7 +54,7 @@ class StorageService:
 
     @property
     def bucket(self):
-        return current_app.config.get('R2_BUCKET', 'wh-tracker-files')
+        return current_app.config.get('R2_BUCKET', 'liveedgefiles')
 
     @property
     def is_available(self):
