@@ -1,9 +1,8 @@
-"""Fix erp_mirror_item_supplier unique key to include system_id
+"""erp_mirror_item_supplier unique key — no-op (Pi-managed table)
 
-The original constraint was on (item_ptr, supplier_key) only, which rejects
-duplicate item-supplier pairs when the same pair exists in multiple branches.
-Replace it with a functional unique index on
-(COALESCE(system_id, ''), item_ptr, supplier_key) so per-branch rows coexist.
+erp_mirror_item_supplier is created and owned by the Pi sync worker, not the
+Flask app. The live table has a different schema from the SQLAlchemy model
+(item_ptr is INTEGER, unique key is on prrowid, etc.). Do not alter it here.
 
 Revision ID: s2t3u4v5w6x7
 Revises: r1s2t3u4v5w6
@@ -11,7 +10,6 @@ Create Date: 2026-03-31 22:00:00.000000
 """
 
 from alembic import op
-import sqlalchemy as sa
 
 
 revision = 's2t3u4v5w6x7'
@@ -21,27 +19,8 @@ depends_on = None
 
 
 def upgrade():
-    # Drop the narrow two-column constraint
-    op.drop_constraint(
-        'uq_erp_mirror_item_supplier_key',
-        'erp_mirror_item_supplier',
-        type_='unique',
-    )
-    # Add functional unique index that treats NULL system_id as '' so two rows
-    # with the same (item_ptr, supplier_key) but no system_id still conflict,
-    # while rows for different branches can coexist.
-    op.execute(
-        """
-        CREATE UNIQUE INDEX uq_erp_mirror_item_supplier_key
-        ON erp_mirror_item_supplier (COALESCE(system_id, ''), item_ptr, supplier_key)
-        """
-    )
+    pass  # Pi-managed table — no Flask-side DDL changes needed.
 
 
 def downgrade():
-    op.execute("DROP INDEX IF EXISTS uq_erp_mirror_item_supplier_key")
-    op.create_unique_constraint(
-        'uq_erp_mirror_item_supplier_key',
-        'erp_mirror_item_supplier',
-        ['item_ptr', 'supplier_key'],
-    )
+    pass
