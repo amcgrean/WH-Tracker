@@ -228,6 +228,29 @@ Every variable used in Jinja2 templates must be passed via `render_template()`. 
 - `_normalize_order_row(row, rep_id='')` — Standardizes DB rows for templates, computes `agent_role`
 - `_value(row, key, default)` — Safe dict/object accessor
 
+### SO number normalization (CRITICAL for barcode scanning)
+Barcode scanners encode SO numbers with leading zeros (e.g. `0001463004-001`) but ERP stores `so_id` without them (e.g. `1463004`). **All** routes that accept scanned barcodes must strip leading zeros via `normalize_so_number()` from `helpers.py` before storing or querying:
+```python
+from app.Routes.main.helpers import normalize_so_number
+
+# normalize_so_number('0001463004') -> '1463004'
+# normalize_so_number('0') -> '0'
+barcode = normalize_so_number(parts[0].strip())
+```
+This is already applied to: smart scan API, manual pick input, start_pick, kiosk pick input, work order select (both standard and kiosk), and confirm_staged. **Any new route that accepts a scanned SO number must also call `normalize_so_number()`.**
+
+The shipment sequence suffix (e.g. `-001`) is parsed separately and stored as-is in `Pick.shipment_num` — do not normalize it.
+
+### Pick scanner workflow
+1. Picker selects themselves on `/pick_tracker` (picker selector grid)
+2. `/confirm_picker/<picker_id>` shows incomplete picks + Smart Scan input
+3. Smart Scan (`/api/smart_scan`) auto-detects pick type from ERP:
+   - Existing incomplete pick with same barcode -> completes it
+   - ERP sale_type=WILLCALL -> auto-completed will call pick
+   - Otherwise -> maps handling_code to pick type, starts timed pick
+4. After successful scan, a "Done" button appears with 5-second countdown
+5. Countdown auto-navigates back to picker selector; clicking Done skips the wait
+
 ## Deployment
 
 - **Fly.io** (primary) — auto-runs migrations on startup (`RUN_MIGRATIONS_ON_START` defaults to `True` on Fly)
