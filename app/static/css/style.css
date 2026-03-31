@@ -573,8 +573,7 @@ h1, h2, h3, h4, .navbar-brand {
     font-size: 0.7rem;
     cursor: pointer;
     padding: 4px;
-    opacity: 0;
-    transition: opacity var(--transition-fast);
+    transition: color var(--transition-fast);
     display: none;
 }
 .topbar-search-clear:hover { color: var(--dark-charcoal); }
@@ -724,6 +723,30 @@ h1, h2, h3, h4, .navbar-brand {
     border: 1px solid var(--glass-border);
     border-radius: var(--border-radius-md);
     box-shadow: var(--shadow-sm);
+}
+
+/* Card links (work center, launcher cards) */
+.card-ops {
+    background: #fff;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-smooth);
+    color: var(--dark-charcoal);
+}
+.card-ops:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-lg);
+    border-color: rgba(0,69,38,0.12);
+    color: var(--dark-charcoal);
+    text-decoration: none;
+}
+.card-ops:hover .card-ops__icon,
+.card-ops:hover i.fa-3x {
+    transform: scale(1.1);
+}
+.card-ops i.fa-3x {
+    transition: transform var(--transition-smooth);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1084,3 +1107,23 @@ h1, h2, h3, h4, .navbar-brand {
 
 /* Picker stats period buttons */
 .period-btn-group .btn { border-radius: var(--border-radius-md); font-weight: 700; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PRINT STYLES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+    .app-sidebar,
+    .app-sidebar-overlay,
+    .app-topbar,
+    .footer-ops { display: none !important; }
+
+    .app-shell { display: block; }
+    .app-main-shell { margin: 0; }
+
+    body {
+        background: #fff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
