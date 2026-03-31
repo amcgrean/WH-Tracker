@@ -54,25 +54,6 @@
             </div>
             {% endif %}
 
-            <!-- Branch Selector -->
-            <div class="sidebar-branch-section">
-                <label class="sidebar-branch-label">
-                    <i class="fas fa-code-branch"></i>Branch
-                </label>
-                <select id="globalBranchSelect" class="sidebar-branch-select">
-                    {% for choice in branch_choices %}
-                    <option value="{{ choice.code }}" {% if choice.code == (selected_branch or '') %}selected{% endif %}>
-                        {{ choice.label }}{% if choice.code %} ({{ choice.code }}){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-                {% if selected_branch %}
-                <div class="branch-active-indicator mt-1">
-                    <i class="fas fa-filter"></i>{{ selected_branch_label }}
-                </div>
-                {% endif %}
-            </div>
-
             <!-- Sidebar nav filter -->
             <div class="sidebar-search-section">
                 <div class="sidebar-search-input-wrap">
@@ -156,12 +137,28 @@
                     </div>
                     {% endblock %}
 
-                    <!-- Mobile branch badge -->
-                    {% if selected_branch %}
-                    <div class="topbar-branch-badge d-md-none">
-                        <i class="fas fa-code-branch"></i>{{ selected_branch }}
+                    <!-- Branch Selector (top-right) -->
+                    <div class="topbar-branch-selector" id="topbarBranchSelector">
+                        <button class="topbar-branch-btn branch-color-{{ (selected_branch or 'all') | lower }}"
+                                type="button" id="branchDropdownToggle"
+                                aria-expanded="false" aria-haspopup="true">
+                            <i class="fas fa-code-branch"></i>
+                            <span class="branch-btn-label">{{ selected_branch or 'ALL' }}</span>
+                            <i class="fas fa-caret-down branch-btn-caret"></i>
+                        </button>
+                        <div class="topbar-branch-dropdown" id="branchDropdownMenu">
+                            {% for choice in branch_choices %}
+                            <button class="branch-dropdown-item branch-color-{{ (choice.code or 'all') | lower }}{% if choice.code == (selected_branch or '') %} active{% endif %}"
+                                    data-branch="{{ choice.code }}" type="button">
+                                <span class="branch-item-badge">{{ choice.code or 'ALL' }}</span>
+                                <span class="branch-item-label">{{ choice.label }}</span>
+                                {% if choice.code == (selected_branch or '') %}
+                                <i class="fas fa-check branch-item-check"></i>
+                                {% endif %}
+                            </button>
+                            {% endfor %}
+                        </div>
                     </div>
-                    {% endif %}
                 </div>
             </header>
             {% endblock %}
@@ -356,19 +353,31 @@
                 }
             });
 
-            // ── Branch selector ──────────────────────────────────────
-            const $branchSelect = $('#globalBranchSelect');
-            const urlBranch = new URLSearchParams(window.location.search).get('branch');
-            const storedBranch = localStorage.getItem('liveedge_selected_branch');
+            // ── Branch selector (topbar dropdown) ────────────────────
+            const $branchToggle = $('#branchDropdownToggle');
+            const $branchMenu = $('#branchDropdownMenu');
+            const $branchSelector = $('#topbarBranchSelector');
 
-            // Default to user's home branch if no explicit selection
-            if (!urlBranch && !$branchSelect.val() && storedBranch) {
-                $branchSelect.val(storedBranch);
-            }
+            $branchToggle.on('click', function (e) {
+                e.stopPropagation();
+                const isOpen = $branchMenu.hasClass('show');
+                $branchMenu.toggleClass('show', !isOpen);
+                $branchToggle.attr('aria-expanded', !isOpen);
+            });
 
-            $branchSelect.on('change', function () {
-                const branch = $(this).val();
+            // Close dropdown on outside click
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('#topbarBranchSelector').length) {
+                    $branchMenu.removeClass('show');
+                    $branchToggle.attr('aria-expanded', 'false');
+                }
+            });
+
+            // Branch item click
+            $branchMenu.on('click', '.branch-dropdown-item', function () {
+                const branch = $(this).data('branch');
                 localStorage.setItem('liveedge_selected_branch', branch);
+                $branchMenu.removeClass('show');
                 $.ajax({
                     url: '/api/set-branch',
                     method: 'POST',
