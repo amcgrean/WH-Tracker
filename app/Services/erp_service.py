@@ -3260,21 +3260,39 @@ class ERPService:
             conn.close()
 
     def get_distinct_salespeople(self, branch=""):
-        """Return distinct salesperson IDs from open sales orders."""
+        """Return distinct sales agent IDs from open sales orders.
+
+        Combines salesperson (sales_agent_1 / account rep) and order_writer
+        (sales_agent_3 / order writer) so the dropdown shows actual sales
+        agents rather than drivers or other non-sales reps.
+
+        TODO: Replace with a dedicated sales agents table from the ERP mirror
+        (e.g. erp_mirror_sales_agents) once that sync is built, so the list
+        is authoritative and not derived from order history.
+        """
         if self.central_db_mode:
             params: dict = {}
-            clauses = ["soh.is_deleted = false", "COALESCE(soh.salesperson, '') != ''"]
+            branch_clause = ""
             if branch:
                 system_id = self._normalize_branch_system_id(branch)
                 if system_id:
                     params["branch_id"] = system_id
-                    clauses.append("soh.system_id = :branch_id")
-            where_clause = "WHERE " + " AND ".join(clauses)
+                    branch_clause = "AND soh.system_id = :branch_id"
             rows = self._mirror_query(
                 f"""
-                SELECT DISTINCT TRIM(soh.salesperson) AS rep_id
-                FROM erp_mirror_so_header soh
-                {where_clause}
+                SELECT DISTINCT rep_id FROM (
+                    SELECT TRIM(soh.salesperson) AS rep_id
+                    FROM erp_mirror_so_header soh
+                    WHERE soh.is_deleted = false
+                      AND COALESCE(soh.salesperson, '') != ''
+                      {branch_clause}
+                    UNION
+                    SELECT TRIM(soh.order_writer) AS rep_id
+                    FROM erp_mirror_so_header soh
+                    WHERE soh.is_deleted = false
+                      AND COALESCE(soh.order_writer, '') != ''
+                      {branch_clause}
+                ) combined
                 ORDER BY rep_id
                 """,
                 params,
@@ -3285,22 +3303,31 @@ class ERPService:
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
-            clauses = ["COALESCE(soh.salesperson, '') != ''"]
+            branch_clause = ""
             params_list = []
             if branch:
                 system_id = self._normalize_branch_system_id(branch)
                 if system_id:
-                    clauses.append("soh.system_id = ?")
+                    branch_clause = "AND soh.system_id = ?"
                     params_list.append(system_id)
-            where_clause = "WHERE " + " AND ".join(clauses)
+            # SQL Server: need branch param twice (once per UNION leg)
+            full_params = params_list + params_list
             cursor.execute(
                 f"""
-                SELECT DISTINCT RTRIM(soh.salesperson) AS rep_id
-                FROM so_header soh
-                {where_clause}
+                SELECT DISTINCT rep_id FROM (
+                    SELECT RTRIM(soh.salesperson) AS rep_id
+                    FROM so_header soh
+                    WHERE COALESCE(soh.salesperson, '') != ''
+                      {branch_clause}
+                    UNION
+                    SELECT RTRIM(soh.order_writer) AS rep_id
+                    FROM so_header soh
+                    WHERE COALESCE(soh.order_writer, '') != ''
+                      {branch_clause}
+                ) combined
                 ORDER BY rep_id
                 """,
-                params_list,
+                full_params,
             )
             return [{"rep_id": row.rep_id} for row in cursor.fetchall()]
         finally:
