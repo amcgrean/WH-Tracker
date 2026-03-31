@@ -842,20 +842,52 @@ class ERPService:
     # ------------------------------------------------------------------
 
     def get_open_picks_count(self):
-        """Return open pick total count and handling-code breakdown without
-        fetching full row data.  Cached for 60 seconds."""
+        """Return open pick total count (distinct SOs) and handling-code
+        breakdown without fetching full row data.  Cached for 60 seconds.
+
+        NOTE: Counts distinct sales orders, not individual pick lines.
+        The handling breakdown counts distinct SOs per handling code (an SO
+        with items in multiple handling codes appears in each category).
+        """
         cache_key = 'open_picks_count'
         cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
 
+        _PICK_STATUS_FILTER = """
+            UPPER(COALESCE(soh.so_status, '')) != 'C'
+            AND (
+              (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
+              OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND CAST(sh.invoice_date AS DATE) = {today_param})
+              OR (CAST(soh.expect_date AS DATE) = {today_param})
+              OR (CAST(sh.ship_date AS DATE) = {today_param})
+            )
+            AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
+        """
+
         if self.central_db_mode:
             today = datetime.now().strftime('%Y-%m-%d')
+
+            # Total: count distinct SOs (no detail/item join needed)
+            total_rows = self._mirror_query(
+                """
+                SELECT COUNT(DISTINCT (soh.system_id, soh.so_id)) AS cnt
+                FROM erp_mirror_so_header soh
+                LEFT JOIN erp_mirror_shipments_header sh
+                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                WHERE soh.is_deleted = false
+                  AND """ + _PICK_STATUS_FILTER.format(today_param=':today') + """
+                """,
+                {"today": today},
+            )
+            total = int(total_rows[0]['cnt']) if total_rows else 0
+
+            # Breakdown: distinct SOs per handling code
             rows = self._mirror_query(
                 """
                 SELECT
                     UPPER(COALESCE(ib.handling_code, '')) AS handling_code,
-                    COUNT(*) AS cnt
+                    COUNT(DISTINCT (sod.system_id, sod.so_id)) AS cnt
                 FROM erp_mirror_so_detail sod
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id AND soh.so_id = sod.so_id
@@ -864,24 +896,15 @@ class ERPService:
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
                 WHERE soh.is_deleted = false
-                  AND UPPER(COALESCE(soh.so_status, '')) != 'C'
-                  AND (
-                    (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
-                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND CAST(sh.invoice_date AS DATE) = :today)
-                    OR (CAST(soh.expect_date AS DATE) = :today)
-                    OR (CAST(sh.ship_date AS DATE) = :today)
-                  )
-                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
+                  AND """ + _PICK_STATUS_FILTER.format(today_param=':today') + """
                 GROUP BY UPPER(COALESCE(ib.handling_code, ''))
                 """,
                 {"today": today},
             )
             handling = {}
-            total = 0
             for r in rows:
                 code = (r['handling_code'] or '').strip() or '—'
                 handling[code] = int(r['cnt'])
-                total += int(r['cnt'])
             result = {'total': total, 'handling_breakdown': dict(sorted(handling.items()))}
             return self._cache_set(cache_key, result)
 
@@ -890,10 +913,27 @@ class ERPService:
             conn = self.get_connection()
             cursor = conn.cursor()
             today = datetime.now().strftime('%Y-%m-%d')
+
+            # Total: count distinct SOs (no detail/item join needed)
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT CONCAT(soh.system_id, '|', soh.so_id)) AS cnt
+                FROM so_header soh
+                LEFT JOIN (
+                    SELECT so_id, system_id,
+                           MAX(invoice_date) as invoice_date,
+                           MAX(ship_date) as ship_date
+                    FROM shipments_header GROUP BY so_id, system_id
+                ) sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
+                WHERE """ + _PICK_STATUS_FILTER.format(today_param=f"'{today}'") + """
+            """)
+            total_row = cursor.fetchone()
+            total = int(total_row.cnt) if total_row else 0
+
+            # Breakdown: distinct SOs per handling code
             cursor.execute(f"""
                 SELECT
                     UPPER(COALESCE(ib.handling_code, '')) AS handling_code,
-                    COUNT(*) AS cnt
+                    COUNT(DISTINCT CONCAT(sod.system_id, '|', sod.so_id)) AS cnt
                 FROM so_detail sod
                 JOIN so_header soh ON soh.so_id = sod.so_id AND sod.system_id = soh.system_id
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
@@ -903,22 +943,13 @@ class ERPService:
                            MAX(ship_date) as ship_date
                     FROM shipments_header GROUP BY so_id, system_id
                 ) sh ON soh.so_id = sh.so_id AND soh.system_id = sh.system_id
-                WHERE UPPER(COALESCE(soh.so_status, '')) != 'C'
-                  AND (
-                    (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
-                    OR (UPPER(COALESCE(soh.so_status, '')) = 'I' AND sh.invoice_date = '{today}')
-                    OR (soh.expect_date = '{today}')
-                    OR (sh.ship_date = '{today}')
-                  )
-                  AND UPPER(COALESCE(soh.sale_type, '')) NOT IN ('DIRECT', 'WILLCALL', 'XINSTALL', 'HOLD')
+                WHERE """ + _PICK_STATUS_FILTER.format(today_param=f"'{today}'") + """
                 GROUP BY UPPER(COALESCE(ib.handling_code, ''))
             """)
             handling = {}
-            total = 0
             for row in cursor.fetchall():
                 code = (row.handling_code or '').strip() or '—'
                 handling[code] = int(row.cnt)
-                total += int(row.cnt)
             conn.close()
             result = {'total': total, 'handling_breakdown': dict(sorted(handling.items()))}
             return self._cache_set(cache_key, result)
