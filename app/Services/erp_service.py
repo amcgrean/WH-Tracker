@@ -78,13 +78,22 @@ class ERPService:
             result = conn.execute(query, params)
             return result.mappings().all()
 
+    _mirror_columns_cache: dict = {}
+
     @staticmethod
-    @lru_cache(maxsize=32)
     def _mirror_columns(table_name):
+        cached = ERPService._mirror_columns_cache.get(table_name)
+        if cached is not None:
+            return cached
         engine = ERPService._mirror_engine()
         if engine is None:
-            return tuple()
-        return tuple(column["name"] for column in inspect(engine).get_columns(table_name))
+            return tuple()  # Don't cache — engine may become available later
+        try:
+            cols = tuple(column["name"] for column in inspect(engine).get_columns(table_name))
+        except Exception:
+            return tuple()  # Don't cache failures
+        ERPService._mirror_columns_cache[table_name] = cols
+        return cols
 
     @staticmethod
     def _normalize_branch_system_id(branch_id):
