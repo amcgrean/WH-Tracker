@@ -22,6 +22,52 @@ from functools import wraps
 from flask import abort, redirect, request, session, url_for
 
 
+ROLE_PERMISSIONS = {
+    "purchasing": {
+        "purchasing.dashboard.view",
+        "purchasing.branch.view",
+        "purchasing.queue.view",
+        "purchasing.po.review",
+        "purchasing.receiving.resolve",
+    },
+    "manager": {
+        "purchasing.dashboard.view",
+        "purchasing.branch.view",
+        "purchasing.all_branches.view",
+        "purchasing.queue.view",
+        "purchasing.queue.assign",
+        "purchasing.po.review",
+        "purchasing.po.approve",
+        "purchasing.receiving.resolve",
+    },
+    "ops": {
+        "purchasing.dashboard.view",
+        "purchasing.branch.view",
+        "purchasing.all_branches.view",
+        "purchasing.queue.view",
+        "purchasing.queue.assign",
+        "purchasing.po.review",
+        "purchasing.po.approve",
+        "purchasing.receiving.resolve",
+    },
+    "supervisor": {
+        "purchasing.dashboard.view",
+        "purchasing.branch.view",
+        "purchasing.all_branches.view",
+        "purchasing.queue.view",
+        "purchasing.queue.assign",
+        "purchasing.po.review",
+        "purchasing.po.approve",
+        "purchasing.receiving.resolve",
+    },
+    "warehouse": {
+        "purchasing.dashboard.view",
+        "purchasing.branch.view",
+        "po.submit",
+    },
+}
+
+
 # ---------------------------------------------------------------------------
 # Session keys (single source of truth)
 # ---------------------------------------------------------------------------
@@ -65,6 +111,24 @@ def _user_has_role(*roles: str) -> bool:
     return "admin" in user_roles or bool(user_roles & set(roles))
 
 
+def get_current_user_permissions() -> set[str]:
+    user_roles = set(session.get(SESSION_USER_ROLES, []))
+    if "admin" in user_roles:
+        return {"*"}
+
+    permissions: set[str] = set()
+    for role in user_roles:
+        permissions.update(ROLE_PERMISSIONS.get(role, set()))
+    return permissions
+
+
+def user_has_permission(*permissions: str) -> bool:
+    granted = get_current_user_permissions()
+    if "*" in granted:
+        return True
+    return any(permission in granted for permission in permissions)
+
+
 # ---------------------------------------------------------------------------
 # Decorators
 # ---------------------------------------------------------------------------
@@ -94,6 +158,20 @@ def role_required(*roles: str):
             if not is_authenticated():
                 return redirect(url_for("auth.login", next=request.url))
             if not _user_has_role(*roles):
+                abort(403)
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
+def permission_required(*permissions: str):
+    """Require the user to hold at least one mapped permission."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not is_authenticated():
+                return redirect(url_for("auth.login", next=request.url))
+            if not user_has_permission(*permissions):
                 abort(403)
             return f(*args, **kwargs)
         return decorated

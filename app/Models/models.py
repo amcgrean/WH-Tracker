@@ -154,6 +154,9 @@ class POSubmission(db.Model):
     supplier_name = db.Column(db.Text, nullable=True)
     supplier_key = db.Column(db.Text, nullable=True)
     po_status = db.Column(db.Text, nullable=True)     # ERP status at submission time
+    submission_type = db.Column(db.String(32), nullable=False, default='receiving_checkin')
+    priority = db.Column(db.String(16), nullable=True)
+    queue_item_id = db.Column(db.Integer, db.ForeignKey('purchasing_work_queue.id', ondelete='SET NULL'), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending/reviewed/flagged
     submitted_by = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
@@ -168,6 +171,7 @@ class POSubmission(db.Model):
                                 backref=db.backref('po_submissions_submitted', lazy=True))
     reviewer_user = db.relationship('AppUser', foreign_keys=[reviewed_by],
                                     backref=db.backref('po_submissions_reviewed', lazy=True))
+    queue_item = db.relationship('PurchasingWorkQueue', foreign_keys=[queue_item_id], backref=db.backref('linked_submissions', lazy=True))
 
     def __repr__(self):
         return f'<POSubmission {self.id} PO={self.po_number} status={self.status}>'
@@ -582,5 +586,399 @@ class DashboardStats(db.Model):
 
 
 # -------------------------------------------------------------------
-# Audit Trail / Sync Batch Metadata
+# Purchasing module
 # -------------------------------------------------------------------
+
+class _PurchasingSystemIdCompatibilityMixin:
+    """Temporary compatibility alias while app-owned purchasing code moves off branch_code."""
+
+    @property
+    def branch_code(self):
+        return self.system_id
+
+    @branch_code.setter
+    def branch_code(self, value):
+        self.system_id = value
+
+class ERPMirrorPurchaseOrderHeader(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_po_header'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    po_id = db.Column(db.String(64), nullable=True, index=True)
+    po_number = db.Column(db.String(64), nullable=False, index=True)
+    supplier_key = db.Column(db.String(64), nullable=True, index=True)
+    supplier_code = db.Column(db.String(64), nullable=True)
+    supplier_name = db.Column(db.String(255), nullable=True)
+    ship_from_seq = db.Column(db.String(32), nullable=True)
+    po_status = db.Column(db.String(32), nullable=True, index=True)
+    purchase_type_code = db.Column(db.String(32), nullable=True)
+    buyer_id = db.Column(db.String(64), nullable=True, index=True)
+    reference = db.Column(db.String(255), nullable=True)
+    order_date = db.Column(db.DateTime, nullable=True)
+    expect_ship_date = db.Column(db.DateTime, nullable=True)
+    expect_date = db.Column(db.DateTime, nullable=True)
+    ship_via = db.Column(db.String(128), nullable=True)
+    freight_terms = db.Column(db.String(128), nullable=True)
+    payment_terms = db.Column(db.String(128), nullable=True)
+    currency_code = db.Column(db.String(32), nullable=True)
+    total_amount = db.Column(db.Numeric(18, 2), nullable=True)
+    open_amount = db.Column(db.Numeric(18, 2), nullable=True)
+    finalized_status = db.Column(db.String(32), nullable=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'po_number', name='uq_erp_mirror_po_header_key'),
+    )
+
+
+class ERPMirrorPurchaseOrderDetail(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_po_detail'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=False, index=True)
+    line_number = db.Column(db.Integer, nullable=False)
+    item_ptr = db.Column(db.String(64), nullable=True, index=True)
+    item_code = db.Column(db.String(128), nullable=True, index=True)
+    description = db.Column(db.String(255), nullable=True)
+    supplier_part_number = db.Column(db.String(128), nullable=True)
+    qty_ordered = db.Column(db.Numeric(18, 4), nullable=True)
+    qty_received = db.Column(db.Numeric(18, 4), nullable=True)
+    qty_open = db.Column(db.Numeric(18, 4), nullable=True)
+    unit_cost = db.Column(db.Numeric(18, 4), nullable=True)
+    extended_cost = db.Column(db.Numeric(18, 4), nullable=True)
+    line_status = db.Column(db.String(32), nullable=True, index=True)
+    expected_ship_date = db.Column(db.DateTime, nullable=True)
+    expected_receipt_date = db.Column(db.DateTime, nullable=True)
+    linked_so_number = db.Column(db.String(64), nullable=True, index=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'po_number', 'line_number', name='uq_erp_mirror_po_detail_key'),
+    )
+
+
+class ERPMirrorReceivingHeader(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_receiving_header'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=False, index=True)
+    receiving_number = db.Column(db.String(64), nullable=False, index=True)
+    session_status = db.Column(db.String(32), nullable=True, index=True)
+    received_at = db.Column(db.DateTime, nullable=True)
+    received_by = db.Column(db.String(64), nullable=True)
+    supplier_invoice_number = db.Column(db.String(128), nullable=True)
+    total_cost = db.Column(db.Numeric(18, 2), nullable=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'po_number', 'receiving_number', name='uq_erp_mirror_receiving_header_key'),
+    )
+
+
+class ERPMirrorReceivingDetail(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_receiving_detail'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=False, index=True)
+    receiving_number = db.Column(db.String(64), nullable=False, index=True)
+    line_number = db.Column(db.Integer, nullable=False)
+    item_ptr = db.Column(db.String(64), nullable=True, index=True)
+    qty_received = db.Column(db.Numeric(18, 4), nullable=True)
+    unit_cost = db.Column(db.Numeric(18, 4), nullable=True)
+    line_status = db.Column(db.String(32), nullable=True, index=True)
+    variance_amount = db.Column(db.Numeric(18, 4), nullable=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'po_number', 'receiving_number', 'line_number', name='uq_erp_mirror_receiving_detail_key'),
+    )
+
+
+class ERPMirrorReceivingStatus(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_receiving_status'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=False, index=True)
+    receiving_number = db.Column(db.String(64), nullable=True, index=True)
+    status_code = db.Column(db.String(32), nullable=True, index=True)
+    status_description = db.Column(db.String(255), nullable=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'po_number', 'receiving_number', 'status_code', name='uq_erp_mirror_receiving_status_key'),
+    )
+
+
+class ERPMirrorSuggestedPOHeader(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_ppo_header'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    suggestion_number = db.Column(db.String(64), nullable=False, index=True)
+    supplier_key = db.Column(db.String(64), nullable=True, index=True)
+    supplier_name = db.Column(db.String(255), nullable=True)
+    buyer_id = db.Column(db.String(64), nullable=True, index=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    status = db.Column(db.String(32), nullable=True, index=True)
+    total_amount = db.Column(db.Numeric(18, 2), nullable=True)
+    generated_at = db.Column(db.DateTime, nullable=True)
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'suggestion_number', name='uq_erp_mirror_ppo_header_key'),
+    )
+
+
+class ERPMirrorSuggestedPODetail(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_ppo_detail'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    suggestion_number = db.Column(db.String(64), nullable=False, index=True)
+    line_number = db.Column(db.Integer, nullable=False)
+    item_ptr = db.Column(db.String(64), nullable=True, index=True)
+    item_code = db.Column(db.String(128), nullable=True, index=True)
+    description = db.Column(db.String(255), nullable=True)
+    recommended_qty = db.Column(db.Numeric(18, 4), nullable=True)
+    reorder_point = db.Column(db.Numeric(18, 4), nullable=True)
+    net_qty = db.Column(db.Numeric(18, 4), nullable=True)
+    projected_usage = db.Column(db.Numeric(18, 4), nullable=True)
+    abc_class = db.Column(db.String(8), nullable=True, index=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'suggestion_number', 'line_number', name='uq_erp_mirror_ppo_detail_key'),
+    )
+
+
+class ERPMirrorItemSupplier(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_item_supplier'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    item_ptr = db.Column(db.String(64), nullable=False, index=True)
+    supplier_key = db.Column(db.String(64), nullable=False, index=True)
+    supplier_code = db.Column(db.String(64), nullable=True)
+    supplier_name = db.Column(db.String(255), nullable=True)
+    supplier_part_number = db.Column(db.String(128), nullable=True)
+    lead_days = db.Column(db.Integer, nullable=True)
+    min_order_qty = db.Column(db.Numeric(18, 4), nullable=True)
+    is_primary = db.Column(db.Boolean, nullable=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('item_ptr', 'supplier_key', name='uq_erp_mirror_item_supplier_key'),
+    )
+
+
+class ERPMirrorSupplier(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_supplier_dim'
+    id = db.Column(db.Integer, primary_key=True)
+    supplier_key = db.Column(db.String(64), nullable=False, index=True)
+    supplier_code = db.Column(db.String(64), nullable=True, index=True)
+    supplier_name = db.Column(db.String(255), nullable=True, index=True)
+    buyer_id = db.Column(db.String(64), nullable=True, index=True)
+    phone = db.Column(db.String(64), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(32), nullable=True)
+    branch_code = db.Column(db.String(32), nullable=True, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('supplier_key', name='uq_erp_mirror_supplier_dim_key'),
+    )
+
+
+class ERPMirrorPurchaseType(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_purchase_type'
+    id = db.Column(db.Integer, primary_key=True)
+    purchase_type_code = db.Column(db.String(32), nullable=False, index=True)
+    description = db.Column(db.String(255), nullable=True)
+    affects_inventory = db.Column(db.Boolean, nullable=True)
+    is_expense_type = db.Column(db.Boolean, nullable=True)
+    is_transfer_type = db.Column(db.Boolean, nullable=True)
+    default_for_stock_suggested = db.Column(db.Boolean, nullable=True)
+    __table_args__ = (
+        db.UniqueConstraint('purchase_type_code', name='uq_erp_mirror_purchase_type_key'),
+    )
+
+
+class ERPMirrorPurchaseCost(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_purchase_costs'
+    id = db.Column(db.Integer, primary_key=True)
+    cost_type_code = db.Column(db.String(64), nullable=False, index=True)
+    description = db.Column(db.String(255), nullable=True)
+    allocation_method = db.Column(db.String(64), nullable=True)
+    available_for_use = db.Column(db.Boolean, nullable=True)
+    __table_args__ = (
+        db.UniqueConstraint('cost_type_code', name='uq_erp_mirror_purchase_costs_key'),
+    )
+
+
+class ERPMirrorPurchasingParameter(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_param_po'
+    id = db.Column(db.Integer, primary_key=True)
+    branch_code = db.Column(db.String(32), nullable=False, index=True)
+    use_finalize_process = db.Column(db.Boolean, nullable=True)
+    recalc_after_detail_update = db.Column(db.String(32), nullable=True)
+    include_credit_hold_backorders = db.Column(db.Boolean, nullable=True)
+    limit_trend_percentage = db.Column(db.Numeric(10, 4), nullable=True)
+    __table_args__ = (
+        db.UniqueConstraint('branch_code', name='uq_erp_mirror_param_po_key'),
+    )
+
+
+class ERPMirrorPurchasingCostParameter(db.Model, MirrorSyncMetadataMixin):
+    __tablename__ = 'erp_mirror_param_po_cost'
+    id = db.Column(db.Integer, primary_key=True)
+    branch_code = db.Column(db.String(32), nullable=False, index=True)
+    cost_type_code = db.Column(db.String(64), nullable=False, index=True)
+    default_supplier_key = db.Column(db.String(64), nullable=True, index=True)
+    allocation_method = db.Column(db.String(64), nullable=True)
+    __table_args__ = (
+        db.UniqueConstraint('branch_code', 'cost_type_code', name='uq_erp_mirror_param_po_cost_key'),
+    )
+
+
+class PurchasingAssignment(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_assignments'
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), nullable=False, index=True)
+    buyer_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    assigned_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    assignment_type = db.Column(db.String(32), nullable=False, default='branch')
+    supplier_key = db.Column(db.String(64), nullable=True, index=True)
+    item_ptr = db.Column(db.String(64), nullable=True, index=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    buyer = db.relationship('AppUser', foreign_keys=[buyer_user_id], backref=db.backref('purchasing_assignments', lazy=True))
+    assigned_by = db.relationship('AppUser', foreign_keys=[assigned_by_user_id], backref=db.backref('purchasing_assignments_created', lazy=True))
+
+
+class PurchasingWorkQueue(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_work_queue'
+    id = db.Column(db.Integer, primary_key=True)
+    queue_type = db.Column(db.String(32), nullable=False, index=True)
+    reference_type = db.Column(db.String(32), nullable=False, index=True)
+    reference_number = db.Column(db.String(128), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=True, index=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    buyer_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    supplier_key = db.Column(db.String(64), nullable=True, index=True)
+    supplier_name = db.Column(db.String(255), nullable=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(32), nullable=False, default='open', index=True)
+    priority = db.Column(db.String(16), nullable=False, default='medium', index=True)
+    severity = db.Column(db.String(16), nullable=True, index=True)
+    due_at = db.Column(db.DateTime, nullable=True, index=True)
+    metadata_json = db.Column(db.JSON, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    resolved_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    buyer = db.relationship('AppUser', foreign_keys=[buyer_user_id], backref=db.backref('purchasing_queue_items', lazy=True))
+    created_by = db.relationship('AppUser', foreign_keys=[created_by_user_id], backref=db.backref('purchasing_queue_created', lazy=True))
+    resolved_by = db.relationship('AppUser', foreign_keys=[resolved_by_user_id], backref=db.backref('purchasing_queue_resolved', lazy=True))
+
+
+class PurchasingNote(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_notes'
+    id = db.Column(db.Integer, primary_key=True)
+    entity_type = db.Column(db.String(32), nullable=False, index=True)
+    entity_id = db.Column(db.String(128), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=True, index=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    body = db.Column(db.Text, nullable=False)
+    is_internal = db.Column(db.Boolean, nullable=False, default=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    created_by = db.relationship('AppUser', backref=db.backref('purchasing_notes', lazy=True))
+
+
+class PurchasingTask(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_tasks'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    po_number = db.Column(db.String(64), nullable=True, index=True)
+    queue_item_id = db.Column(db.Integer, db.ForeignKey('purchasing_work_queue.id', ondelete='SET NULL'), nullable=True, index=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    assignee_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    status = db.Column(db.String(32), nullable=False, default='open', index=True)
+    priority = db.Column(db.String(16), nullable=False, default='medium', index=True)
+    due_at = db.Column(db.DateTime, nullable=True, index=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    queue_item = db.relationship('PurchasingWorkQueue', backref=db.backref('tasks', lazy=True))
+    assignee = db.relationship('AppUser', foreign_keys=[assignee_user_id], backref=db.backref('purchasing_tasks', lazy=True))
+    created_by = db.relationship('AppUser', foreign_keys=[created_by_user_id], backref=db.backref('purchasing_tasks_created', lazy=True))
+
+
+class PurchasingApproval(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_approvals'
+    id = db.Column(db.Integer, primary_key=True)
+    approval_type = db.Column(db.String(32), nullable=False, index=True)
+    entity_type = db.Column(db.String(32), nullable=False, index=True)
+    entity_id = db.Column(db.String(128), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=True, index=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    requested_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    approver_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    status = db.Column(db.String(32), nullable=False, default='pending', index=True)
+    reason = db.Column(db.Text, nullable=True)
+    decision_notes = db.Column(db.Text, nullable=True)
+    requested_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    decided_at = db.Column(db.DateTime, nullable=True)
+
+    requested_by = db.relationship('AppUser', foreign_keys=[requested_by_user_id], backref=db.backref('purchasing_approvals_requested', lazy=True))
+    approver = db.relationship('AppUser', foreign_keys=[approver_user_id], backref=db.backref('purchasing_approvals', lazy=True))
+
+
+class PurchasingExceptionEvent(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_exception_events'
+    id = db.Column(db.Integer, primary_key=True)
+    event_type = db.Column(db.String(32), nullable=False, index=True)
+    event_status = db.Column(db.String(32), nullable=False, default='open', index=True)
+    po_number = db.Column(db.String(64), nullable=True, index=True)
+    receiving_number = db.Column(db.String(64), nullable=True, index=True)
+    queue_item_id = db.Column(db.Integer, db.ForeignKey('purchasing_work_queue.id', ondelete='SET NULL'), nullable=True, index=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    supplier_key = db.Column(db.String(64), nullable=True, index=True)
+    severity = db.Column(db.String(16), nullable=False, default='medium', index=True)
+    summary = db.Column(db.String(255), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    metadata_json = db.Column(db.JSON, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    resolved_by_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+
+    queue_item = db.relationship('PurchasingWorkQueue', backref=db.backref('exceptions', lazy=True))
+    created_by = db.relationship('AppUser', foreign_keys=[created_by_user_id], backref=db.backref('purchasing_exceptions_created', lazy=True))
+    resolved_by = db.relationship('AppUser', foreign_keys=[resolved_by_user_id], backref=db.backref('purchasing_exceptions_resolved', lazy=True))
+
+
+class PurchasingDashboardSnapshot(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_dashboard_snapshots'
+    id = db.Column(db.Integer, primary_key=True)
+    snapshot_type = db.Column(db.String(32), nullable=False, index=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    buyer_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    payload = db.Column(db.JSON, nullable=False)
+    captured_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    buyer = db.relationship('AppUser', backref=db.backref('purchasing_dashboard_snapshots', lazy=True))
+
+
+class PurchasingActivity(db.Model, _PurchasingSystemIdCompatibilityMixin):
+    __tablename__ = 'purchasing_activity'
+    id = db.Column(db.Integer, primary_key=True)
+    activity_type = db.Column(db.String(32), nullable=False, index=True)
+    entity_type = db.Column(db.String(32), nullable=False, index=True)
+    entity_id = db.Column(db.String(128), nullable=False, index=True)
+    po_number = db.Column(db.String(64), nullable=True, index=True)
+    system_id = db.Column(db.String(32), nullable=True, index=True)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey('app_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    summary = db.Column(db.String(255), nullable=False)
+    before_state = db.Column(db.JSON, nullable=True)
+    after_state = db.Column(db.JSON, nullable=True)
+    details = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    actor = db.relationship('AppUser', backref=db.backref('purchasing_activity', lazy=True))
