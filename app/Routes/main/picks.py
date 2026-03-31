@@ -1,14 +1,15 @@
 import os
 import re
 import hmac
+import logging
 from datetime import datetime, timedelta
-from flask import render_template, request, redirect, url_for, flash, jsonify
+from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
-from app.Models.models import Pickster, Pick, PickTypes, AuditEvent
+from app.Models.models import Pickster, Pick, PickTypes, AuditEvent, POSubmission
 from app.Services.erp_service import ERPService
 from app.Routes.main import main_bp
 from app.Routes.main.helpers import (
@@ -17,10 +18,136 @@ from app.Routes.main.helpers import (
     localize_to_cst, calculate_business_elapsed_time, format_elapsed_time,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _build_homepage_data(roles, rep_id, branch):
+    """Build role-appropriate dashboard data for the homepage."""
+    data = {'roles_active': []}
+    roles = set(roles or [])
+    erp = None
+
+    def _get_erp():
+        nonlocal erp
+        if erp is None:
+            erp = ERPService()
+        return erp
+
+    today = datetime.utcnow().date()
+
+    # ── Sales ──
+    if roles & {'sales', 'admin', 'ops'}:
+        try:
+            metrics = _get_erp().get_sales_hub_metrics(rep_id=rep_id or '')
+            data['sales'] = {
+                'open_orders': metrics.get('open_orders_count', 0),
+                'shipping_today': metrics.get('total_orders_today', 0),
+            }
+        except Exception:
+            logger.exception("Homepage: failed to load sales metrics")
+            data['sales'] = {'open_orders': None, 'shipping_today': None}
+        if 'sales' in roles:
+            data['roles_active'].append('sales')
+
+    # ── Warehouse / Picker ──
+    if roles & {'warehouse', 'picker', 'admin', 'ops', 'supervisor'}:
+        try:
+            open_picks = _get_erp().get_open_picks()
+            handling_counts = {}
+            for p in open_picks:
+                code = str(p.get('handling_code', '') or '').strip().upper() or '—'
+                handling_counts[code] = handling_counts.get(code, 0) + 1
+            data['warehouse'] = {
+                'open_picks': len(open_picks),
+                'handling_breakdown': dict(sorted(handling_counts.items())),
+            }
+        except Exception:
+            logger.exception("Homepage: failed to load warehouse metrics")
+            data['warehouse'] = {'open_picks': None, 'handling_breakdown': {}}
+
+        # Today's completed picks from local DB
+        try:
+            data['warehouse']['picks_completed_today'] = Pick.query.filter(
+                func.date(Pick.completed_time) == today
+            ).count()
+        except Exception:
+            data['warehouse']['picks_completed_today'] = None
+
+        if roles & {'warehouse', 'picker'}:
+            data['roles_active'].append('warehouse')
+
+    # ── Supervisor ──
+    if roles & {'supervisor', 'admin', 'ops'}:
+        try:
+            total_pickers = Pickster.query.filter(
+                (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None))
+            ).count()
+            active_count = db.session.query(
+                func.count(func.distinct(Pick.picker_id))
+            ).join(Pickster, Pick.picker_id == Pickster.id).filter(
+                (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None)),
+                Pick.completed_time.is_(None),
+            ).scalar() or 0
+            data['supervisor'] = {
+                'total_pickers': total_pickers,
+                'active_pickers': active_count,
+                'idle_pickers': total_pickers - active_count,
+            }
+        except Exception:
+            logger.exception("Homepage: failed to load supervisor metrics")
+            data['supervisor'] = {
+                'total_pickers': None, 'active_pickers': None, 'idle_pickers': None,
+            }
+        if 'supervisor' in roles:
+            data['roles_active'].append('supervisor')
+
+    # ── Work Orders (supervisor, ops, admin) ──
+    if roles & {'supervisor', 'admin', 'ops'}:
+        try:
+            wos = _get_erp().get_open_work_orders()
+            data['work_orders'] = {'open_count': len(wos)}
+        except Exception:
+            logger.exception("Homepage: failed to load work order metrics")
+            data['work_orders'] = {'open_count': None}
+
+    # ── Dispatch / Delivery ──
+    if roles & {'dispatch', 'delivery', 'admin', 'ops'}:
+        try:
+            deliveries = _get_erp().get_sales_delivery_tracker(branch_id=branch)
+            data['dispatch'] = {'todays_deliveries': len(deliveries)}
+        except Exception:
+            logger.exception("Homepage: failed to load dispatch metrics")
+            data['dispatch'] = {'todays_deliveries': None}
+        if roles & {'dispatch', 'delivery'}:
+            data['roles_active'].append('dispatch')
+
+    # ── Ops / Admin ──
+    if roles & {'admin', 'ops'}:
+        data['roles_active'].append('ops')
+
+    # ── Purchasing ──
+    if roles & {'purchasing', 'admin', 'ops'}:
+        try:
+            pending_reviews = POSubmission.query.filter(
+                POSubmission.status == 'pending'
+            ).count()
+            data['purchasing'] = {'pending_reviews': pending_reviews}
+        except Exception:
+            logger.exception("Homepage: failed to load purchasing metrics")
+            data['purchasing'] = {'pending_reviews': None}
+        if 'purchasing' in roles:
+            data['roles_active'].append('purchasing')
+
+    return data
+
 
 @main_bp.route('/')
 def work_center():
-    return render_template('workcenter.html')
+    roles = session.get('user_roles', [])
+    rep_id = session.get('user_rep_id', '')
+    branch = session.get('selected_branch') or None
+    homepage_data = _build_homepage_data(roles, rep_id, branch)
+    return render_template('workcenter.html', data=homepage_data)
 
 
 @main_bp.route('/pick_tracker')

@@ -1127,3 +1127,20 @@ h1, h2, h3, h4, .navbar-brand {
         print-color-adjust: exact;
     }
 }
+
+/* ── Homepage Dashboard ─────────────────────────────────────────────── */
+.homepage-dashboard .legacy-stat-card {
+    transition: all var(--transition-smooth);
+}
+.homepage-dashboard .legacy-stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: rgba(0, 69, 38, 0.15);
+}
+.homepage-dashboard .card-ops .card-body {
+    transition: all var(--transition-smooth);
+}
+@media (max-width: 576px) {
+    .homepage-dashboard .legacy-stat-card .stat-value { font-size: 1.6rem; }
+    .homepage-dashboard .legacy-stat-card .stat-label { font-size: 0.7rem; }
+}
