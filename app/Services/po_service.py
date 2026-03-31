@@ -17,11 +17,44 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
 from typing import Optional
 
+from flask import current_app
 from sqlalchemy import func, text
 
 from app.extensions import db
+
+
+# ---------------------------------------------------------------------------
+# Schema helpers
+# ---------------------------------------------------------------------------
+
+@lru_cache(maxsize=32)
+def get_read_model_columns(table_name: str) -> frozenset[str]:
+    try:
+        rows = db.session.execute(
+            text(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = :table_name
+                """
+            ),
+            {"table_name": table_name},
+        ).scalars().all()
+        return frozenset(rows)
+    except Exception:
+        current_app.logger.debug("Could not inspect columns for %s", table_name, exc_info=True)
+        return frozenset()
+
+
+def build_select_projection(table_name: str, columns: list[str]) -> str:
+    available = get_read_model_columns(table_name)
+    if not available:
+        return ", ".join(columns)
+    return ", ".join(column if column in available else f"NULL AS {column}" for column in columns)
 
 
 # ---------------------------------------------------------------------------
@@ -33,17 +66,33 @@ def search_purchase_orders(q: str, limit: int = 25) -> list[dict]:
 
     Returns up to *limit* (max 25) rows as JSON-serializable dicts.
     """
+    available = get_read_model_columns("app_po_search")
     q_like = f"%{q}%"
+    filters = []
+    if "po_number" in available or not available:
+        filters.append("po_number ILIKE :q")
+    if "supplier_name" in available or not available:
+        filters.append("supplier_name ILIKE :q")
+    if "reference" in available or not available:
+        filters.append("reference ILIKE :q")
+    if "supplier_code" in available:
+        filters.append("supplier_code ILIKE :q")
+    if not filters:
+        return []
+
     sql = text("""
-        SELECT po_number, po_id, supplier_name, supplier_code, system_id,
-               expect_date, order_date, po_status, receipt_count
+        SELECT {projection}
         FROM app_po_search
-        WHERE po_number ILIKE :q
-           OR supplier_name ILIKE :q
-           OR reference ILIKE :q
+        WHERE {filters}
         ORDER BY po_number
         LIMIT :limit
-    """)
+    """.format(
+        projection=build_select_projection(
+            "app_po_search",
+            ["po_number", "po_id", "supplier_name", "supplier_code", "system_id", "expect_date", "order_date", "po_status", "receipt_count"],
+        ),
+        filters="\n           OR ".join(filters),
+    ))
     rows = db.session.execute(sql, {"q": q_like, "limit": min(limit, 25)}).mappings().all()
     return [_serialize_row(r) for r in rows]
 
@@ -59,27 +108,31 @@ def list_open_pos_for_branch(branch_code: Optional[str], limit: int = 500) -> li
         "UPPER(COALESCE(po_status, '')) NOT IN "
         "('CLOSED', 'COMPLETE', 'CANCELLED', 'CANCELED', 'VOID', 'RECEIVED')"
     )
+    projection = build_select_projection(
+        "app_po_search",
+        ["po_number", "supplier_name", "supplier_code", "system_id", "expect_date", "order_date", "po_status", "receipt_count"],
+    )
+    available = get_read_model_columns("app_po_search")
+    order_column = "expect_date" if "expect_date" in available or not available else "po_number"
 
     if branch_code:
         from app.branch_utils import expand_branch
         codes = expand_branch(branch_code)
         sql = text(f"""
-            SELECT po_number, supplier_name, supplier_code, system_id,
-                   expect_date, order_date, po_status, receipt_count
+            SELECT {projection}
             FROM app_po_search
             WHERE system_id = ANY(:codes)
               AND {open_filter}
-            ORDER BY expect_date ASC NULLS LAST
+            ORDER BY {order_column} ASC NULLS LAST
             LIMIT :limit
         """)
         rows = db.session.execute(sql, {"codes": codes, "limit": limit}).mappings().all()
     else:
         sql = text(f"""
-            SELECT po_number, supplier_name, supplier_code, system_id,
-                   expect_date, order_date, po_status, receipt_count
+            SELECT {projection}
             FROM app_po_search
             WHERE {open_filter}
-            ORDER BY expect_date ASC NULLS LAST
+            ORDER BY {order_column} ASC NULLS LAST
             LIMIT :limit
         """)
         rows = db.session.execute(sql, {"limit": limit}).mappings().all()
@@ -102,10 +155,18 @@ def get_purchase_order(po_number: str) -> Optional[dict]:
     if not header_row:
         return None
 
-    lines_sql = text("""
+    detail_columns = get_read_model_columns("app_po_detail")
+    if "line_number" in detail_columns or not detail_columns:
+        line_order = "line_number ASC"
+    elif "sequence" in detail_columns:
+        line_order = "sequence ASC"
+    else:
+        line_order = "po_number ASC"
+
+    lines_sql = text(f"""
         SELECT * FROM app_po_detail
         WHERE po_number = :po_number
-        ORDER BY line_number ASC
+        ORDER BY {line_order}
     """)
     lines_rows = db.session.execute(lines_sql, {"po_number": po_number}).mappings().all()
 

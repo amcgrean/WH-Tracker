@@ -19,7 +19,7 @@ from app.Models.models import (
     PurchasingTask,
     PurchasingWorkQueue,
 )
-from app.Services.po_service import get_purchase_order
+from app.Services.po_service import build_select_projection, get_purchase_order, get_read_model_columns
 from app.auth import get_current_user_permissions
 from app.extensions import db
 
@@ -116,15 +116,19 @@ class PurchasingService:
         if system_id and system_id != "__UNASSIGNED__":
             system_clause = "AND COALESCE(system_id, '') = :system_id"
             params["system_id"] = system_id
+        search_columns = get_read_model_columns("app_po_search")
+        order_column = "expect_date" if "expect_date" in search_columns or not search_columns else "po_number"
 
         rows = self._query_rows(
             f"""
-            SELECT po_number, supplier_name, supplier_code, system_id,
-                   expect_date, order_date, po_status, receipt_count
+            SELECT {build_select_projection(
+                "app_po_search",
+                ["po_number", "supplier_name", "supplier_code", "system_id", "expect_date", "order_date", "po_status", "receipt_count"],
+            )}
             FROM app_po_search
             WHERE UPPER(COALESCE(po_status, '')) NOT IN ('CLOSED', 'COMPLETE', 'CANCELLED', 'CANCELED', 'VOID', 'RECEIVED')
               {system_clause}
-            ORDER BY expect_date ASC NULLS LAST, po_number ASC
+            ORDER BY {order_column} ASC NULLS LAST, po_number ASC
             LIMIT :limit
             """,
             params,
@@ -140,14 +144,18 @@ class PurchasingService:
         if system_id and system_id != "__UNASSIGNED__":
             system_clause = "AND COALESCE(system_id, '') = :system_id"
             params["system_id"] = system_id
+        ppo_columns = get_read_model_columns("erp_mirror_ppo_header")
+        order_column = "generated_at" if "generated_at" in ppo_columns or not ppo_columns else "suggestion_number"
 
         rows = self._query_rows(
             f"""
-            SELECT suggestion_number, supplier_name, buyer_id, system_id, status,
-                   total_amount, generated_at
+            SELECT {build_select_projection(
+                "erp_mirror_ppo_header",
+                ["suggestion_number", "supplier_name", "buyer_id", "system_id", "status", "total_amount", "generated_at"],
+            )}
             FROM erp_mirror_ppo_header
             WHERE 1=1 {system_clause}
-            ORDER BY generated_at DESC NULLS LAST
+            ORDER BY {order_column} DESC NULLS LAST
             LIMIT :limit
             """,
             params,
@@ -320,11 +328,13 @@ class PurchasingService:
 
         spend_row = self._query_one(
             """
-            SELECT COALESCE(SUM(COALESCE(open_amount, total_amount, 0)), 0) AS spend_at_risk
+            SELECT COALESCE(SUM({spend_expr}), 0) AS spend_at_risk
             FROM app_po_header
             WHERE UPPER(COALESCE(po_status, '')) NOT IN ('CLOSED', 'COMPLETE', 'CANCELLED', 'CANCELED', 'VOID', 'RECEIVED')
               AND (:system_id IS NULL OR :system_id = '__UNASSIGNED__' OR COALESCE(system_id, '') = :system_id)
-            """,
+            """.format(
+                spend_expr=self._header_spend_expression(),
+            ),
             {"system_id": scoped_system_id},
         )
         if spend_row:
@@ -371,6 +381,18 @@ class PurchasingService:
             "priority_exceptions": queue[:6],
             "recent_activity": activity,
         }
+
+    def _header_spend_expression(self) -> str:
+        columns = get_read_model_columns("app_po_header")
+        if not columns:
+            return "COALESCE(open_amount, total_amount, 0)"
+        if "open_amount" in columns and "total_amount" in columns:
+            return "COALESCE(open_amount, total_amount, 0)"
+        if "open_amount" in columns:
+            return "COALESCE(open_amount, 0)"
+        if "total_amount" in columns:
+            return "COALESCE(total_amount, 0)"
+        return "0"
 
     def get_buyer_workspace(self, current_user: dict, system_id: str | None = None) -> dict:
         scoped_system_id = self._scoped_system_id(current_user, system_id)
