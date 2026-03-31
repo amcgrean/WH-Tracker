@@ -122,6 +122,8 @@ class DeliveryReportingService:
         if "ship_via" in ship_columns:
             ship_via_expr = "COALESCE(sh.ship_via, soh.ship_via)"
 
+        line_no_expr = "sd.line_no" if "line_no" in ship_detail_columns else "sd.id"
+
         qty_candidates = [name for name in ("qty_shipped", "qty", "qty_ordered") if name in ship_detail_columns]
         qty_expr = "COALESCE(" + ", ".join(f"sd.{name}" for name in qty_candidates) + ", 0)" if qty_candidates else "0"
 
@@ -153,7 +155,7 @@ class DeliveryReportingService:
                 "SUM(COALESCE(piece_count, 0)) AS piece_count",
             ]
             if sequence_column:
-                join_parts.append(f"CAST(tally.{sequence_column} AS TEXT) = CAST(sd.line_no AS TEXT)")
+                join_parts.append(f"CAST(tally.{sequence_column} AS TEXT) = CAST({line_no_expr} AS TEXT)")
                 group_parts.append(sequence_column)
                 select_parts.insert(3, sequence_column)
             if item_ptr_column:
@@ -188,7 +190,7 @@ class DeliveryReportingService:
                     CAST(soh.created_date AS DATE) AS order_date,
                     {order_time_expr} AS order_time_raw,
                     CAST(sd.item_ptr AS TEXT) AS item_ptr,
-                    CONCAT(COALESCE(CAST(sh.shipment_num AS TEXT), ''), ':', COALESCE(CAST(sd.line_no AS TEXT), '')) AS shipment_line_key,
+                    CONCAT(COALESCE(CAST(sh.shipment_num AS TEXT), ''), ':', COALESCE(CAST({line_no_expr} AS TEXT), '')) AS shipment_line_key,
                     COALESCE({qty_expr}, 0) AS shipped_qty,
                     CASE
                         WHEN {piece_expr} IS NOT NULL THEN COALESCE({piece_expr}, 0)
