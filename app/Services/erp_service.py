@@ -103,6 +103,35 @@ class ERPService:
             return "sod.bo"
         return "NULL"
 
+    def _has_order_writer_column(self):
+        """Check if erp_mirror_so_header has the order_writer column."""
+        return "order_writer" in set(self._mirror_columns("erp_mirror_so_header"))
+
+    def _order_writer_select(self, alias="soh"):
+        """SQL expression for selecting order_writer (empty string if column missing)."""
+        if self._has_order_writer_column():
+            return f"MAX(COALESCE({alias}.order_writer, '')) AS order_writer"
+        return "'' AS order_writer"
+
+    def _order_writer_select_bare(self, alias=""):
+        """SQL expression for selecting order_writer without alias/MAX (for non-grouped queries)."""
+        prefix = f"{alias}." if alias else ""
+        if self._has_order_writer_column():
+            return f"COALESCE({prefix}order_writer, '') AS order_writer"
+        return "'' AS order_writer"
+
+    def _rep_filter_clause(self, alias="soh", param=":rep_id"):
+        """SQL clause for filtering by rep_id on salesperson OR order_writer."""
+        if self._has_order_writer_column():
+            return f"(COALESCE({alias}.salesperson, '') = {param} OR COALESCE({alias}.order_writer, '') = {param})"
+        return f"COALESCE({alias}.salesperson, '') = {param}"
+
+    def _rep_filter_clause_bare(self, param=":rep_id"):
+        """SQL clause for filtering by rep_id without table alias (e.g. hub_metrics)."""
+        if self._has_order_writer_column():
+            return f"(COALESCE(salesperson, '') = {param} OR COALESCE(order_writer, '') = {param})"
+        return f"COALESCE(salesperson, '') = {param}"
+
     def _mirror_item_branch_qty_expr(self, alias="ib"):
         columns = set(self._mirror_columns("erp_mirror_item_branch"))
         if "qty_available" in columns:
@@ -2134,7 +2163,7 @@ class ERPService:
             rep_clause = ""
             if rep_id:
                 params["rep_id"] = rep_id
-                rep_clause = " AND (COALESCE(salesperson, '') = :rep_id OR COALESCE(order_writer, '') = :rep_id)"
+                rep_clause = f" AND {self._rep_filter_clause_bare()}"
             rows = self._mirror_query(
                 f"""
                 SELECT
@@ -2301,9 +2330,7 @@ class ERPService:
                     clauses.append("soh.system_id = :branch_id")
             if rep_id:
                 params["rep_id"] = rep_id
-                clauses.append(
-                    "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
-                )
+                clauses.append(self._rep_filter_clause())
             if salesperson:
                 params["sp_filter"] = salesperson.strip()
                 clauses.append("COALESCE(soh.salesperson, '') = :sp_filter")
@@ -2349,7 +2376,7 @@ class ERPService:
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
                     MAX(COALESCE(soh.salesperson, '')) AS salesperson,
-                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    {self._order_writer_select()},
                     MAX(COALESCE(soh.po_number, '')) AS po_number,
                     {line_count_expr}
                 FROM erp_mirror_so_header soh
@@ -2453,7 +2480,7 @@ class ERPService:
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
                     MAX(COALESCE(soh.salesperson, '')) AS salesperson,
-                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    {self._order_writer_select()},
                     MAX(COALESCE(soh.po_number, '')) AS po_number,
                     COUNT(DISTINCT sod.sequence) AS line_count
                 FROM so_header soh
@@ -2520,9 +2547,7 @@ class ERPService:
             clauses.append(f"CAST({db_col} AS DATE) <= :date_to")
         if rep_id:
             params["rep_id"] = rep_id
-            clauses.append(
-                "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
-            )
+            clauses.append(self._rep_filter_clause())
         if branch:
             system_id = self._normalize_branch_system_id(branch)
             if system_id:
@@ -2551,7 +2576,7 @@ class ERPService:
                 MAX(soh.sale_type) AS sale_type,
                 MAX(COALESCE(soh.ship_via, '')) AS ship_via,
                 MAX(COALESCE(soh.salesperson, '')) AS salesperson,
-                MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                {self._order_writer_select()},
                 MAX(COALESCE(soh.po_number, '')) AS po_number,
                 {line_count_expr}
             FROM erp_mirror_so_header soh
@@ -2607,9 +2632,7 @@ class ERPService:
                     clauses.append("soh.system_id = :branch_id")
             if rep_id:
                 params["rep_id"] = rep_id
-                clauses.append(
-                    "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
-                )
+                clauses.append(self._rep_filter_clause())
 
             rows = self._mirror_query(
                 f"""
@@ -2621,7 +2644,7 @@ class ERPService:
                     MAX(soh.reference) AS reference,
                     MAX(soh.so_status) AS so_status,
                     MAX(COALESCE(soh.salesperson, '')) AS salesperson,
-                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    {self._order_writer_select()},
                     MAX(COALESCE(soh.po_number, '')) AS po_number
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
@@ -2762,9 +2785,7 @@ class ERPService:
                     clauses.append("soh.system_id = :branch_id")
             if rep_id:
                 params["rep_id"] = rep_id
-                clauses.append(
-                    "(COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
-                )
+                clauses.append(self._rep_filter_clause())
             page = max(1, page)
             offset = (page - 1) * limit if limit else 0
             if limit:
@@ -2796,7 +2817,7 @@ class ERPService:
                     MAX(soh.sale_type) AS sale_type,
                     MAX(COALESCE(soh.ship_via, '')) AS ship_via,
                     MAX(COALESCE(soh.salesperson, '')) AS salesperson,
-                    MAX(COALESCE(soh.order_writer, '')) AS order_writer,
+                    {self._order_writer_select()},
                     MAX(COALESCE(soh.po_number, '')) AS po_number,
                     {line_count_expr}
                 FROM erp_mirror_so_header soh
@@ -3009,7 +3030,7 @@ class ERPService:
                     branch_clause = " AND system_id = :branch_id"
             if rep_id:
                 params_base["rep_id"] = rep_id
-                rep_clause = " AND (COALESCE(salesperson, '') = :rep_id OR COALESCE(order_writer, '') = :rep_id)"
+                rep_clause = f" AND {self._rep_filter_clause_bare()}"
 
             daily_orders = self._mirror_query(
                 f"""
@@ -3032,7 +3053,7 @@ class ERPService:
             if branch and "branch_id" in params_base:
                 branch_join_clause = " AND soh.system_id = :branch_id"
             if rep_id:
-                rep_join_clause = " AND (COALESCE(soh.salesperson, '') = :rep_id OR COALESCE(soh.order_writer, '') = :rep_id)"
+                rep_join_clause = f" AND {self._rep_filter_clause()}"
             top_customers = self._mirror_query(
                 f"""
                 SELECT
