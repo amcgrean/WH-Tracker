@@ -240,7 +240,7 @@ def confirm_staged(so_number):
     Locally confirm that a Sales Order has been staged/loaded onto the truck.
     Persists the confirmation as an AuditEvent (app-owned table).
     """
-    so_number = so_number.strip()
+    so_number = normalize_so_number(so_number.strip())
     if not so_number:
         return jsonify({'error': 'SO number is required'}), 400
 

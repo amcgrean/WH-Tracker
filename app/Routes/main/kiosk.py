@@ -138,7 +138,7 @@ def kiosk_work_order_scan(branch, user_id):
 def kiosk_work_order_select(branch):
     ctx = _kiosk_context(branch)
     user_id = request.args.get('user_id')
-    barcode = (request.args.get('barcode') or '').strip()
+    barcode = normalize_so_number((request.args.get('barcode') or '').strip())
     if not user_id or not barcode:
         flash('A user and sales order barcode are required.', 'warning')
         return redirect(url_for('main.kiosk_work_orders', branch=branch))

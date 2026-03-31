@@ -6,7 +6,7 @@ from app.extensions import db
 from app.Models.models import Pickster, WorkOrderAssignment, AuditEvent
 from app.Services.erp_service import ERPService
 from app.Routes.main import main_bp
-from app.Routes.main.helpers import CHUNK_SIZE, parse_selected_work_order_payload
+from app.Routes.main.helpers import CHUNK_SIZE, parse_selected_work_order_payload, normalize_so_number
 
 
 @main_bp.route('/work_orders')
@@ -60,7 +60,7 @@ def work_order_scan(user_id):
 def work_order_select():
     # Page 4: Select Work Orders (Live Lookup)
     user_id = request.args.get('user_id')
-    barcode = (request.args.get('barcode') or '').strip()
+    barcode = normalize_so_number((request.args.get('barcode') or '').strip())
     if not user_id or not barcode:
         flash('A user and sales order barcode are required.', 'warning')
         return redirect(url_for('main.work_orders'))
