@@ -2,6 +2,7 @@ import os
 import re
 import hmac
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from sqlalchemy import func
@@ -22,123 +23,141 @@ logger = logging.getLogger(__name__)
 
 
 def _build_homepage_data(roles, rep_id, branch):
-    """Build role-appropriate dashboard data for the homepage."""
+    """Build role-appropriate dashboard data for the homepage.
+
+    Uses lightweight COUNT-only ERP queries (instead of fetching full rows)
+    and runs independent queries in parallel via a thread pool.
+    """
     data = {'roles_active': []}
     roles = set(roles or [])
-    erp = None
-
-    def _get_erp():
-        nonlocal erp
-        if erp is None:
-            erp = ERPService()
-        return erp
-
+    erp = ERPService()
     today = datetime.utcnow().date()
 
-    # ── Sales ──
-    if roles & {'sales', 'admin', 'ops'}:
-        try:
-            metrics = _get_erp().get_sales_hub_metrics(rep_id=rep_id or '')
+    # ── Determine which data sections are needed ──
+    need_sales = bool(roles & {'sales', 'admin', 'ops'})
+    need_warehouse = bool(roles & {'warehouse', 'picker', 'admin', 'ops', 'supervisor'})
+    need_supervisor = bool(roles & {'supervisor', 'admin', 'ops'})
+    need_work_orders = need_supervisor
+    need_dispatch = bool(roles & {'dispatch', 'delivery', 'admin', 'ops'})
+    need_purchasing = bool(roles & {'purchasing', 'admin', 'ops'})
+
+    # ── Submit all independent tasks to a thread pool ──
+    futures = {}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        if need_sales:
+            futures['sales'] = pool.submit(
+                erp.get_sales_hub_metrics, rep_id=rep_id or ''
+            )
+        if need_warehouse:
+            futures['picks'] = pool.submit(erp.get_open_picks_count)
+            futures['completed_today'] = pool.submit(
+                _count_completed_today, today
+            )
+        if need_supervisor:
+            futures['pickers'] = pool.submit(_get_picker_counts)
+        if need_work_orders:
+            futures['work_orders'] = pool.submit(erp.get_open_work_orders_count)
+        if need_dispatch:
+            futures['dispatch'] = pool.submit(
+                erp.get_delivery_count, branch_id=branch
+            )
+        if need_purchasing:
+            futures['purchasing'] = pool.submit(_count_pending_po_reviews)
+
+        # ── Collect results ──
+        results = {}
+        for key, fut in futures.items():
+            try:
+                results[key] = fut.result(timeout=15)
+            except Exception:
+                logger.exception("Homepage: failed to load %s", key)
+                results[key] = None
+
+    # ── Assemble data dict ──
+    if need_sales:
+        metrics = results.get('sales')
+        if metrics:
             data['sales'] = {
                 'open_orders': metrics.get('open_orders_count', 0),
                 'shipping_today': metrics.get('total_orders_today', 0),
             }
-        except Exception:
-            logger.exception("Homepage: failed to load sales metrics")
+        else:
             data['sales'] = {'open_orders': None, 'shipping_today': None}
         if 'sales' in roles:
             data['roles_active'].append('sales')
 
-    # ── Warehouse / Picker ──
-    if roles & {'warehouse', 'picker', 'admin', 'ops', 'supervisor'}:
-        try:
-            open_picks = _get_erp().get_open_picks()
-            handling_counts = {}
-            for p in open_picks:
-                code = str(p.get('handling_code', '') or '').strip().upper() or '—'
-                handling_counts[code] = handling_counts.get(code, 0) + 1
+    if need_warehouse:
+        picks_data = results.get('picks')
+        if picks_data:
             data['warehouse'] = {
-                'open_picks': len(open_picks),
-                'handling_breakdown': dict(sorted(handling_counts.items())),
+                'open_picks': picks_data['total'],
+                'handling_breakdown': picks_data['handling_breakdown'],
             }
-        except Exception:
-            logger.exception("Homepage: failed to load warehouse metrics")
+        else:
             data['warehouse'] = {'open_picks': None, 'handling_breakdown': {}}
-
-        # Today's completed picks from local DB
-        try:
-            data['warehouse']['picks_completed_today'] = Pick.query.filter(
-                func.date(Pick.completed_time) == today
-            ).count()
-        except Exception:
-            data['warehouse']['picks_completed_today'] = None
-
+        data['warehouse']['picks_completed_today'] = results.get('completed_today')
         if roles & {'warehouse', 'picker'}:
             data['roles_active'].append('warehouse')
 
-    # ── Supervisor ──
-    if roles & {'supervisor', 'admin', 'ops'}:
-        try:
-            total_pickers = Pickster.query.filter(
-                (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None))
-            ).count()
-            active_count = db.session.query(
-                func.count(func.distinct(Pick.picker_id))
-            ).join(Pickster, Pick.picker_id == Pickster.id).filter(
-                (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None)),
-                Pick.completed_time.is_(None),
-            ).scalar() or 0
-            data['supervisor'] = {
-                'total_pickers': total_pickers,
-                'active_pickers': active_count,
-                'idle_pickers': total_pickers - active_count,
-            }
-        except Exception:
-            logger.exception("Homepage: failed to load supervisor metrics")
+    if need_supervisor:
+        picker_info = results.get('pickers')
+        if picker_info:
+            data['supervisor'] = picker_info
+        else:
             data['supervisor'] = {
                 'total_pickers': None, 'active_pickers': None, 'idle_pickers': None,
             }
         if 'supervisor' in roles:
             data['roles_active'].append('supervisor')
 
-    # ── Work Orders (supervisor, ops, admin) ──
-    if roles & {'supervisor', 'admin', 'ops'}:
-        try:
-            wos = _get_erp().get_open_work_orders()
-            data['work_orders'] = {'open_count': len(wos)}
-        except Exception:
-            logger.exception("Homepage: failed to load work order metrics")
-            data['work_orders'] = {'open_count': None}
+    if need_work_orders:
+        wo_count = results.get('work_orders')
+        data['work_orders'] = {'open_count': wo_count if wo_count is not None else None}
 
-    # ── Dispatch / Delivery ──
-    if roles & {'dispatch', 'delivery', 'admin', 'ops'}:
-        try:
-            deliveries = _get_erp().get_sales_delivery_tracker(branch_id=branch)
-            data['dispatch'] = {'todays_deliveries': len(deliveries)}
-        except Exception:
-            logger.exception("Homepage: failed to load dispatch metrics")
-            data['dispatch'] = {'todays_deliveries': None}
+    if need_dispatch:
+        delivery_count = results.get('dispatch')
+        data['dispatch'] = {'todays_deliveries': delivery_count if delivery_count is not None else None}
         if roles & {'dispatch', 'delivery'}:
             data['roles_active'].append('dispatch')
 
-    # ── Ops / Admin ──
     if roles & {'admin', 'ops'}:
         data['roles_active'].append('ops')
 
-    # ── Purchasing ──
-    if roles & {'purchasing', 'admin', 'ops'}:
-        try:
-            pending_reviews = POSubmission.query.filter(
-                POSubmission.status == 'pending'
-            ).count()
-            data['purchasing'] = {'pending_reviews': pending_reviews}
-        except Exception:
-            logger.exception("Homepage: failed to load purchasing metrics")
-            data['purchasing'] = {'pending_reviews': None}
+    if need_purchasing:
+        po_count = results.get('purchasing')
+        data['purchasing'] = {'pending_reviews': po_count if po_count is not None else None}
         if 'purchasing' in roles:
             data['roles_active'].append('purchasing')
 
     return data
+
+
+def _count_completed_today(today):
+    """Count picks completed today (local DB)."""
+    return Pick.query.filter(func.date(Pick.completed_time) == today).count()
+
+
+def _get_picker_counts():
+    """Get active/idle picker counts (local DB)."""
+    total_pickers = Pickster.query.filter(
+        (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None))
+    ).count()
+    active_count = db.session.query(
+        func.count(func.distinct(Pick.picker_id))
+    ).join(Pickster, Pick.picker_id == Pickster.id).filter(
+        (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None)),
+        Pick.completed_time.is_(None),
+    ).scalar() or 0
+    return {
+        'total_pickers': total_pickers,
+        'active_pickers': active_count,
+        'idle_pickers': total_pickers - active_count,
+    }
+
+
+def _count_pending_po_reviews():
+    """Count pending PO reviews (local DB)."""
+    return POSubmission.query.filter(POSubmission.status == 'pending').count()
 
 
 @main_bp.route('/')
