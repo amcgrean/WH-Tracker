@@ -184,6 +184,12 @@ class PurchasingService:
             query = query.filter(PurchasingWorkQueue.buyer_user_id == buyer_user_id)
         return query
 
+    def _assignment_owner_for_system(self, system_id: str | None) -> AppUser | None:
+        normalized = (system_id or "").strip().upper()
+        if not normalized:
+            return None
+        return self._system_owner_map().get(normalized)
+
     def _derived_queue_items(self, system_id: str | None = None, buyer_user_id: int | None = None) -> list[dict]:
         today = date.today()
         owner_map = self._system_owner_map()
@@ -218,6 +224,8 @@ class PurchasingService:
             .limit(50)
             .all()
         ):
+            if sub.queue_item_id:
+                continue
             if system_id and (sub.branch or "").upper() != system_id.upper():
                 continue
             owner = owner_map.get((sub.branch or "").strip())
@@ -263,6 +271,94 @@ class PurchasingService:
 
         items.sort(key=lambda item: ((item.get("priority") != "high"), item.get("due_at") or "9999"))
         return items
+
+    def ensure_submission_queue_item(self, submission: POSubmission, created_by_user_id: int | None = None) -> PurchasingWorkQueue:
+        if submission.queue_item_id:
+            queue_item = PurchasingWorkQueue.query.get(submission.queue_item_id)
+            if queue_item:
+                return queue_item
+
+        normalized_system_id = (submission.branch or "").strip().upper() or None
+        owner = self._assignment_owner_for_system(normalized_system_id)
+        queue_item = PurchasingWorkQueue(
+            queue_type="receiving_checkin",
+            reference_type="submission",
+            reference_number=str(submission.id),
+            po_number=(submission.po_number or "").strip().upper() or None,
+            system_id=normalized_system_id,
+            buyer_user_id=owner.id if owner else None,
+            supplier_key=submission.supplier_key,
+            supplier_name=submission.supplier_name,
+            title=f"Review receiving evidence for PO {(submission.po_number or '').strip().upper()}",
+            description=submission.notes or "Warehouse submitted a new PO check-in.",
+            status="open",
+            priority=(submission.priority or "medium").strip().lower(),
+            severity="medium",
+            due_at=submission.created_at.replace(tzinfo=None) if submission.created_at else None,
+            metadata_json={
+                "submission_type": submission.submission_type,
+                "image_count": len(submission.image_urls or []),
+                "submission_status": submission.status,
+            },
+            created_by_user_id=created_by_user_id,
+        )
+        db.session.add(queue_item)
+        db.session.flush()
+        submission.queue_item_id = queue_item.id
+        db.session.add(PurchasingActivity(
+            activity_type="submission_linked",
+            entity_type="submission",
+            entity_id=str(submission.id),
+            po_number=queue_item.po_number,
+            system_id=queue_item.system_id,
+            actor_user_id=created_by_user_id,
+            summary=f"Linked submission {submission.id} into purchasing queue",
+            after_state={"queue_item_id": queue_item.id, "submission_status": submission.status},
+        ))
+        return queue_item
+
+    def sync_submission_queue_status(self, submission: POSubmission, reviewer_user_id: int | None = None) -> PurchasingWorkQueue | None:
+        queue_item = None
+        if submission.queue_item_id:
+            queue_item = PurchasingWorkQueue.query.get(submission.queue_item_id)
+        if not queue_item:
+            return None
+
+        before = {"status": queue_item.status, "priority": queue_item.priority}
+        queue_item.metadata_json = {
+            **(queue_item.metadata_json or {}),
+            "submission_status": submission.status,
+            "reviewer_notes": submission.reviewer_notes,
+        }
+        queue_item.description = submission.notes or queue_item.description
+        if submission.status == "pending":
+            queue_item.status = "open"
+            queue_item.priority = (submission.priority or queue_item.priority or "medium").strip().lower()
+            queue_item.resolved_at = None
+            queue_item.resolved_by_user_id = None
+        elif submission.status == "reviewed":
+            queue_item.status = "resolved"
+            queue_item.resolved_at = datetime.utcnow()
+            queue_item.resolved_by_user_id = reviewer_user_id
+        elif submission.status == "flagged":
+            queue_item.status = "blocked"
+            queue_item.priority = "high"
+            queue_item.severity = "high"
+            queue_item.resolved_at = None
+            queue_item.resolved_by_user_id = None
+
+        db.session.add(PurchasingActivity(
+            activity_type="queue_resolved" if queue_item.status == "resolved" else "submission_linked",
+            entity_type="submission",
+            entity_id=str(submission.id),
+            po_number=queue_item.po_number,
+            system_id=queue_item.system_id,
+            actor_user_id=reviewer_user_id,
+            summary=f"Submission {submission.id} marked {submission.status}",
+            before_state=before,
+            after_state={"status": queue_item.status, "priority": queue_item.priority},
+        ))
+        return queue_item
 
     def list_work_queue(self, current_user: dict, system_id: str | None = None, include_virtual: bool = True) -> list[dict]:
         scoped_system_id = self._scoped_system_id(current_user, system_id)
