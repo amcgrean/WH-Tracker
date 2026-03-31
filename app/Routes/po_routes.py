@@ -56,6 +56,7 @@ from app.auth import (
 )
 from app.extensions import db
 from app.Models.models import AppUser, POSubmission
+from app.Services.purchasing_service import PurchasingService
 
 po_bp = Blueprint("po", __name__, url_prefix="/po")
 
@@ -101,7 +102,11 @@ def _sub_to_dict(sub: POSubmission) -> dict:
         "image_urls": sub.image_urls or [],
         "thumbnail": (sub.image_urls or [None])[0],
         "supplier_name": sub.supplier_name,
+        "supplier_key": sub.supplier_key,
         "po_status": sub.po_status,
+        "submission_type": sub.submission_type,
+        "priority": sub.priority,
+        "queue_item_id": sub.queue_item_id,
         "notes": sub.notes,
         "status": sub.status,
         "submitted_by": sub.submitted_by,
@@ -236,6 +241,7 @@ def review_detail(submission_id):
         sub.reviewer_notes = reviewer_notes or None
         sub.reviewed_by = session.get(SESSION_USER_ID)
         sub.reviewed_at = datetime.now(timezone.utc)
+        PurchasingService().sync_submission_queue_status(sub, reviewer_user_id=sub.reviewed_by)
         db.session.commit()
         flash("Review saved.", "success")
         return redirect(url_for("po.review_dashboard"))
@@ -422,7 +428,10 @@ def api_create_submission():
         po_number=po_number.upper(),
         image_urls=image_urls,
         supplier_name=(data.get("supplier_name") or "").strip() or None,
+        supplier_key=(data.get("supplier_key") or "").strip() or None,
         po_status=(data.get("po_status") or "").strip() or None,
+        submission_type=(data.get("submission_type") or "receiving_checkin").strip() or "receiving_checkin",
+        priority=(data.get("priority") or "").strip().lower() or None,
         notes=notes,
         status="pending",
         submitted_by=current_user["id"],
@@ -430,9 +439,10 @@ def api_create_submission():
         branch=user_branch or None,
     )
     db.session.add(sub)
+    PurchasingService().ensure_submission_queue_item(sub, created_by_user_id=current_user["id"])
     db.session.commit()
 
-    return jsonify({"id": sub.id, "status": sub.status}), 201
+    return jsonify({"id": sub.id, "status": sub.status, "queue_item_id": sub.queue_item_id}), 201
 
 
 @po_bp.route("/api/submissions", methods=["GET"])
@@ -506,10 +516,13 @@ def api_update_submission(submission_id):
 
     if new_status:
         sub.status = new_status
+    if "priority" in data:
+        sub.priority = (data.get("priority") or "").strip().lower() or sub.priority
     if "reviewer_notes" in data:
         sub.reviewer_notes = (data["reviewer_notes"] or "").strip() or None
     sub.reviewed_by = session.get(SESSION_USER_ID)
     sub.reviewed_at = datetime.now(timezone.utc)
+    PurchasingService().sync_submission_queue_status(sub, reviewer_user_id=sub.reviewed_by)
     db.session.commit()
 
     return jsonify(_sub_to_dict(sub))
