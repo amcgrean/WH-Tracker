@@ -8,6 +8,7 @@ from app.Routes.main import main_bp
 from app.Routes.main.helpers import (
     WILL_CALL_TYPE_ID, ensure_pick_type_exists,
     parse_selected_work_order_payload, _kiosk_context,
+    normalize_so_number,
 )
 
 
@@ -47,10 +48,10 @@ def kiosk_input_pick(branch, picker_id, pick_type_id):
             shipment_num = None
             if '-' in raw_barcode:
                 parts = raw_barcode.split('-', 1)
-                barcode = parts[0].strip()
+                barcode = normalize_so_number(parts[0].strip())
                 shipment_num = parts[1].strip() or None
             else:
-                barcode = raw_barcode.replace(' ', '')
+                barcode = normalize_so_number(raw_barcode.replace(' ', ''))
 
             start_time = datetime.utcnow()
             completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None

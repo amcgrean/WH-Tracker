@@ -14,6 +14,7 @@ from app.Routes.main.helpers import (
     WILL_CALL_TYPE_ID, _get_branch,
     ensure_pick_type_exists, get_pick_type_name, pick_type_from_handling_code,
     localize_to_cst, calculate_business_elapsed_time, format_elapsed_time,
+    normalize_so_number,
 )
 
 
@@ -52,10 +53,10 @@ def api_smart_scan():
     shipment_num = None
     if '-' in raw_barcode:
         parts = raw_barcode.split('-', 1)
-        barcode = parts[0].strip()
+        barcode = normalize_so_number(parts[0].strip())
         shipment_num = parts[1].strip() or None
     else:
-        barcode = raw_barcode.replace(' ', '')
+        barcode = normalize_so_number(raw_barcode.replace(' ', ''))
 
     now = datetime.utcnow()
 
