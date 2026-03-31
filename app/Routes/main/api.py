@@ -2,8 +2,8 @@ import os
 import re
 import json
 from datetime import datetime, timedelta
-from flask import request, url_for, jsonify
-from sqlalchemy import func
+from flask import current_app, request, url_for, jsonify
+from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
@@ -319,19 +319,65 @@ def api_geocode_pending():
 @main_bp.route('/debug/counts')
 def debug_counts():
     try:
-        erp = ERPService()
-        raw_summary = erp.get_open_so_summary()
-        open_work_orders = erp.get_open_work_orders()
-
+        rows = db.session.execute(
+            text(
+                "SELECT system_id, open_picks, open_work_orders, updated_at"
+                " FROM dashboard_stats ORDER BY system_id"
+            )
+        ).mappings().all()
+        branches = [
+            {
+                'system_id': r['system_id'],
+                'open_picks': r['open_picks'] or 0,
+                'open_work_orders': r['open_work_orders'] or 0,
+                'updated_at': r['updated_at'].isoformat() + 'Z' if r['updated_at'] else None,
+            }
+            for r in rows
+        ]
         return jsonify({
-            'open_sales_orders': len(raw_summary),
-            'open_work_orders': len(open_work_orders),
-            'erp_cloud_mode': erp.cloud_mode,
-            'summary_length': len(raw_summary),
+            'open_sales_orders': sum(b['open_picks'] for b in branches),
+            'open_work_orders': sum(b['open_work_orders'] for b in branches),
+            'by_branch': branches,
+            'source': 'dashboard_stats',
             'db_uri': str(db.engine.url).split('@')[1] if '@' in str(db.engine.url) else 'local',
-            'cloud_mode_env': str(os.environ.get('CLOUD_MODE')).lower() == 'true'
         })
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@main_bp.route('/api/branch-stats')
+def api_branch_stats():
+    """Precomputed open pick and WO counts from dashboard_stats.
+
+    Updated by the ERP sync worker after every sync cycle (~20-30 seconds).
+    Returns one entry per branch with handling_breakdown keyed by routing group.
+    """
+    try:
+        rows = db.session.execute(
+            text(
+                "SELECT system_id, open_picks, handling_breakdown_json,"
+                " open_work_orders, updated_at"
+                " FROM dashboard_stats ORDER BY system_id"
+            )
+        ).mappings().all()
+        result = []
+        for r in rows:
+            handling = {}
+            if r['handling_breakdown_json']:
+                try:
+                    handling = json.loads(r['handling_breakdown_json'])
+                except (ValueError, TypeError):
+                    pass
+            result.append({
+                'system_id': r['system_id'],
+                'open_picks': r['open_picks'] or 0,
+                'handling_breakdown': handling,
+                'open_work_orders': r['open_work_orders'] or 0,
+                'updated_at': r['updated_at'].isoformat() + 'Z' if r['updated_at'] else None,
+            })
+        return jsonify({'branches': result})
+    except Exception as e:
+        current_app.logger.exception("Branch stats read failed")
         return jsonify({'error': str(e)}), 500
 
 
