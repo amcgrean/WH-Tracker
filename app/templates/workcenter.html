@@ -1,71 +1,277 @@
 {% extends "base.html" %}
 
-{% block title %}Select Work Center{% endblock %}
+{% block title %}Home — LiveEdge{% endblock %}
+
+{# ── Macros ─────────────────────────────────────────────────────────── #}
+
+{% macro stat_card(value, label, icon, color='var(--beisser-green)', delay=1) %}
+<div class="col-6 col-md-3 mb-3 animate-fade-in delay-{{ delay }}">
+  <div class="legacy-stat-card h-100">
+    <div class="mb-2"><i class="{{ icon }}" style="font-size:1.4rem;color:{{ color }};"></i></div>
+    <div class="stat-value">{{ value if value is not none else '—' }}</div>
+    <div class="stat-label">{{ label }}</div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro quick_link(href, icon, label, desc='', delay=1) %}
+<div class="col-sm-6 col-lg-4 mb-3 animate-fade-in delay-{{ delay }}">
+  <a href="{{ href }}" class="card card-ops h-100 text-decoration-none">
+    <div class="card-body d-flex align-items-center p-3">
+      <div class="mr-3"><i class="{{ icon }} fa-lg" style="color:var(--beisser-green);"></i></div>
+      <div>
+        <div class="font-weight-bold">{{ label }}</div>
+        {% if desc %}<small class="text-muted">{{ desc }}</small>{% endif %}
+      </div>
+    </div>
+  </a>
+</div>
+{% endmacro %}
+
+{% macro section_header(title, subtitle='') %}
+<div class="mb-3 mt-4">
+  <h5 class="font-weight-bold mb-0">{{ title }}</h5>
+  {% if subtitle %}<small class="text-muted">{{ subtitle }}</small>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro cta_button(href, label, icon, cls='btn-ops-primary') %}
+<a href="{{ href }}" class="btn {{ cls }} btn-lg px-4 shadow-sm">
+  <i class="{{ icon }} mr-2"></i>{{ label }}
+</a>
+{% endmacro %}
 
 {% block content %}
-<div class="container-fluid py-5">
-    <div class="row justify-content-center">
-        <div class="col-xl-10">
-            <div class="text-center mb-5">
-                <h1 class="display-4 font-weight-bold mb-3">Select Your Work Center</h1>
-                <p class="lead text-muted mb-0">Jump into the workflow you need without losing the shared app navigation.</p>
-            </div>
+<div class="container-fluid py-4 homepage-dashboard">
+  <div class="row justify-content-center">
+    <div class="col-xl-10">
 
-            <div class="row">
-                <div class="col-md-4 mb-4">
-                    <a href="{{ url_for('main.index') }}" class="card card-ops h-100 text-decoration-none">
-                        <div class="card-body d-flex flex-column justify-content-center text-center p-5">
-                            <div class="mb-3">
-                                <i class="fas fa-barcode fa-3x text-primary"></i>
-                            </div>
-                            <h2 class="h4 mb-2">Pick Tracker</h2>
-                            <p class="text-muted mb-0">Start picker flows and scan work from the warehouse floor.</p>
-                        </div>
-                    </a>
-                </div>
+      {# ── Greeting ────────────────────────────────────────────────── #}
+      <div class="mb-4 animate-fade-in">
+        <h2 class="font-weight-bold mb-1" id="greeting-text">
+          Hello, {{ current_user.display_name or current_user.email or 'there' }}
+        </h2>
+        <p class="text-muted mb-0">
+          {% if selected_branch_label %}
+            <i class="fas fa-map-marker-alt mr-1"></i>{{ selected_branch_label }}
+            <span class="mx-2">·</span>
+          {% endif %}
+          <span id="date-text"></span>
+        </p>
+      </div>
 
-                <div class="col-md-4 mb-4">
-                    <a href="{{ url_for('main.work_orders') }}" class="card card-ops h-100 text-decoration-none">
-                        <div class="card-body d-flex flex-column justify-content-center text-center p-5">
-                            <div class="mb-3">
-                                <i class="fas fa-hammer fa-3x text-success"></i>
-                            </div>
-                            <h2 class="h4 mb-2">Work Order Tracker</h2>
-                            <p class="text-muted mb-0">Move production jobs through the assignment and execution flow.</p>
-                        </div>
-                    </a>
-                </div>
+      {# ══════════════════════════════════════════════════════════════ #}
+      {# SALES SECTION                                                 #}
+      {# ══════════════════════════════════════════════════════════════ #}
+      {% if 'sales' in (current_user_roles or []) %}
 
-                <div class="col-md-4 mb-4">
-                    <a href="{{ url_for('main.warehouse_select') }}" class="card card-ops h-100 text-decoration-none">
-                        <div class="card-body d-flex flex-column justify-content-center text-center p-5">
-                            <div class="mb-3">
-                                <i class="fas fa-warehouse fa-3x" style="color:#6f42c1;"></i>
-                            </div>
-                            <h2 class="h4 mb-2">Warehouse Picks</h2>
-                            <p class="text-muted mb-0">Open department boards and group warehouse work by operational view.</p>
-                        </div>
-                    </a>
-                </div>
-            </div>
+        {{ section_header('Sales Overview', 'Your orders and activity') }}
 
-            <div class="row justify-content-center mt-2">
-                <div class="col-lg-8">
-                    <a href="{{ url_for('main.supervisor_dashboard') }}" class="card card-ops text-decoration-none">
-                        <div class="card-body d-flex align-items-center justify-content-between p-4">
-                            <div>
-                                <div class="small text-uppercase text-muted font-weight-bold mb-1">Supervisor</div>
-                                <h2 class="h4 mb-1">Supervisor Dashboard</h2>
-                                <p class="text-muted mb-0">Monitor team status, recent activity, and jump into the work order board.</p>
-                            </div>
-                            <div class="text-dark">
-                                <i class="fas fa-user-shield fa-3x"></i>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-            </div>
+        <div class="row">
+          {{ stat_card(data.sales.open_orders, 'My Open Orders', 'fas fa-file-invoice', delay=1) }}
+          {{ stat_card(data.sales.shipping_today, 'Shipping Today', 'fas fa-shipping-fast', 'var(--beisser-gold)', delay=2) }}
+          {% if data.warehouse %}
+            {{ stat_card(data.warehouse.open_picks, 'Open Picks', 'fas fa-clipboard-list', '#6f42c1', delay=3) }}
+          {% endif %}
         </div>
+
+        {{ section_header('Quick Views') }}
+        <div class="row">
+          {{ quick_link(url_for('sales.transactions', view='my_open_3d'), 'fas fa-clock', 'My Open (3 Day)', 'Orders expected in 3 days', 1) }}
+          {{ quick_link(url_for('sales.transactions', view='my_open_7d'), 'fas fa-calendar-week', 'My Open (7 Day)', 'Orders expected in 7 days', 1) }}
+          {{ quick_link(url_for('sales.transactions', view='my_shipped_2d'), 'fas fa-truck', 'My Shipped', 'Shipped in last 2 days', 2) }}
+          {{ quick_link(url_for('sales.transactions', view='my_invoiced_5d'), 'fas fa-file-invoice-dollar', 'My Invoiced', 'Invoiced in last 5 days', 2) }}
+          {{ quick_link(url_for('sales.transactions', view='my_rma'), 'fas fa-undo-alt', 'My RMAs', 'Open credit memos', 3) }}
+          {{ quick_link(url_for('sales.transactions'), 'fas fa-search', 'All Transactions', 'Full search and filters', 3) }}
+        </div>
+
+        <div class="mt-3 mb-4 animate-fade-in delay-2">
+          {{ cta_button(url_for('sales.transactions'), 'View All Transactions', 'fas fa-arrow-right') }}
+        </div>
+
+      {% endif %}
+
+      {# ══════════════════════════════════════════════════════════════ #}
+      {# WAREHOUSE / PICKER SECTION                                    #}
+      {# ══════════════════════════════════════════════════════════════ #}
+      {% if (current_user_roles or []) | select('in', ['warehouse', 'picker']) | list %}
+
+        {{ section_header('Warehouse', 'Pick activity and open work') }}
+
+        <div class="row">
+          {{ stat_card(data.warehouse.open_picks, 'Open Picks', 'fas fa-clipboard-list', delay=1) }}
+          {{ stat_card(data.warehouse.picks_completed_today, 'Completed Today', 'fas fa-check-circle', '#28a745', delay=2) }}
+        </div>
+
+        {% if data.warehouse.handling_breakdown %}
+        <div class="animate-fade-in delay-2">
+          <h6 class="font-weight-bold text-muted text-uppercase small mb-2">By Handling Code</h6>
+          <div class="d-flex flex-wrap mb-3">
+            {% for code, count in data.warehouse.handling_breakdown.items() %}
+            <span class="badge badge-light border mr-2 mb-2 px-3 py-2" style="font-size:0.85rem;">
+              <strong>{{ code }}</strong>: {{ count }}
+            </span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="row">
+          {{ quick_link(url_for('main.index'), 'fas fa-barcode', 'Pick Tracker', 'Start picking', 1) }}
+          {{ quick_link(url_for('main.warehouse_select'), 'fas fa-warehouse', 'Warehouse Hub', 'Department boards', 2) }}
+          {{ quick_link(url_for('main.pickers_picks'), 'fas fa-chart-bar', "Today's Picks", 'Pick counts and stats', 3) }}
+        </div>
+
+        <div class="mt-3 mb-4 animate-fade-in delay-2">
+          {{ cta_button(url_for('main.index'), 'Start Picking', 'fas fa-play') }}
+        </div>
+
+      {% endif %}
+
+      {# ══════════════════════════════════════════════════════════════ #}
+      {# SUPERVISOR SECTION                                            #}
+      {# ══════════════════════════════════════════════════════════════ #}
+      {% if 'supervisor' in (current_user_roles or []) %}
+
+        {{ section_header('Supervisor', 'Team status and work orders') }}
+
+        <div class="row">
+          {{ stat_card(data.supervisor.active_pickers, 'Active Pickers', 'fas fa-user-check', '#28a745', delay=1) }}
+          {{ stat_card(data.supervisor.idle_pickers, 'Idle Pickers', 'fas fa-user-clock', 'var(--text-muted)', delay=1) }}
+          {{ stat_card(data.work_orders.open_count if data.work_orders else None, 'Open Work Orders', 'fas fa-hammer', 'var(--beisser-gold)', delay=2) }}
+          {{ stat_card(data.warehouse.picks_completed_today if data.warehouse else None, 'Picks Today', 'fas fa-check-double', '#17a2b8', delay=2) }}
+        </div>
+
+        <div class="row">
+          {{ quick_link(url_for('main.supervisor_dashboard'), 'fas fa-user-shield', 'Supervisor Dashboard', 'Team overview', 1) }}
+          {{ quick_link(url_for('main.supervisor_work_orders'), 'fas fa-tasks', 'Work Order Board', 'Manage work orders', 2) }}
+          {{ quick_link(url_for('main.index'), 'fas fa-barcode', 'Pick Tracker', 'Start picking', 3) }}
+        </div>
+
+        <div class="mt-3 mb-4 animate-fade-in delay-2">
+          {{ cta_button(url_for('main.supervisor_dashboard'), 'View Team', 'fas fa-users') }}
+        </div>
+
+      {% endif %}
+
+      {# ══════════════════════════════════════════════════════════════ #}
+      {# DISPATCH / DELIVERY SECTION                                   #}
+      {# ══════════════════════════════════════════════════════════════ #}
+      {% if (current_user_roles or []) | select('in', ['dispatch', 'delivery']) | list %}
+
+        {{ section_header('Dispatch', 'Deliveries and routes') }}
+
+        <div class="row">
+          {{ stat_card(data.dispatch.todays_deliveries if data.dispatch else None, "Today's Deliveries", 'fas fa-truck-loading', delay=1) }}
+        </div>
+
+        <div class="row">
+          {{ quick_link(url_for('dispatch.index'), 'fas fa-route', 'Dispatch Console', 'Route management', 1) }}
+          {{ quick_link(url_for('main.delivery_board'), 'fas fa-map-marked-alt', 'Delivery Board', 'Track active deliveries', 2) }}
+        </div>
+
+        <div class="mt-3 mb-4 animate-fade-in delay-2">
+          {{ cta_button(url_for('dispatch.index'), 'Open Console', 'fas fa-arrow-right') }}
+        </div>
+
+      {% endif %}
+
+      {# ══════════════════════════════════════════════════════════════ #}
+      {# OPS / ADMIN SECTION                                          #}
+      {# ══════════════════════════════════════════════════════════════ #}
+      {% if (current_user_roles or []) | select('in', ['ops', 'admin']) | list %}
+
+        {{ section_header('Operations Overview', 'Cross-functional summary') }}
+
+        <div class="row">
+          {{ stat_card(data.sales.open_orders if data.sales else None, 'Open Orders', 'fas fa-file-invoice', delay=1) }}
+          {{ stat_card(data.warehouse.open_picks if data.warehouse else None, 'Open Picks', 'fas fa-clipboard-list', '#6f42c1', delay=1) }}
+          {{ stat_card(data.work_orders.open_count if data.work_orders else None, 'Open Work Orders', 'fas fa-hammer', 'var(--beisser-gold)', delay=2) }}
+          {{ stat_card(data.dispatch.todays_deliveries if data.dispatch else None, "Today's Deliveries", 'fas fa-truck', '#17a2b8', delay=2) }}
+        </div>
+
+        {{ section_header('Jump To') }}
+        <div class="row">
+          {{ quick_link(url_for('main.warehouse_select'), 'fas fa-warehouse', 'Warehouse', 'Pick boards and status', 1) }}
+          {{ quick_link(url_for('sales.transactions'), 'fas fa-file-invoice-dollar', 'Sales', 'Orders and transactions', 1) }}
+          {{ quick_link(url_for('dispatch.index'), 'fas fa-route', 'Dispatch', 'Routes and deliveries', 2) }}
+          {{ quick_link(url_for('main.supervisor_dashboard'), 'fas fa-user-shield', 'Supervisor', 'Team and work orders', 2) }}
+          {{ quick_link(url_for('main.work_orders'), 'fas fa-hammer', 'Work Orders', 'Production tracking', 3) }}
+          {{ quick_link(url_for('main.picker_stats'), 'fas fa-chart-line', 'Picker Stats', 'Performance analytics', 3) }}
+        </div>
+
+      {% endif %}
+
+      {# ══════════════════════════════════════════════════════════════ #}
+      {# PURCHASING SECTION                                            #}
+      {# ══════════════════════════════════════════════════════════════ #}
+      {% if 'purchasing' in (current_user_roles or []) %}
+
+        {{ section_header('Purchasing', 'PO activity') }}
+
+        <div class="row">
+          {{ stat_card(data.purchasing.pending_reviews if data.purchasing else None, 'Pending Reviews', 'fas fa-clipboard-check', 'var(--beisser-gold)', delay=1) }}
+        </div>
+
+        <div class="row">
+          {{ quick_link(url_for('po.checkin'), 'fas fa-camera', 'PO Check-In', 'Scan and submit POs', 1) }}
+        </div>
+
+      {% endif %}
+
+      {# ══════════════════════════════════════════════════════════════ #}
+      {# FALLBACK — no roles or unauthenticated                       #}
+      {# ══════════════════════════════════════════════════════════════ #}
+      {% if not (current_user_roles or []) %}
+
+        <div class="text-center py-5 animate-fade-in">
+          <h1 class="display-4 font-weight-bold mb-3">Welcome to LiveEdge</h1>
+          <p class="lead text-muted mb-4">Select a work center to get started.</p>
+        </div>
+
+        <div class="row">
+          {{ quick_link(url_for('main.index'), 'fas fa-barcode', 'Pick Tracker', 'Warehouse floor picking', 1) }}
+          {{ quick_link(url_for('main.work_orders'), 'fas fa-hammer', 'Work Orders', 'Production tracking', 2) }}
+          {{ quick_link(url_for('main.warehouse_select'), 'fas fa-warehouse', 'Warehouse Hub', 'Department boards', 3) }}
+        </div>
+
+        <div class="row justify-content-center mt-2">
+          <div class="col-lg-8">
+            <a href="{{ url_for('main.supervisor_dashboard') }}" class="card card-ops text-decoration-none">
+              <div class="card-body d-flex align-items-center justify-content-between p-4">
+                <div>
+                  <div class="small text-uppercase text-muted font-weight-bold mb-1">Supervisor</div>
+                  <h5 class="mb-1">Supervisor Dashboard</h5>
+                  <small class="text-muted">Monitor team status and work orders.</small>
+                </div>
+                <i class="fas fa-user-shield fa-2x text-dark"></i>
+              </div>
+            </a>
+          </div>
+        </div>
+
+      {% endif %}
+
     </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var h = new Date().getHours();
+  var greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  var name = {{ (current_user.display_name or current_user.email or 'there') | tojson }};
+  var el = document.getElementById('greeting-text');
+  if (el) el.textContent = greet + ', ' + name;
+
+  var dateEl = document.getElementById('date-text');
+  if (dateEl) {
+    dateEl.textContent = new Date().toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+  }
+})();
+</script>
 {% endblock %}
