@@ -125,6 +125,7 @@ def transactions():
     # Determine if we should filter to open only or show all statuses
     open_only = not active_view and not status and not date_from and not date_to and not q and not filter_salesperson and not filter_customer
 
+    query_error = ''
     try:
         if use_shipment_query:
             orders = [
@@ -145,8 +146,9 @@ def transactions():
                 )
             ]
     except Exception as e:
-        logger.error("Transactions query failed: %s", e)
+        logger.error("Transactions query failed: %s", e, exc_info=True)
         orders = []
+        query_error = str(e)
 
     # Status counts for the summary bar
     status_counts = {}
@@ -174,6 +176,7 @@ def transactions():
         status_counts=status_counts,
         active_view=active_view,
         view_presets=VIEW_PRESETS,
+        query_error=query_error,
     )
 
 

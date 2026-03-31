@@ -341,14 +341,21 @@
 
         {% else %}
         <div class="text-center p-5 text-muted">
+            {% if query_error %}
+            <i class="fas fa-exclamation-triangle fa-3x mb-3 text-warning"></i>
+            <p class="mb-1 text-danger font-weight-bold">Unable to load transactions</p>
+            <p class="small mb-2">{{ query_error }}</p>
+            <a href="{{ url_for('sales.transactions') }}" class="btn btn-sm btn-outline-secondary">Try Again</a>
+            {% elif active_view %}
             <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
-            {% if active_view %}
             <p class="mb-1">No orders found for this view.</p>
             <a href="{{ url_for('sales.transactions') }}" class="small">Clear view</a>
             {% elif q or status or date_from or date_to or filter_salesperson or filter_customer %}
+            <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
             <p class="mb-1">No transactions match your filters.</p>
             <a href="{{ url_for('sales.transactions') }}" class="small">Clear all filters</a>
             {% else %}
+            <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
             <p class="mb-1">Select a view above or use the search filters.</p>
             {% endif %}
         </div>
