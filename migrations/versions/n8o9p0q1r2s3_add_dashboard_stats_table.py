@@ -16,16 +16,25 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        'dashboard_stats',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('open_picks', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('handling_breakdown_json', sa.Text(), nullable=True),
-        sa.Column('open_work_orders', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+    # dashboard_stats may have been pre-created directly in Supabase (with either
+    # the legacy id-PK schema or the final system_id-PK schema from o9p0q1r2s3t4).
+    # Use IF NOT EXISTS so this migration is safe to run against a DB that already
+    # has the table in any form.
+    op.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dashboard_stats (
+            id INTEGER PRIMARY KEY,
+            open_picks INTEGER NOT NULL DEFAULT 0,
+            handling_breakdown_json TEXT,
+            open_work_orders INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP NOT NULL DEFAULT now()
+        )
+        """
     )
-    # Seed the single row so UPSERTs work immediately
-    op.execute("INSERT INTO dashboard_stats (id, open_picks, open_work_orders) VALUES (1, 0, 0)")
+    op.execute(
+        "INSERT INTO dashboard_stats (id, open_picks, open_work_orders) "
+        "VALUES (1, 0, 0) ON CONFLICT DO NOTHING"
+    )
 
 
 def downgrade():

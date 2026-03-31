@@ -16,6 +16,18 @@ depends_on = None
 
 
 def upgrade():
+    # If dashboard_stats was pre-created with the final per-branch schema
+    # (system_id TEXT PRIMARY KEY) skip the drop/recreate to avoid data loss.
+    conn = op.get_bind()
+    row = conn.execute(
+        sa.text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'dashboard_stats' AND column_name = 'system_id'"
+        )
+    ).fetchone()
+    if row:
+        return  # Already in the correct per-branch shape.
+
     op.drop_table('dashboard_stats')
     op.create_table(
         'dashboard_stats',

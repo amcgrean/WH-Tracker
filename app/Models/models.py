@@ -742,22 +742,19 @@ class ERPMirrorSuggestedPODetail(db.Model, MirrorSyncMetadataMixin):
 
 
 class ERPMirrorItemSupplier(db.Model, MirrorSyncMetadataMixin):
+    """Pi-managed table — schema is controlled by the sync worker, not Flask.
+
+    The live table uses: prrowid (VARCHAR unique), item_ptr (INTEGER),
+    supplier_key, system_id, lead_time##1-5, min_ord_qty, primary_, etc.
+    Only the columns common to both the model and the live table are declared
+    here so that ORM queries don't reference non-existent columns.
+    """
     __tablename__ = 'erp_mirror_item_supplier'
     id = db.Column(db.Integer, primary_key=True)
     system_id = db.Column(db.String(32), nullable=True, index=True)
-    item_ptr = db.Column(db.String(64), nullable=False, index=True)
-    supplier_key = db.Column(db.String(64), nullable=False, index=True)
-    supplier_code = db.Column(db.String(64), nullable=True)
-    supplier_name = db.Column(db.String(255), nullable=True)
-    supplier_part_number = db.Column(db.String(128), nullable=True)
-    lead_days = db.Column(db.Integer, nullable=True)
-    min_order_qty = db.Column(db.Numeric(18, 4), nullable=True)
-    is_primary = db.Column(db.Boolean, nullable=True)
+    supplier_key = db.Column(db.String(64), nullable=True, index=True)
     branch_code = db.Column(db.String(32), nullable=True, index=True)
-    # Unique on (COALESCE(system_id,''), item_ptr, supplier_key) — enforced via
-    # functional index in migration s2t3u4v5w6x7 (not a SQLAlchemy UniqueConstraint
-    # because SQLAlchemy can't express COALESCE in a constraint).
-    __table_args__ = ()
+    __table_args__ = ()  # Unique key on prrowid is managed by Pi, not here.
 
 
 class ERPMirrorSupplier(db.Model, MirrorSyncMetadataMixin):
