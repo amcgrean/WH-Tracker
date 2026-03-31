@@ -57,6 +57,24 @@ app/
 - **Both code paths must be kept in sync** when modifying ERP queries. The PostgreSQL path uses named params (`:param`), SQL Server uses positional (`?`).
 - Mirror tables: `erp_mirror_so_header`, `erp_mirror_so_detail`, `erp_mirror_cust`, `erp_mirror_cust_shipto`, `erp_mirror_shipments_header`, `erp_mirror_shipments_detail`, etc.
 
+### Dashboard Stats (Pre-computed Counts)
+
+The `dashboard_stats` table (single row, id=1) holds pre-computed dashboard counts so the homepage avoids heavy multi-join ERP queries. Updated by the **Pi sync worker** (`sync_erp.py`) each cycle from already-fetched data.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `open_picks` | int | Distinct open SOs (not pick lines) |
+| `handling_breakdown_json` | text | JSON dict of distinct SO counts per handling code, e.g. `{"LBR": 5, "HDW": 3}` |
+| `open_work_orders` | int | Count of open WO headers |
+| `updated_at` | datetime | Last update timestamp |
+
+**Dashboard route** (`picks.py:_read_dashboard_stats()`) reads this row first; falls back to live ERP queries if the row is missing or stale (>5 minutes). The 5-minute staleness threshold accounts for Pi connectivity issues.
+
+**Important**: When adding new dashboard stats, update three places:
+1. `DashboardStats` model in `models.py`
+2. `_update_dashboard_stats()` in `sync_erp.py` (Pi-side computation)
+3. `_read_dashboard_stats()` in `picks.py` (web-side read + fallback)
+
 ### Key ERP Data Model
 
 **Sales Order Header** (`erp_mirror_so_header`):
@@ -152,6 +170,9 @@ To attach files to a new entity type (e.g. purchase orders), just use `entity_ty
 - Bootstrap 4 grid, Font Awesome 5 icons, Inter font
 
 ## Known Pitfalls & Review Checklist
+
+### Pick/order counts: distinct SOs, not detail lines (CRITICAL)
+When counting "open picks" or similar order-level metrics, always count **distinct (system_id, so_id)**, never `COUNT(*)` on `so_detail`. A single SO can have many line items — counting lines inflates the number and is much slower (requires detail table join). The `dashboard_stats` table and `get_open_picks_count()` both use `COUNT(DISTINCT ...)` for this reason.
 
 ### String column case sensitivity (CRITICAL)
 ERP data stores text fields in mixed case (e.g. `sale_type` = `WillCall`/`Direct`/`XInstall`, `wo_status` = `Completed`/`Canceled`). **All** SQL filters comparing string columns must use `UPPER(COALESCE(..., ''))` on the column and uppercase literals:
