@@ -39,6 +39,18 @@ HANDLING_CODE_TO_PICK_TYPE = {
 ALLOWED_UPLOAD_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.tiff', '.tif'}
 
 
+def normalize_so_number(raw):
+    """Strip leading zeros from an SO number so it matches ERP so_id values.
+
+    Scanners often encode SO numbers with leading zeros (e.g. '0001463004')
+    but ERP stores them without (e.g. '1463004').
+    """
+    if not raw:
+        return raw
+    stripped = raw.lstrip('0')
+    return stripped or '0'
+
+
 def _get_branch():
     """Read branch from URL param > session > None (all branches)."""
     raw = request.args.get('branch', '').strip()

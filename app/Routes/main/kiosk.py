@@ -8,6 +8,7 @@ from app.Routes.main import main_bp
 from app.Routes.main.helpers import (
     WILL_CALL_TYPE_ID, ensure_pick_type_exists,
     parse_selected_work_order_payload, _kiosk_context,
+    normalize_so_number,
 )
 
 
@@ -47,10 +48,10 @@ def kiosk_input_pick(branch, picker_id, pick_type_id):
             shipment_num = None
             if '-' in raw_barcode:
                 parts = raw_barcode.split('-', 1)
-                barcode = parts[0].strip()
+                barcode = normalize_so_number(parts[0].strip())
                 shipment_num = parts[1].strip() or None
             else:
-                barcode = raw_barcode.replace(' ', '')
+                barcode = normalize_so_number(raw_barcode.replace(' ', ''))
 
             start_time = datetime.utcnow()
             completed_time = start_time if pick_type_id == WILL_CALL_TYPE_ID else None
@@ -137,7 +138,7 @@ def kiosk_work_order_scan(branch, user_id):
 def kiosk_work_order_select(branch):
     ctx = _kiosk_context(branch)
     user_id = request.args.get('user_id')
-    barcode = (request.args.get('barcode') or '').strip()
+    barcode = normalize_so_number((request.args.get('barcode') or '').strip())
     if not user_id or not barcode:
         flash('A user and sales order barcode are required.', 'warning')
         return redirect(url_for('main.kiosk_work_orders', branch=branch))

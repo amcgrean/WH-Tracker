@@ -41,6 +41,11 @@
             </div>
         </div>
         <div id="smartScanResult" class="mt-2" style="display:none;"></div>
+        <div id="smartScanDone" class="mt-3 text-center" style="display:none;">
+            <button id="doneBtn" class="btn btn-lg btn-success" style="min-width: 200px;">
+                <i class="fas fa-check"></i> Done (5s)
+            </button>
+        </div>
     </div>
 
     <!-- Manual pick type buttons (fallback) -->
@@ -120,8 +125,8 @@
                 var cls = d.action === 'completed' ? 'info' : d.action === 'will_call_completed' ? 'success' : 'primary';
                 showResult(cls, d.message + ' (' + d.pick_type + ')');
                 input.value = '';
-                // Reload page after short delay to refresh incomplete picks table
-                setTimeout(function() { window.location.reload(); }, 1500);
+                // Show Done button with 5-second countdown, then auto-navigate back
+                showDoneCountdown();
             })
             .catch(function(err) {
                 btn.disabled = false;
@@ -134,6 +139,38 @@
             resultDiv.style.display = 'block';
             resultDiv.className = 'mt-2 alert alert-' + cls;
             resultDiv.textContent = msg;
+        }
+
+        function showDoneCountdown() {
+            // Hide scan controls, show Done button with countdown
+            var doneDiv = document.getElementById('smartScanDone');
+            doneDiv.style.display = 'block';
+            input.style.display = 'none';
+            btn.style.display = 'none';
+
+            var countdown = 5;
+            var doneBtn = document.getElementById('doneBtn');
+            var pickerSelectUrl = '{{ url_for("main.index") }}';
+
+            function updateBtn() {
+                doneBtn.innerHTML = '<i class="fas fa-check"></i> Done (' + countdown + 's)';
+            }
+            updateBtn();
+
+            var timer = setInterval(function() {
+                countdown--;
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    window.location.href = pickerSelectUrl;
+                } else {
+                    updateBtn();
+                }
+            }, 1000);
+
+            doneBtn.addEventListener('click', function() {
+                clearInterval(timer);
+                window.location.href = pickerSelectUrl;
+            });
         }
 
         btn.addEventListener('click', doSmartScan);
