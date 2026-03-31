@@ -226,14 +226,56 @@ class LocalSync:
             self.record_status(status)
             raise
 
+    def _update_dashboard_stats(self, data):
+        """Compute dashboard counts from already-fetched ERP data and push to
+        the dashboard_stats table so the web dashboard can read a single row
+        instead of running heavy multi-join queries."""
+        picks = data.get("picks", [])
+        work_orders = data.get("work_orders", [])
+
+        # Count distinct SOs (a pick line list may have multiple lines per SO)
+        seen_sos = set()
+        handling_sos = {}  # handling_code -> set of (system_id, so_id)
+        for p in picks:
+            key = (str(p.get('system_id', '')), str(p.get('so_number', '')))
+            seen_sos.add(key)
+            code = str(p.get('handling_code', '') or '').strip().upper() or '—'
+            handling_sos.setdefault(code, set()).add(key)
+
+        total_picks = len(seen_sos)
+        handling_breakdown = {code: len(sos) for code, sos in sorted(handling_sos.items())}
+        total_wo = len(work_orders)
+
+        try:
+            self.db_session.execute(
+                text(
+                    "UPDATE dashboard_stats "
+                    "SET open_picks = :picks, "
+                    "    handling_breakdown_json = :breakdown, "
+                    "    open_work_orders = :wo, "
+                    "    updated_at = :ts "
+                    "WHERE id = 1"
+                ),
+                {
+                    "picks": total_picks,
+                    "breakdown": json.dumps(handling_breakdown),
+                    "wo": total_wo,
+                    "ts": datetime.utcnow(),
+                },
+            )
+            self.db_session.commit()
+            print(f"[{datetime.now()}] Dashboard stats updated: {total_picks} picks, {total_wo} WOs")
+        except Exception as e:
+            self.db_session.rollback()
+            print(f"[{datetime.now()}] Failed to update dashboard_stats: {e}")
+
     def push_direct_to_db(self, data):
         # Legacy direct mirror tables are retired.
-        # sync_erp.py now only performs heartbeats and provides 'live' counts for the sync status dashboard.
-        
-        print(f"[{datetime.now()}] Heartbeat: Pushing status only (legacy mirror sync is retired).")
+        # Now updates pre-computed dashboard stats and records heartbeat.
+
+        print(f"[{datetime.now()}] Pushing dashboard stats and heartbeat...")
         try:
-            # We don't write to ERPMirrorPick, ERPMirrorWorkOrder or ERPDeliveryKPI anymore.
-            # They are replaced by normalized mirror tables synced via separate processes.
+            self._update_dashboard_stats(data)
             self.db_session.commit()
             print(f"[{datetime.now()}] Heartbeat recorded.")
         except Exception:

@@ -564,5 +564,23 @@ class FileVersion(db.Model):
 
 
 # -------------------------------------------------------------------
+# Pre-computed Dashboard Stats (updated by Pi sync worker)
+# -------------------------------------------------------------------
+
+class DashboardStats(db.Model):
+    """Single-row table holding pre-computed dashboard counts.
+
+    Updated by the Pi sync worker each cycle so the dashboard reads are
+    a single SELECT instead of multi-join ERP queries.
+    """
+    __tablename__ = 'dashboard_stats'
+    id = db.Column(db.Integer, primary_key=True)
+    open_picks = db.Column(db.Integer, nullable=False, default=0)
+    handling_breakdown_json = db.Column(db.Text, nullable=True)   # JSON dict {code: count}
+    open_work_orders = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+# -------------------------------------------------------------------
 # Audit Trail / Sync Batch Metadata
 # -------------------------------------------------------------------

@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
-from app.Models.models import Pickster, Pick, PickTypes, AuditEvent, POSubmission
+from app.Models.models import Pickster, Pick, PickTypes, AuditEvent, POSubmission, DashboardStats
 from app.Services.erp_service import ERPService
 from app.Routes.main import main_bp
 from app.Routes.main.helpers import (
@@ -23,11 +23,36 @@ from app.Routes.main.helpers import (
 logger = logging.getLogger(__name__)
 
 
+def _read_dashboard_stats():
+    """Read pre-computed counts from dashboard_stats (written by Pi sync worker).
+    Falls back to live ERP queries if the table is empty or stale (>5 min)."""
+    import json as _json
+    try:
+        row = DashboardStats.query.get(1)
+        if row and row.updated_at:
+            age = (datetime.utcnow() - row.updated_at).total_seconds()
+            if age < 300:  # fresh within 5 minutes
+                breakdown = {}
+                if row.handling_breakdown_json:
+                    try:
+                        breakdown = _json.loads(row.handling_breakdown_json)
+                    except (ValueError, TypeError):
+                        pass
+                return {
+                    'picks': {'total': row.open_picks, 'handling_breakdown': breakdown},
+                    'work_orders': row.open_work_orders,
+                }
+    except Exception:
+        logger.debug("dashboard_stats read failed, falling back to live queries")
+    return None
+
+
 def _build_homepage_data(roles, rep_id, branch):
     """Build role-appropriate dashboard data for the homepage.
 
-    Uses lightweight COUNT-only ERP queries (instead of fetching full rows)
-    and runs independent queries in parallel via a thread pool.
+    Reads pre-computed picks/WO counts from dashboard_stats (updated by the
+    Pi sync worker).  Falls back to live ERP queries if the cached row is
+    missing or stale.  Other stats still use the thread pool.
     """
     data = {'roles_active': []}
     roles = set(roles or [])
@@ -42,7 +67,12 @@ def _build_homepage_data(roles, rep_id, branch):
     need_dispatch = bool(roles & {'dispatch', 'delivery', 'admin', 'ops'})
     need_purchasing = bool(roles & {'purchasing', 'admin', 'ops'})
 
-    # ── Submit all independent tasks to a thread pool ──
+    # ── Try pre-computed stats first (single row read) ──
+    cached_stats = None
+    if need_warehouse or need_work_orders:
+        cached_stats = _read_dashboard_stats()
+
+    # ── Submit remaining independent tasks to a thread pool ──
     futures = {}
     with ThreadPoolExecutor(max_workers=6) as pool:
         if need_sales:
@@ -50,13 +80,14 @@ def _build_homepage_data(roles, rep_id, branch):
                 erp.get_sales_hub_metrics, rep_id=rep_id or ''
             )
         if need_warehouse:
-            futures['picks'] = pool.submit(erp.get_open_picks_count)
             futures['completed_today'] = pool.submit(
                 _count_completed_today, today
             )
+            if not cached_stats:
+                futures['picks'] = pool.submit(erp.get_open_picks_count)
         if need_supervisor:
             futures['pickers'] = pool.submit(_get_picker_counts)
-        if need_work_orders:
+        if need_work_orders and not cached_stats:
             futures['work_orders'] = pool.submit(erp.get_open_work_orders_count)
         if need_dispatch:
             futures['dispatch'] = pool.submit(
@@ -88,7 +119,7 @@ def _build_homepage_data(roles, rep_id, branch):
             data['roles_active'].append('sales')
 
     if need_warehouse:
-        picks_data = results.get('picks')
+        picks_data = cached_stats['picks'] if cached_stats else results.get('picks')
         if picks_data:
             data['warehouse'] = {
                 'open_picks': picks_data['total'],
@@ -112,7 +143,7 @@ def _build_homepage_data(roles, rep_id, branch):
             data['roles_active'].append('supervisor')
 
     if need_work_orders:
-        wo_count = results.get('work_orders')
+        wo_count = cached_stats['work_orders'] if cached_stats else results.get('work_orders')
         data['work_orders'] = {'open_count': wo_count if wo_count is not None else None}
 
     if need_dispatch:
