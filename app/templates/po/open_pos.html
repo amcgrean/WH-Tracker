@@ -12,17 +12,22 @@
         — orders with open status in ERP.
       </p>
     </div>
-    {% if 'admin' in user_roles %}
-    <form method="GET" class="d-flex align-items-center" style="gap:8px;">
-      <select name="branch" class="form-control form-control-sm" style="width:auto;"
-              onchange="this.form.submit()">
-        <option value="">All branches</option>
-        {% for b in [('20GR','Grimes'), ('25BW','Birchwood'), ('40CV','Coralville'), ('10FD','Fort Dodge')] %}
-        <option value="{{ b[0] }}" {{ 'selected' if branch_param == b[0] else '' }}>{{ b[0] }} — {{ b[1] }}</option>
-        {% endfor %}
-      </select>
-    </form>
-    {% endif %}
+    <div class="d-flex align-items-center" style="gap:8px;">
+      {% if 'admin' in user_roles %}
+      <form method="GET" class="d-flex align-items-center" style="gap:8px;">
+        <select name="branch" class="form-control form-control-sm" style="width:auto;"
+                onchange="this.form.submit()">
+          <option value="">All branches</option>
+          {% for b in [('20GR','Grimes'), ('25BW','Birchwood'), ('40CV','Coralville'), ('10FD','Fort Dodge')] %}
+          <option value="{{ b[0] }}" {{ 'selected' if branch_param == b[0] else '' }}>{{ b[0] }} — {{ b[1] }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <button id="refreshCacheBtn" class="btn btn-sm btn-outline-secondary" title="Refresh PO data from ERP">
+        <i class="fas fa-sync-alt mr-1"></i>Refresh
+      </button>
+      {% endif %}
+    </div>
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -103,4 +108,21 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('refreshCacheBtn') && document.getElementById('refreshCacheBtn').addEventListener('click', function() {
+  var btn = this;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Refreshing…';
+  fetch('{{ url_for("po.api_refresh_po_cache") }}', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) { location.reload(); }
+      else { alert('Refresh failed: ' + data.error); btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Refresh'; }
+    })
+    .catch(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Refresh'; });
+});
+</script>
 {% endblock %}

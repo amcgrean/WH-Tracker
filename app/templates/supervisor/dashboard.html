@@ -21,6 +21,10 @@
         </div>
     </div>
 
+    <!-- Branch Stats Row -->
+    <div class="row mb-4 animate-fade-in" id="branch-stats-row" style="display:none !important;">
+    </div>
+
     <div class="row">
         <!-- Quick Links -->
         <div class="col-lg-3 col-md-6 mb-4 animate-fade-in delay-1">
@@ -168,4 +172,68 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var REFRESH_MS = 30000;
+
+  function renderBranchStats(branches) {
+    var row = document.getElementById('branch-stats-row');
+    if (!branches || !branches.length) return;
+
+    var html = '';
+    branches.forEach(function (b) {
+      var breakdown = b.handling_breakdown || {};
+      var keys = Object.keys(breakdown).sort();
+      var breakdownHtml = keys.length
+        ? keys.map(function (k) {
+            return '<span class="badge badge-light mr-1 mb-1" style="font-size:0.75rem;">'
+              + k + ': <strong>' + breakdown[k] + '</strong></span>';
+          }).join('')
+        : '<span class="text-muted small">—</span>';
+
+      var age = '';
+      if (b.updated_at) {
+        var diffSec = Math.round((Date.now() - new Date(b.updated_at).getTime()) / 1000);
+        age = diffSec < 60 ? diffSec + 's ago' : Math.round(diffSec / 60) + 'm ago';
+      }
+
+      html += '<div class="col-md-3 col-sm-6 mb-3">'
+        + '<div class="glass-card p-3">'
+        + '<div class="d-flex justify-content-between align-items-start mb-2">'
+        + '<span class="font-weight-bold text-uppercase" style="font-size:0.8rem;letter-spacing:0.05em;">' + b.system_id + '</span>'
+        + '<span class="text-muted" style="font-size:0.7rem;">' + age + '</span>'
+        + '</div>'
+        + '<div class="d-flex justify-content-between mb-2">'
+        + '<div>'
+        + '<div class="small text-muted text-uppercase" style="font-size:0.65rem;letter-spacing:0.08em;">Open Picks</div>'
+        + '<div class="font-weight-bold" style="font-size:1.4rem;color:var(--beisser-green);">' + b.open_picks + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div class="mt-1" style="line-height:1.8;">' + breakdownHtml + '</div>'
+        + '</div>'
+        + '</div>';
+    });
+
+    row.innerHTML = html;
+    row.style.display = '';
+    row.style.removeProperty('display');
+    row.classList.remove('d-none');
+  }
+
+  function loadBranchStats() {
+    fetch('/api/branch-stats')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (data && data.branches) renderBranchStats(data.branches);
+      })
+      .catch(function (e) { console.warn('Branch stats unavailable', e); });
+  }
+
+  loadBranchStats();
+  setInterval(loadBranchStats, REFRESH_MS);
+})();
+</script>
 {% endblock %}

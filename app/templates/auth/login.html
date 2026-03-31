@@ -102,7 +102,7 @@
           {% endfor %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('auth.login') }}" autocomplete="off">
+        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next', '')) }}" autocomplete="off">
             <div class="form-group">
                 <label for="email" class="font-weight-semibold" style="font-size:.85rem;">Email address</label>
                 <input type="email" class="form-control" id="email" name="email"

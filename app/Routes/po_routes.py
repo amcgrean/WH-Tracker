@@ -16,13 +16,14 @@ Open PO routes (supervisor/admin):
     GET  /po/open-pos/<po_number>     — full PO detail
 
 API (JSON):
-    GET   /po/api/search              — PO search (q, limit)
-    GET   /po/api/po/<po_number>      — full PO detail JSON
-    POST  /po/api/upload              — upload photo to R2
-    POST  /po/api/submissions         — create submission
-    GET   /po/api/submissions         — list submissions (polling)
-    GET   /po/api/submissions/<id>    — single submission JSON
-    PATCH /po/api/submissions/<id>    — update status/notes
+    GET   /po/api/search                 — PO search (q, limit)
+    GET   /po/api/po/<po_number>         — full PO detail JSON
+    POST  /po/api/upload                 — upload photo to R2
+    POST  /po/api/submissions            — create submission
+    GET   /po/api/submissions            — list submissions (polling)
+    GET   /po/api/submissions/<id>       — single submission JSON
+    PATCH /po/api/submissions/<id>       — update status/notes
+    POST  /po/api/admin/refresh-cache    — force-refresh app_po_header mat view (admin)
 """
 from __future__ import annotations
 
@@ -473,6 +474,24 @@ def api_list_submissions():
 def api_get_submission(submission_id):
     sub = POSubmission.query.get_or_404(submission_id)
     return jsonify(_sub_to_dict(sub))
+
+
+@po_bp.route("/api/admin/refresh-cache", methods=["POST"])
+@role_required("admin")
+def api_refresh_po_cache():
+    """Force-refresh the app_po_header materialized view (admin only).
+
+    The view is also refreshed automatically every 15 minutes by pg_cron.
+    Use this when you need fresh data immediately after an ERP sync.
+    """
+    from sqlalchemy import text
+    try:
+        db.session.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY public.app_po_header"))
+        db.session.commit()
+        return jsonify({"ok": True, "message": "PO cache refreshed."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @po_bp.route("/api/submissions/<submission_id>", methods=["PATCH"])

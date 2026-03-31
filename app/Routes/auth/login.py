@@ -54,10 +54,11 @@ def login():
             flash(f"Could not send code: {msg}", "danger")
             return render_template("auth/login.html")
 
-        # Store email in session so verify step knows who we're verifying
+        # Store email (and destination) in session so verify step can use them
         session["otp_pending_email"] = email
+        next_url = request.args.get("next") or ""
         flash("A sign-in code has been sent to your email.", "info")
-        return redirect(url_for("auth.verify"))
+        return redirect(url_for("auth.verify", next=next_url) if next_url else url_for("auth.verify"))
 
     return render_template("auth/login.html")
 
