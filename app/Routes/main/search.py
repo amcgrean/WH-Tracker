@@ -1,15 +1,16 @@
 from flask import request, url_for, jsonify
 
-from app.Models.models import Pickster, Pick
+from app.Models.models import Pickster, Pick, WorkOrder
 from app.Services.erp_service import ERPService
 from app.Routes.main import main_bp
 from app.Routes.main.helpers import localize_to_cst
+from app import db
 
 
 @main_bp.route('/search_results')
 def search_results():
     query = request.args.get('query', '').strip()
-    if not query or len(query) < 2:
+    if not query:
         return jsonify([])
 
     results = []
@@ -46,7 +47,29 @@ def search_results():
     except Exception:
         pass
 
-    # 2. Pick / picker search (existing behaviour)
+    # 2. Work orders
+    try:
+        like_q = f'%{query}%'
+        work_orders = WorkOrder.query.filter(
+            WorkOrder.is_deleted == False,
+            db.or_(
+                WorkOrder.wo_id.ilike(like_q),
+                WorkOrder.source_id.ilike(like_q),
+                WorkOrder.item_ptr.ilike(like_q),
+            )
+        ).limit(5).all()
+        for wo in work_orders:
+            status = str(wo.wo_status or 'Open').title()
+            results.append({
+                'title': f'WO #{wo.wo_id}',
+                'subtitle': f'SO {wo.source_id} — {wo.item_ptr or ""} — {status}',
+                'url': url_for('main.supervisor_work_orders'),
+                'type': 'work_order',
+            })
+    except Exception:
+        pass
+
+    # 3. Pick / picker search
     try:
         picks = Pick.query.join(Pickster).filter(
             (Pick.barcode_number.like(f'%{query}%')) |
@@ -62,4 +85,4 @@ def search_results():
     except Exception:
         pass
 
-    return jsonify(results[:12])
+    return jsonify(results[:15])

@@ -146,8 +146,8 @@
                         <div class="topbar-search-inner">
                             <i class="fas fa-search topbar-search-icon"></i>
                             <input type="text" id="searchInput" class="topbar-search-input"
-                                placeholder="Search orders & customers..."
-                                autocomplete="off" aria-label="Search orders and customers">
+                                placeholder="Search orders, customers, work orders..."
+                                autocomplete="off" aria-label="Search orders, customers, and work orders">
                             <span class="topbar-search-clear" id="searchClearBtn" title="Clear search" role="button" aria-label="Clear search">
                                 <i class="fas fa-times"></i>
                             </span>
@@ -281,11 +281,14 @@
             const $input = $('#searchInput');
             const $results = $('#searchResultsContainer');
             const $clearBtn = $('#searchClearBtn');
-            const TYPE_BADGE = { order: 'badge-primary', customer: 'badge-success', pick: 'badge-secondary' };
+            const TYPE_BADGE = { order: 'badge-primary', customer: 'badge-success', pick: 'badge-secondary', work_order: 'badge-warning' };
             let searchTimer = null;
+            let searchXhr = null;
 
             function doSearch(query) {
-                $.getJSON('/search_results?query=' + encodeURIComponent(query), function (data) {
+                if (searchXhr) searchXhr.abort();
+                $results.empty().show().append('<div class="search-result-empty"><i class="fas fa-spinner fa-spin mr-1"></i> Searching...</div>');
+                searchXhr = $.getJSON('/search_results?query=' + encodeURIComponent(query), function (data) {
                     $results.empty().show();
                     if (data.length === 0) {
                         $results.append('<div class="search-result-empty">No matches found</div>');
@@ -293,13 +296,14 @@
                     }
                     data.forEach(function(item) {
                         const badgeClass = TYPE_BADGE[item.type] || 'badge-light';
+                        const label = item.type === 'work_order' ? 'WO' : item.type;
                         const title = $('<span>').text(item.title).html();
                         const subtitle = $('<span>').text(item.subtitle || '').html();
                         $results.append(
                             '<a href="' + item.url + '" class="search-result-item">' +
                             '<div class="d-flex align-items-center justify-content-between">' +
                             '<span class="search-result-title">' + title + '</span>' +
-                            '<span class="badge ' + badgeClass + ' search-result-badge">' + item.type + '</span>' +
+                            '<span class="badge ' + badgeClass + ' search-result-badge">' + label + '</span>' +
                             '</div>' +
                             (subtitle ? '<div class="search-result-subtitle">' + subtitle + '</div>' : '') +
                             '</a>'
@@ -312,8 +316,8 @@
                 const query = $(this).val().trim();
                 $clearBtn.toggle(query.length > 0);
                 clearTimeout(searchTimer);
-                if (query.length > 1) {
-                    searchTimer = setTimeout(function() { doSearch(query); }, 400);
+                if (query.length >= 1) {
+                    searchTimer = setTimeout(function() { doSearch(query); }, 150);
                 } else {
                     $results.hide().empty();
                 }
