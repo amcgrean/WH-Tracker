@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Purchasing Command Center{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-4">
+    <div>
+      <h1 class="display-4 font-weight-bold mb-1 text-gradient">Purchasing Command Center</h1>
+      <p class="text-muted mb-0">System-scoped control tower for buyers, suppliers, receiving, and approvals.</p>
+    </div>
+    <div class="mt-3 mt-lg-0 text-lg-right">
+      <div class="badge badge-light border px-3 py-2">Branch: {{ dashboard.header.branch }}</div>
+      <div class="small text-muted mt-2">Buyer load: {{ dashboard.header.buyer_load }} active | Open approvals: {{ dashboard.header.open_approvals }}</div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    {% for label, value, color in [
+      ('Open POs', dashboard.kpis.open_pos, 'var(--beisser-green)'),
+      ('Overdue POs', dashboard.kpis.overdue_pos, '#c0392b'),
+      ('Suggested Buys Pending', dashboard.kpis.suggested_buys_pending, 'var(--beisser-gold)'),
+      ('Receiving Issues', dashboard.kpis.receiving_issues, '#b9770e'),
+      ('Spend at Risk', '${:,.0f}'.format(dashboard.kpis.spend_at_risk), '#1f3c88')
+    ] %}
+    <div class="col-md-6 col-xl mb-3">
+      <div class="glass-card h-100 p-4">
+        <div class="text-uppercase small text-muted font-weight-bold mb-2">{{ label }}</div>
+        <div class="font-weight-bold" style="font-size:2rem;color:{{ color }};">{{ value }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="row">
+    <div class="col-xl-7 mb-4">
+      <div class="glass-card h-100">
+        <div class="card-header-ops d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-code-branch mr-2"></i>Branch Health</span>
+          <a href="{{ url_for('purchasing.api_manager_dashboard') }}" class="small font-weight-bold text-white-50">JSON</a>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            {% for branch in dashboard.branch_health %}
+            <div class="col-md-6 col-xl-3 mb-3">
+              <div class="p-3 rounded h-100" style="background:rgba(0,0,0,0.03);border:1px solid rgba(0,0,0,0.04);">
+                <div class="font-weight-bold text-uppercase mb-2">{{ branch.system_id }}</div>
+                <div class="small text-muted">Open POs</div>
+                <div class="font-weight-bold h4 mb-2">{{ branch.open_pos }}</div>
+                <div class="small text-muted">Overdue / Issues</div>
+                <div class="font-weight-bold">{{ branch.overdue_pos }} / {{ branch.issues }}</div>
+              </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-muted">No branch metrics available yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-5 mb-4">
+      <div class="glass-card h-100">
+        <div class="card-header-ops"><i class="fas fa-users mr-2"></i>Buyer Workload</div>
+        <div class="list-group list-group-flush bg-transparent">
+          {% for buyer in dashboard.buyer_workload %}
+          <div class="list-group-item bg-transparent d-flex justify-content-between align-items-center border-0 border-bottom">
+            <div>
+              <div class="font-weight-bold">{{ buyer.buyer_name }}</div>
+              <div class="small text-muted">{{ buyer.overdue_items }} overdue | {{ buyer.blocked_approvals }} blocked approvals</div>
+            </div>
+            <span class="badge badge-light border px-3 py-2">{{ buyer.open_items }} open</span>
+          </div>
+          {% else %}
+          <div class="list-group-item bg-transparent text-muted border-0">No workload rows available yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-xl-6 mb-4">
+      <div class="glass-card h-100">
+        <div class="card-header-ops"><i class="fas fa-industry mr-2"></i>Supplier Watchlist</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="thead-light">
+                <tr>
+                  <th>Supplier</th>
+                  <th>Late POs</th>
+                  <th>System</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for supplier in dashboard.supplier_watchlist %}
+                <tr>
+                  <td class="font-weight-bold">{{ supplier.supplier_name }}</td>
+                  <td>{{ supplier.late_po_count or 0 }}</td>
+                  <td>{{ supplier.system_id or 'Mixed' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" class="text-center text-muted py-4">No overdue supplier watchlist data yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-6 mb-4">
+      <div class="glass-card h-100">
+        <div class="card-header-ops"><i class="fas fa-exclamation-triangle mr-2"></i>Priority Exceptions</div>
+        <div class="list-group list-group-flush bg-transparent">
+          {% for item in dashboard.priority_exceptions %}
+          <a class="list-group-item bg-transparent border-0 border-bottom text-dark text-decoration-none"
+             href="{% if item.po_number %}{{ url_for('purchasing.po_workspace', po_number=item.po_number) }}{% else %}{{ url_for('purchasing.suggested_buys') }}{% endif %}">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="font-weight-bold">{{ item.title }}</div>
+                <div class="small text-muted">{{ item.description }}</div>
+              </div>
+              <span class="badge badge-{{ 'danger' if item.priority == 'high' else 'secondary' }}">{{ item.priority }}</span>
+            </div>
+          </a>
+          {% else %}
+          <div class="list-group-item bg-transparent text-muted border-0">No priority exceptions right now.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-header-ops"><i class="fas fa-stream mr-2"></i>Recent Activity</div>
+    <div class="card-body">
+      <div class="row">
+        {% for item in dashboard.recent_activity %}
+        <div class="col-lg-4 mb-3">
+          <div class="p-3 rounded h-100" style="background:rgba(0,0,0,0.03);border:1px solid rgba(0,0,0,0.04);">
+            <div class="small text-uppercase text-muted mb-2">{{ item.activity_type }}</div>
+            <div class="font-weight-bold mb-1">{{ item.summary }}</div>
+            <div class="small text-muted">{{ item.when[:16].replace('T', ' ') if item.when else '-' }}</div>
+          </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-muted">No activity has been captured yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

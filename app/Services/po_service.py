@@ -16,6 +16,7 @@ on po_number and system_id — no TRIM needed for those columns.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import func, text
@@ -34,7 +35,7 @@ def search_purchase_orders(q: str, limit: int = 25) -> list[dict]:
     """
     q_like = f"%{q}%"
     sql = text("""
-        SELECT po_number, po_id, supplier_name, supplier_code, system_id, branch_code,
+        SELECT po_number, po_id, supplier_name, supplier_code, system_id,
                expect_date, order_date, po_status, receipt_count
         FROM app_po_search
         WHERE po_number ILIKE :q
@@ -48,11 +49,11 @@ def search_purchase_orders(q: str, limit: int = 25) -> list[dict]:
 
 
 def list_open_pos_for_branch(branch_code: Optional[str], limit: int = 500) -> list[dict]:
-    """Return open POs for a branch (or all branches when branch_code is None).
+    """Return open POs for a branch/system (or all branches when branch_code is None).
 
     "Open" means po_status (case-insensitive) NOT IN
     ('closed', 'complete', 'cancelled', 'void', 'received').
-    Uses app_po_search view which includes po_number and branch_code.
+    Uses app_po_search view and scopes on system_id.
     """
     open_filter = (
         "UPPER(COALESCE(po_status, '')) NOT IN "
@@ -151,6 +152,8 @@ def _serialize_row(row) -> dict:
     for k, v in dict(row).items():
         if isinstance(v, datetime):
             result[k] = v.isoformat()
+        elif isinstance(v, Decimal):
+            result[k] = float(v)
         else:
             result[k] = v
     return result
