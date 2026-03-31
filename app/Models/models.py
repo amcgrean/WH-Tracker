@@ -568,13 +568,13 @@ class FileVersion(db.Model):
 # -------------------------------------------------------------------
 
 class DashboardStats(db.Model):
-    """Single-row table holding pre-computed dashboard counts.
+    """Per-branch row holding pre-computed dashboard counts.
 
-    Updated by the Pi sync worker each cycle so the dashboard reads are
-    a single SELECT instead of multi-join ERP queries.
+    One row per branch (system_id).  Updated by the Pi sync worker each cycle
+    so the dashboard reads are a single SELECT instead of multi-join ERP queries.
     """
     __tablename__ = 'dashboard_stats'
-    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.String(32), primary_key=True)  # e.g. '20GR', '25BW'
     open_picks = db.Column(db.Integer, nullable=False, default=0)
     handling_breakdown_json = db.Column(db.Text, nullable=True)   # JSON dict {code: count}
     open_work_orders = db.Column(db.Integer, nullable=False, default=0)

@@ -227,44 +227,63 @@ class LocalSync:
             raise
 
     def _update_dashboard_stats(self, data):
-        """Compute dashboard counts from already-fetched ERP data and push to
-        the dashboard_stats table so the web dashboard can read a single row
-        instead of running heavy multi-join queries."""
+        """Compute per-branch dashboard counts from already-fetched ERP data and
+        upsert one row per branch into dashboard_stats."""
         picks = data.get("picks", [])
         work_orders = data.get("work_orders", [])
 
-        # Count distinct SOs (a pick line list may have multiple lines per SO)
-        seen_sos = set()
-        handling_sos = {}  # handling_code -> set of (system_id, so_id)
+        # Group distinct SOs and handling codes by branch (system_id)
+        branch_seen_sos = {}   # system_id -> set of (system_id, so_id)
+        branch_handling = {}   # system_id -> {handling_code -> set of (system_id, so_id)}
         for p in picks:
-            key = (str(p.get('system_id', '')), str(p.get('so_number', '')))
-            seen_sos.add(key)
-            code = str(p.get('handling_code', '') or '').strip().upper() or '—'
-            handling_sos.setdefault(code, set()).add(key)
+            sid = str(p.get('system_id', '') or '').strip()
+            if not sid:
+                continue
+            key = (sid, str(p.get('so_number', '')))
+            branch_seen_sos.setdefault(sid, set()).add(key)
+            code = str(p.get('handling_code', '') or '').strip().upper() or 'UNROUTED'
+            branch_handling.setdefault(sid, {}).setdefault(code, set()).add(key)
 
-        total_picks = len(seen_sos)
-        handling_breakdown = {code: len(sos) for code, sos in sorted(handling_sos.items())}
-        total_wo = len(work_orders)
+        # Count open WOs per branch
+        branch_wo = {}
+        for wo in work_orders:
+            sid = str(wo.get('branch_code', '') or '').strip()
+            if sid:
+                branch_wo[sid] = branch_wo.get(sid, 0) + 1
+
+        all_branches = set(branch_seen_sos.keys()) | set(branch_wo.keys())
+        now = datetime.utcnow()
 
         try:
-            self.db_session.execute(
-                text(
-                    "UPDATE dashboard_stats "
-                    "SET open_picks = :picks, "
-                    "    handling_breakdown_json = :breakdown, "
-                    "    open_work_orders = :wo, "
-                    "    updated_at = :ts "
-                    "WHERE id = 1"
-                ),
-                {
-                    "picks": total_picks,
-                    "breakdown": json.dumps(handling_breakdown),
-                    "wo": total_wo,
-                    "ts": datetime.utcnow(),
-                },
-            )
+            for sid in all_branches:
+                total_picks = len(branch_seen_sos.get(sid, set()))
+                handling = {
+                    code: len(sos)
+                    for code, sos in sorted(branch_handling.get(sid, {}).items())
+                }
+                total_wo = branch_wo.get(sid, 0)
+                self.db_session.execute(
+                    text(
+                        "INSERT INTO dashboard_stats "
+                        "  (system_id, open_picks, handling_breakdown_json, open_work_orders, updated_at) "
+                        "VALUES (:sid, :picks, :breakdown, :wo, :ts) "
+                        "ON CONFLICT (system_id) DO UPDATE SET "
+                        "  open_picks = :picks, "
+                        "  handling_breakdown_json = :breakdown, "
+                        "  open_work_orders = :wo, "
+                        "  updated_at = :ts"
+                    ),
+                    {
+                        "sid": sid,
+                        "picks": total_picks,
+                        "breakdown": json.dumps(handling),
+                        "wo": total_wo,
+                        "ts": now,
+                    },
+                )
             self.db_session.commit()
-            print(f"[{datetime.now()}] Dashboard stats updated: {total_picks} picks, {total_wo} WOs")
+            total = sum(len(s) for s in branch_seen_sos.values())
+            print(f"[{datetime.now()}] Dashboard stats updated: {total} picks across {len(all_branches)} branches")
         except Exception as e:
             self.db_session.rollback()
             print(f"[{datetime.now()}] Failed to update dashboard_stats: {e}")

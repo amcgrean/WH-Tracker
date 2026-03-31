@@ -23,25 +23,52 @@ from app.Routes.main.helpers import (
 logger = logging.getLogger(__name__)
 
 
-def _read_dashboard_stats():
+def _read_dashboard_stats(branch=None):
     """Read pre-computed counts from dashboard_stats (written by Pi sync worker).
-    Falls back to live ERP queries if the table is empty or stale (>5 min)."""
+
+    Returns aggregated stats for the given branch (or all branches if None).
+    DSM is treated as 20GR + 25BW combined.
+    Falls back to None if rows are missing or stale (>5 min).
+    """
     import json as _json
     try:
-        row = DashboardStats.query.get(1)
-        if row and row.updated_at:
-            age = (datetime.utcnow() - row.updated_at).total_seconds()
-            if age < 300:  # fresh within 5 minutes
-                breakdown = {}
-                if row.handling_breakdown_json:
-                    try:
-                        breakdown = _json.loads(row.handling_breakdown_json)
-                    except (ValueError, TypeError):
-                        pass
-                return {
-                    'picks': {'total': row.open_picks, 'handling_breakdown': breakdown},
-                    'work_orders': row.open_work_orders,
-                }
+        if branch == 'DSM':
+            branch_ids = ['20GR', '25BW']
+        elif branch:
+            branch_ids = [branch]
+        else:
+            branch_ids = None
+
+        if branch_ids:
+            rows = DashboardStats.query.filter(DashboardStats.system_id.in_(branch_ids)).all()
+        else:
+            rows = DashboardStats.query.all()
+
+        if not rows:
+            return None
+
+        now = datetime.utcnow()
+        for row in rows:
+            if not row.updated_at:
+                return None
+            if (now - row.updated_at).total_seconds() >= 300:
+                return None
+
+        total_picks = sum(r.open_picks or 0 for r in rows)
+        total_wo = sum(r.open_work_orders or 0 for r in rows)
+        merged_breakdown = {}
+        for row in rows:
+            if row.handling_breakdown_json:
+                try:
+                    for code, cnt in _json.loads(row.handling_breakdown_json).items():
+                        merged_breakdown[code] = merged_breakdown.get(code, 0) + cnt
+                except (ValueError, TypeError):
+                    pass
+
+        return {
+            'picks': {'total': total_picks, 'handling_breakdown': merged_breakdown},
+            'work_orders': total_wo,
+        }
     except Exception:
         logger.debug("dashboard_stats read failed, falling back to live queries")
     return None
@@ -70,7 +97,7 @@ def _build_homepage_data(roles, rep_id, branch):
     # ── Try pre-computed stats first (single row read) ──
     cached_stats = None
     if need_warehouse or need_work_orders:
-        cached_stats = _read_dashboard_stats()
+        cached_stats = _read_dashboard_stats(branch)
 
     # ── Submit remaining independent tasks to a thread pool ──
     futures = {}
