@@ -79,20 +79,19 @@ def _build_homepage_data(roles, rep_id, branch):
     # ── Supervisor ──
     if roles & {'supervisor', 'admin', 'ops'}:
         try:
-            pickers = Pickster.query.filter(
+            total_pickers = Pickster.query.filter(
                 (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None))
-            ).all()
-            active_ids = set()
-            for pk in pickers:
-                has_open = Pick.query.filter_by(
-                    picker_id=pk.id, completed_time=None
-                ).first()
-                if has_open:
-                    active_ids.add(pk.id)
+            ).count()
+            active_count = db.session.query(
+                func.count(func.distinct(Pick.picker_id))
+            ).join(Pickster, Pick.picker_id == Pickster.id).filter(
+                (Pickster.user_type == 'picker') | (Pickster.user_type.is_(None)),
+                Pick.completed_time.is_(None),
+            ).scalar() or 0
             data['supervisor'] = {
-                'total_pickers': len(pickers),
-                'active_pickers': len(active_ids),
-                'idle_pickers': len(pickers) - len(active_ids),
+                'total_pickers': total_pickers,
+                'active_pickers': active_count,
+                'idle_pickers': total_pickers - active_count,
             }
         except Exception:
             logger.exception("Homepage: failed to load supervisor metrics")
@@ -146,7 +145,7 @@ def _build_homepage_data(roles, rep_id, branch):
 def work_center():
     roles = session.get('user_roles', [])
     rep_id = session.get('user_rep_id', '')
-    branch = session.get('selected_branch', '')
+    branch = session.get('selected_branch') or None
     homepage_data = _build_homepage_data(roles, rep_id, branch)
     return render_template('workcenter.html', data=homepage_data)
 
