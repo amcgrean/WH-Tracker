@@ -754,9 +754,10 @@ class ERPMirrorItemSupplier(db.Model, MirrorSyncMetadataMixin):
     min_order_qty = db.Column(db.Numeric(18, 4), nullable=True)
     is_primary = db.Column(db.Boolean, nullable=True)
     branch_code = db.Column(db.String(32), nullable=True, index=True)
-    __table_args__ = (
-        db.UniqueConstraint('item_ptr', 'supplier_key', name='uq_erp_mirror_item_supplier_key'),
-    )
+    # Unique on (COALESCE(system_id,''), item_ptr, supplier_key) — enforced via
+    # functional index in migration s2t3u4v5w6x7 (not a SQLAlchemy UniqueConstraint
+    # because SQLAlchemy can't express COALESCE in a constraint).
+    __table_args__ = ()
 
 
 class ERPMirrorSupplier(db.Model, MirrorSyncMetadataMixin):
