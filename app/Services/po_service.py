@@ -151,7 +151,11 @@ def get_purchase_order(po_number: str) -> Optional[dict]:
         WHERE po_number = :po_number
         LIMIT 1
     """)
-    header_row = db.session.execute(header_sql, {"po_number": po_number}).mappings().first()
+    try:
+        header_row = db.session.execute(header_sql, {"po_number": po_number}).mappings().first()
+    except Exception:
+        current_app.logger.debug("app_po_header lookup failed for %s", po_number, exc_info=True)
+        return None
     if not header_row:
         return None
 
@@ -168,14 +172,22 @@ def get_purchase_order(po_number: str) -> Optional[dict]:
         WHERE po_number = :po_number
         ORDER BY {line_order}
     """)
-    lines_rows = db.session.execute(lines_sql, {"po_number": po_number}).mappings().all()
+    try:
+        lines_rows = db.session.execute(lines_sql, {"po_number": po_number}).mappings().all()
+    except Exception:
+        current_app.logger.debug("app_po_detail lookup failed for %s", po_number, exc_info=True)
+        lines_rows = []
 
     receiving_sql = text("""
         SELECT * FROM app_po_receiving_summary
         WHERE po_number = :po_number
         LIMIT 1
     """)
-    receiving_row = db.session.execute(receiving_sql, {"po_number": po_number}).mappings().first()
+    try:
+        receiving_row = db.session.execute(receiving_sql, {"po_number": po_number}).mappings().first()
+    except Exception:
+        current_app.logger.debug("app_po_receiving_summary lookup failed for %s", po_number, exc_info=True)
+        receiving_row = None
 
     return {
         "header": _serialize_row(header_row),
