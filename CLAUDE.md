@@ -260,9 +260,56 @@ The shipment sequence suffix (e.g. `-001`) is parsed separately and stored as-is
 
 ## Consolidation Roadmap
 
-This app is the single operational platform. Other apps are being merged in:
-- **po-app** (`amcgrean/po-app`, TypeScript) — Purchase order management. Next to be migrated. DB tables likely already exist since it shares the same Postgres. R2 storage already configured.
-- **estimating-app** / **beisser-takeoff** — Estimating/takeoff tools. Future migration. Will need file attachments (R2 ready for this).
-- **po-pics** (`amcgrean/po-pics`, TypeScript) — PO photo capture. Will fold into PO module.
+**The direction has reversed.** WH-Tracker modules are being migrated INTO
+**beisser-takeoff** (Next.js, `amcgrean/beisser-takeoff`), which becomes the
+single unified app deployed on **Fly.io**. WH-Tracker (Flask) stays alive as
+the API backend + ERP sync worker until each module is fully migrated.
 
-The app is being rebranded from "WH-Tracker / Beisser Ops" to **LiveEdge** (separate effort in progress).
+### Target architecture (end state)
+```
+beisser.cloud  →  beisser-takeoff (Next.js, Fly.io)   ← all UI + API routes
+                  sync_erp.py (Fly.io)                 ← background worker only
+```
+
+### Migration order
+1. **Auth** — beisser-takeoff adopts WH-Tracker OTP flow (do first, unblocks everything)
+2. **Sales/Transactions** — most overlap with estimating users already there
+3. **Warehouse/Picking** — kiosk workflows, self-contained
+4. **Dispatch** — delivery tracking and route management
+5. **Purchasing** — most complex, leave for last
+
+### Per-module migration pattern
+For each module:
+1. Build the Next.js page/API routes in beisser-takeoff
+2. Port the ERP queries from `erp_service.py` (Python) to TypeScript functions
+   hitting Supabase directly (mirror tables are already synced there)
+3. Cut over the nav link; retire the Flask route
+4. Flask route can stay as a redirect stub during transition
+
+### What's been completed (merge prep — 2026-04-01)
+- `estimating_user_id INTEGER` column added to `app_users` (migration `t3u4v5w6x7y8`)
+- Estimating nav section added to WH-Tracker sidebar (role-gated: estimator/designer/admin)
+- `GET /estimating` redirect → `ESTIMATING_APP_URL` env var
+- `GET /api/health` — full readiness check (DB ping + version)
+- `GET /api/customers/search` — ERP customer search for cross-app use (session or X-Api-Key auth)
+- All 9 estimator/designer accounts created in `app_users` and linked via `estimating_user_id`
+- Legacy `bids.user.password` values replaced with `'OTP_AUTH_ONLY'`
+- `docs/migration-state.md` — full table inventory and migration chain
+
+### Fly secrets required
+```
+ESTIMATING_APP_URL=https://beisser.cloud
+INTERNAL_API_KEY=<32-byte hex>           # shared secret for cross-app API calls
+```
+
+### Database state
+- **Supabase project**: `vyatosniqboeqzadyqmr` (us-east-1)
+- **`public` schema** — WH-Tracker (Flask/Alembic managed). Current head: `t3u4v5w6x7y8`
+- **`bids` schema** — beisser-takeoff (Drizzle managed). All tables present, data migrated from Neon.
+- Both schemas share one Postgres instance. No table name conflicts.
+- beisser-takeoff uses `BIDS_DATABASE_URL` (Supabase direct, port 5432)
+- WH-Tracker uses `DATABASE_URL` (same Supabase instance)
+
+### Other apps (lower priority)
+- **po-app** (`amcgrean/po-app`, TypeScript) — will fold into beisser-takeoff PO module
+- **po-pics** (`amcgrean/po-pics`, TypeScript) — will fold into PO module
