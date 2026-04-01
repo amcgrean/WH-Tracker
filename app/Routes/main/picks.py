@@ -92,7 +92,7 @@ def _build_homepage_data(roles, rep_id, branch):
     need_supervisor = bool(roles & {'supervisor', 'admin', 'ops'})
     need_work_orders = need_supervisor
     need_dispatch = bool(roles & {'dispatch', 'delivery', 'admin', 'ops'})
-    need_purchasing = bool(roles & {'purchasing', 'admin', 'ops'})
+    need_purchasing = bool(roles & {'purchasing', 'manager', 'supervisor', 'admin', 'ops'})
 
     # ── Try pre-computed stats first (single row read) ──
     cached_stats = None
@@ -185,7 +185,7 @@ def _build_homepage_data(roles, rep_id, branch):
     if need_purchasing:
         po_count = results.get('purchasing')
         data['purchasing'] = {'pending_reviews': po_count if po_count is not None else None}
-        if 'purchasing' in roles:
+        if roles & {'purchasing', 'manager', 'supervisor'}:
             data['roles_active'].append('purchasing')
 
     return data
