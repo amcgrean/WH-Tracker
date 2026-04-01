@@ -15,7 +15,34 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(name):
+    conn = op.get_bind()
+    row = conn.execute(
+        sa.text(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_name = :t AND table_schema = 'public'"
+        ),
+        {"t": name},
+    ).fetchone()
+    return row is not None
+
+
+def _column_exists(table, column):
+    conn = op.get_bind()
+    row = conn.execute(
+        sa.text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = :t AND column_name = :c"
+        ),
+        {"t": table, "c": column},
+    ).fetchone()
+    return row is not None
+
+
 def upgrade():
+    if _table_exists('purchasing_assignments'):
+        return  # Tables already created (previous partial run or out-of-band DDL)
+
     op.create_table(
         'purchasing_assignments',
         sa.Column('id', sa.Integer(), nullable=False),

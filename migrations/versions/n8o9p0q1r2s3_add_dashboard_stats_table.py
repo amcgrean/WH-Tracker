@@ -32,6 +32,9 @@ def _table_columns(table_name: str) -> set[str]:
 
 
 def upgrade():
+    # dashboard_stats may have been pre-created directly in Supabase (with either
+    # the legacy id-PK schema or the final system_id-PK schema from o9p0q1r2s3t4).
+    # has the table in any form.
     if not _table_exists('dashboard_stats'):
         op.create_table(
             'dashboard_stats',

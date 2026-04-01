@@ -83,48 +83,55 @@ def _run_migrations(app):
 
     Uses a PostgreSQL advisory lock so that only one Fly machine runs
     migrations at a time — the others skip and let the winner handle DDL.
+
+    The advisory lock is session-level: it is held for the lifetime of the
+    connection, so we keep the connection open while upgrade() runs.
     """
     from sqlalchemy import text
 
     # Try to grab an advisory lock (non-blocking).  If another machine
     # already holds it we simply skip migrations on this instance.
     MIGRATION_LOCK_ID = 7483201  # arbitrary but fixed
-    lock_acquired = False
+
+    use_lock = True
     try:
-        with db.engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT pg_try_advisory_lock(:id)"),
-                {"id": MIGRATION_LOCK_ID},
-            )
-            lock_acquired = result.scalar()
+        lock_conn = db.engine.connect()
+        result = lock_conn.execute(
+            text("SELECT pg_try_advisory_lock(:id)"),
+            {"id": MIGRATION_LOCK_ID},
+        )
+        if not result.scalar():
+            lock_conn.close()
+            app.logger.info("Another machine holds the migration lock — skipping migrations.")
+            return
     except Exception:
         # Non-PostgreSQL (e.g. SQLite in dev) — just proceed without locking.
-        lock_acquired = True
-
-    if not lock_acquired:
-        app.logger.info("Another machine holds the migration lock — skipping migrations.")
-        return
+        lock_conn = None
+        use_lock = False
 
     try:
-        upgrade()
-        return
-    except SystemExit:
-        # flask_migrate calls sys.exit(1) on alembic errors; catch it so the
-        # serverless function does not crash on a recoverable migration failure.
-        pass
-    except Exception as e:
-        app.logger.error(f"Migration error: {e}")
-        return
+        try:
+            upgrade()
+            return
+        except SystemExit:
+            # flask_migrate calls sys.exit(1) on alembic errors; catch it so the
+            # app does not crash on a recoverable migration failure.
+            pass
+        except Exception as e:
+            app.logger.error(f"Migration error: {e}")
+            return
 
-    # First attempt failed – try to resolve a branched alembic_version table
-    # (e.g. two rows like 83fabbe397a1 + d1e2f3a4b5c6 which overlap on the
-    # same linear chain) then retry.
-    _resolve_branched_alembic_state(app)
+        # First attempt failed – try to resolve a branched alembic_version table
+        # then retry.
+        _resolve_branched_alembic_state(app)
 
-    try:
-        upgrade()
-    except (SystemExit, Exception) as e:
-        app.logger.error(f"Migration upgrade failed after recovery attempt: {e}")
+        try:
+            upgrade()
+        except (SystemExit, Exception) as e:
+            app.logger.error(f"Migration upgrade failed after recovery attempt: {e}")
+    finally:
+        if lock_conn is not None:
+            lock_conn.close()
 
 
 def create_app():
@@ -185,8 +192,11 @@ def create_app():
             "auth.verify",
             "auth.resend",
             "static",
-            "main.root_health",  # Fly.io health checks
-            "dispatch.health",   # dispatch health check
+            "main.root_health",         # Fly.io health checks (legacy)
+            "main.api_health",          # full readiness check (Cloudflare)
+            "main.api_customers_search",  # handles own auth (session or API key)
+            "main.estimating_redirect", # simple redirect — no data exposed
+            "dispatch.health",          # dispatch health check
         }
         public_paths = {"/pick_tracker", "/api/smart_scan"}
         public_path_prefixes = (

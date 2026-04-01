@@ -134,6 +134,9 @@ class AppUser(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
+    # Estimating app linkage — holds the legacy beisser-takeoff user.id (serial
+    # integer).  No FK: this is a cross-schema reference resolved in app code.
+    estimating_user_id = db.Column(db.Integer, nullable=True)
 
     def has_role(self, *roles):
         """Return True if user holds any of the requested roles or is admin."""
@@ -742,21 +745,19 @@ class ERPMirrorSuggestedPODetail(db.Model, MirrorSyncMetadataMixin):
 
 
 class ERPMirrorItemSupplier(db.Model, MirrorSyncMetadataMixin):
+    """Pi-managed table — schema is controlled by the sync worker, not Flask.
+
+    The live table uses: prrowid (VARCHAR unique), item_ptr (INTEGER),
+    supplier_key, system_id, lead_time##1-5, min_ord_qty, primary_, etc.
+    Only the columns common to both the model and the live table are declared
+    here so that ORM queries don't reference non-existent columns.
+    """
     __tablename__ = 'erp_mirror_item_supplier'
     id = db.Column(db.Integer, primary_key=True)
     system_id = db.Column(db.String(32), nullable=True, index=True)
-    item_ptr = db.Column(db.String(64), nullable=False, index=True)
-    supplier_key = db.Column(db.String(64), nullable=False, index=True)
-    supplier_code = db.Column(db.String(64), nullable=True)
-    supplier_name = db.Column(db.String(255), nullable=True)
-    supplier_part_number = db.Column(db.String(128), nullable=True)
-    lead_days = db.Column(db.Integer, nullable=True)
-    min_order_qty = db.Column(db.Numeric(18, 4), nullable=True)
-    is_primary = db.Column(db.Boolean, nullable=True)
+    supplier_key = db.Column(db.String(64), nullable=True, index=True)
     branch_code = db.Column(db.String(32), nullable=True, index=True)
-    __table_args__ = (
-        db.UniqueConstraint('item_ptr', 'supplier_key', name='uq_erp_mirror_item_supplier_key'),
-    )
+    __table_args__ = ()  # Unique key on prrowid is managed by Pi, not here.
 
 
 class ERPMirrorSupplier(db.Model, MirrorSyncMetadataMixin):

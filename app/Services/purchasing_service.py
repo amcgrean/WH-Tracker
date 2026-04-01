@@ -24,7 +24,7 @@ from app.auth import get_current_user_permissions
 from app.extensions import db
 
 
-OPEN_PO_STATUSES = {"CLOSED", "COMPLETE", "CANCELLED", "CANCELED", "VOID", "RECEIVED"}
+CLOSED_PO_STATUSES = {"CLOSED", "COMPLETE", "CANCELLED", "CANCELED", "VOID", "RECEIVED"}
 
 
 def _safe_iso(value: Any) -> str | None:
@@ -170,7 +170,8 @@ class PurchasingService:
         for row in self._open_pos(system_id=system_id, limit=800):
             expect_date = row.get("expect_date")
             supplier_name = row.get("supplier_name") or "Unknown supplier"
-            if isinstance(expect_date, datetime) and expect_date.date() < date.today():
+            expect_day = expect_date.date() if isinstance(expect_date, datetime) else expect_date
+            if isinstance(expect_day, date) and expect_day < date.today():
                 overdue[supplier_name]["supplier_name"] = supplier_name
                 overdue[supplier_name]["late_po_count"] += 1
                 overdue[supplier_name]["system_id"] = row.get("system_id")
@@ -200,7 +201,8 @@ class PurchasingService:
             if buyer_user_id and owner and owner.id != buyer_user_id:
                 continue
             expect_date = row.get("expect_date")
-            if isinstance(expect_date, datetime) and expect_date.date() < today:
+            expect_day = expect_date.date() if isinstance(expect_date, datetime) else expect_date
+            if isinstance(expect_day, date) and expect_day < today:
                 items.append({
                     "id": f"virtual-overdue-{row.get('po_number')}",
                     "queue_type": "overdue_po",
@@ -210,11 +212,11 @@ class PurchasingService:
                     "system_id": row.get("system_id"),
                     "supplier_name": row.get("supplier_name"),
                     "title": f"Follow up on overdue PO {row.get('po_number')}",
-                    "description": f"Expected {expect_date.date().isoformat()} and still open.",
+                    "description": f"Expected {expect_day.isoformat()} and still open.",
                     "status": "open",
                     "priority": "high",
                     "severity": "high",
-                    "due_at": expect_date.isoformat(),
+                    "due_at": expect_day.isoformat(),
                     "buyer_name": owner.display_name if owner else None,
                 })
 
@@ -413,7 +415,8 @@ class PurchasingService:
             branch_health_map[branch_system_id]["system_id"] = branch_system_id
             branch_health_map[branch_system_id]["open_pos"] += 1
             expect_date = row.get("expect_date")
-            if isinstance(expect_date, datetime) and expect_date.date() < date.today():
+            expect_day = expect_date.date() if isinstance(expect_date, datetime) else expect_date
+            if isinstance(expect_day, date) and expect_day < date.today():
                 overdue_count += 1
                 branch_health_map[branch_system_id]["overdue_pos"] += 1
 

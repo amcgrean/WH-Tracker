@@ -32,6 +32,8 @@ def _table_columns(table_name: str) -> set[str]:
 
 
 def upgrade():
+    # If dashboard_stats was pre-created with the final per-branch schema
+    # (system_id TEXT PRIMARY KEY) skip the drop/recreate to avoid data loss.
     if not _table_exists('dashboard_stats'):
         op.create_table(
             'dashboard_stats',
@@ -45,7 +47,7 @@ def upgrade():
 
     columns = _table_columns('dashboard_stats')
     if 'system_id' in columns:
-        return
+        return  # Already in the correct per-branch shape.
 
     op.drop_table('dashboard_stats')
     op.create_table(
