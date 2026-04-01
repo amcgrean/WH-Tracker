@@ -134,6 +134,9 @@ class AppUser(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
+    # Estimating app linkage — holds the legacy beisser-takeoff user.id (serial
+    # integer).  No FK: this is a cross-schema reference resolved in app code.
+    estimating_user_id = db.Column(db.Integer, nullable=True)
 
     def has_role(self, *roles):
         """Return True if user holds any of the requested roles or is admin."""

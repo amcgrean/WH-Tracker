@@ -15,6 +15,7 @@ from app.Routes.main import (  # noqa: E402, F401
     kiosk,
     tv,
     api,
+    estimating_api,
 )
 
 
@@ -30,7 +31,14 @@ def _require_login():
         "/start_pick/",
     )
     # Health check, kiosk, TV, and the legacy pick-tracker flow are exempt.
-    if request.endpoint == "main.root_health":
+    # api_health is public for Cloudflare/monitoring.
+    # api_customers_search and estimating_redirect handle their own auth.
+    if request.endpoint in (
+        "main.root_health",
+        "main.api_health",
+        "main.api_customers_search",
+        "main.estimating_redirect",
+    ):
         return
     if request.path in public_paths or request.path.startswith(public_path_prefixes):
         return
