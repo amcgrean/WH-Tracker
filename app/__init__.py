@@ -9,8 +9,8 @@ from .Routes.main import main_bp as main_blueprint
 from .Routes.dispatch import dispatch_bp as dispatch_blueprint
 from .Routes.sales import sales_bp as sales_blueprint
 from .Routes.auth import auth_bp as auth_blueprint
-from .Routes.files import files as files_blueprint
-from .Routes.po_routes import po_bp as po_blueprint
+from .Routes.files import files_bp as files_blueprint
+from .Routes.po import po_bp as po_blueprint
 from .Routes.purchasing import purchasing_bp as purchasing_blueprint
 from .runtime_settings import env_bool, is_fly_runtime
 from .navigation import build_navigation, get_current_user_roles
