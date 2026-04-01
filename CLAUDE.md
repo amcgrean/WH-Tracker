@@ -59,21 +59,26 @@ app/
 
 ### Dashboard Stats (Pre-computed Counts)
 
-The `dashboard_stats` table (single row, id=1) holds pre-computed dashboard counts so the homepage avoids heavy multi-join ERP queries. Updated by the **Pi sync worker** (`sync_erp.py`) each cycle from already-fetched data.
+The `dashboard_stats` table holds **one row per branch** (`system_id` TEXT PRIMARY KEY) with pre-computed dashboard counts, so the homepage avoids heavy multi-join ERP queries. Updated by the **Pi sync worker** (`sync_erp.py`) each cycle via `ON CONFLICT (system_id) DO UPDATE`.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `open_picks` | int | Distinct open SOs (not pick lines) |
-| `handling_breakdown_json` | text | JSON dict of distinct SO counts per handling code, e.g. `{"LBR": 5, "HDW": 3}` |
-| `open_work_orders` | int | Count of open WO headers |
+| `system_id` | text PK | Branch code e.g. `20GR`, `25BW`, `40CV`, `10FD` |
+| `open_picks` | int | Distinct open SO count for this branch |
+| `handling_breakdown_json` | text | JSON dict of distinct SO counts per handling code, e.g. `{"DOOR1": 5, "EWP": 3, "UNROUTED": 42}` |
+| `open_work_orders` | int | Open WO count for this branch |
 | `updated_at` | datetime | Last update timestamp |
 
-**Dashboard route** (`picks.py:_read_dashboard_stats()`) reads this row first; falls back to live ERP queries if the row is missing or stale (>5 minutes). The 5-minute staleness threshold accounts for Pi connectivity issues.
+**`UNROUTED`** is the key used for picks with no handling code assigned (not an em-dash).
+
+**Dashboard route** (`picks.py:_read_dashboard_stats(branch)`) accepts a branch filter, queries the relevant row(s), and aggregates. `DSM` is treated as `20GR + 25BW` combined. Falls back to live ERP queries if any row is missing or stale (>5 minutes).
+
+**`open_work_orders` is currently 0 for all branches** — `wo_header.branch_code` was recently added to the sync and existing rows backfill as they are touched in ERP. Do not rely on per-branch WO counts yet.
 
 **Important**: When adding new dashboard stats, update three places:
 1. `DashboardStats` model in `models.py`
-2. `_update_dashboard_stats()` in `sync_erp.py` (Pi-side computation)
-3. `_read_dashboard_stats()` in `picks.py` (web-side read + fallback)
+2. `_update_dashboard_stats()` in `sync_erp.py` (Pi-side computation — groups by system_id, upserts per branch)
+3. `_read_dashboard_stats()` in `picks.py` (web-side read + aggregation + fallback)
 
 ### Key ERP Data Model
 
@@ -254,7 +259,9 @@ The shipment sequence suffix (e.g. `-001`) is parsed separately and stored as-is
 ## Deployment
 
 - **Fly.io** (primary) — auto-runs migrations on startup (`RUN_MIGRATIONS_ON_START` defaults to `True` on Fly)
-- Auth gated by `AUTH_REQUIRED` env var
+- **Auth is enforced** — `AUTH_REQUIRED=true` is set as a Fly secret; `enforce_auth` in `app/__init__.py` gates all routes globally. Per-blueprint `before_request` guards on `main_bp`, `dispatch_bp`, and `sales_bp` act as a second layer.
+- **Exempt paths** — kiosk (`/kiosk/*`), TV (`/tv/*`), picker flow (`/pick_tracker`, `/confirm_picker/*`, `/input_pick/*`, `/complete_pick/*`, `/start_pick/*`, `/api/smart_scan`), and auth endpoints are permanently unauthenticated.
+- New users must be created via `/auth/users` (admin only) before they can log in.
 - ERP sync worker runs separately (`SYNC_INTERVAL_SECONDS=5`)
 - File storage via Cloudflare R2 (secrets set in Fly dashboard)
 
