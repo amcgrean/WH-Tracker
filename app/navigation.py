@@ -284,6 +284,28 @@ NAV_SECTIONS = [
         ],
     },
     # ------------------------------------------------------------------
+    # ESTIMATING
+    # Visible to users with the "estimator" or "designer" role, plus admins.
+    # The single nav item is a redirect to ESTIMATING_APP_URL (env var).
+    # ------------------------------------------------------------------
+    {
+        "id": "estimating",
+        "label": "Estimating",
+        "icon": "fas fa-ruler-combined",
+        "roles": ["estimator", "designer", "admin"],
+        "items": [
+            {
+                "id": "estimating_bids",
+                "label": "Bid Management",
+                "endpoint": "main.estimating_redirect",
+                "icon": "fas fa-file-invoice-dollar",
+                "description": "Create and manage lumber estimates and takeoff bids.",
+                "roles": ["estimator", "designer", "admin"],
+                "permissions": ["estimating.view"],
+            },
+        ],
+    },
+    # ------------------------------------------------------------------
     # ADMIN
     # ------------------------------------------------------------------
     {

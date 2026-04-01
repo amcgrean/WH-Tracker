@@ -39,6 +39,16 @@ class Config(object):
     R2_BUCKET_NAME       = os.environ.get('R2_BUCKET_NAME', 'po-checkin-photos') # PO check-in photos
     R2_PUBLIC_URL        = os.environ.get('R2_PUBLIC_URL', '').rstrip('/')       # public base URL
 
+    # Estimating app integration
+    # URL of the beisser-takeoff / LiveEdge estimating module.  Set via Fly
+    # secret ESTIMATING_APP_URL once the unified domain is live.
+    ESTIMATING_APP_URL = os.environ.get('ESTIMATING_APP_URL', '#')
+
+    # Shared secret used by the estimating app (and other internal services)
+    # to call WH-Tracker API endpoints without a user session.
+    # Set via Fly secret INTERNAL_API_KEY.  An empty string disables key auth.
+    INTERNAL_API_KEY = os.environ.get('INTERNAL_API_KEY', '')
+
     require_strong_secret = env_bool(
         "REQUIRE_STRONG_SECRET_KEY",
         bool(os.environ.get("VERCEL")) or is_fly_runtime(),

@@ -192,8 +192,11 @@ def create_app():
             "auth.verify",
             "auth.resend",
             "static",
-            "main.root_health",  # Fly.io health checks
-            "dispatch.health",   # dispatch health check
+            "main.root_health",         # Fly.io health checks (legacy)
+            "main.api_health",          # full readiness check (Cloudflare)
+            "main.api_customers_search",  # handles own auth (session or API key)
+            "main.estimating_redirect", # simple redirect — no data exposed
+            "dispatch.health",          # dispatch health check
         }
         public_paths = {"/pick_tracker", "/api/smart_scan"}
         public_path_prefixes = (
