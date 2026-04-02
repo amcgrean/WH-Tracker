@@ -88,6 +88,9 @@ class OrdersMixin:
         if self.central_db_mode:
             backorder_expr = self._mirror_so_detail_backorder_expr()
             filters = [
+                "soh.is_deleted = false",
+                "sod.is_deleted = false",
+                "ib.is_deleted = false",
                 "UPPER(COALESCE(soh.so_status, '')) = 'K'",
                 f"COALESCE({backorder_expr}, 0) = 0",
             ]
@@ -121,10 +124,12 @@ class OrdersMixin:
                 JOIN erp_mirror_item_branch ib
                     ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(c.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON c.system_id = soh.system_id
+                   AND TRIM(c.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON TRIM(cs.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
-                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
+                    ON cs.system_id = soh.system_id
+                   AND TRIM(cs.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
+                   AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 WHERE {where_clause}
                 GROUP BY soh.so_id, soh.system_id, c.cust_name, cs.address_1, cs.city,
                          soh.reference, ib.handling_code
@@ -239,9 +244,9 @@ class OrdersMixin:
                     ON ib.system_id = sod.system_id
                    AND ib.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                    ON cs.system_id = soh.system_id AND TRIM(cs.cust_key) = TRIM(soh.cust_key)
                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 WHERE soh.is_deleted = false AND {' AND '.join(filters)}
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
@@ -377,6 +382,12 @@ class OrdersMixin:
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
                 WHERE sod.so_id = :so_number
+                  AND sod.system_id IN (
+                      SELECT soh.system_id
+                      FROM erp_mirror_so_header soh
+                      WHERE soh.is_deleted = false
+                        AND soh.so_id = :so_number
+                  )
                   AND COALESCE(ib.handling_code, '') != ''
                 GROUP BY UPPER(COALESCE(ib.handling_code, ''))
                 ORDER BY cnt DESC
@@ -399,11 +410,16 @@ class OrdersMixin:
                 FROM so_detail sod
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 WHERE sod.so_id = ?
+                  AND sod.system_id IN (
+                      SELECT soh.system_id
+                      FROM so_header soh
+                      WHERE soh.so_id = ?
+                  )
                   AND COALESCE(ib.handling_code, '') != ''
                 GROUP BY UPPER(COALESCE(ib.handling_code, ''))
                 ORDER BY cnt DESC
                 """,
-                (so_number,),
+                (so_number, so_number),
             )
             row = cursor.fetchone()
             conn.close()
@@ -435,9 +451,11 @@ class OrdersMixin:
                     sh.status_flag_delivery
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON c.system_id = soh.system_id
+                   AND TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON cs.system_id = soh.system_id
+                   AND TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                     AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
@@ -548,6 +566,15 @@ class OrdersMixin:
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
                 WHERE sod.so_id = :so_number
+                  AND sod.is_deleted = false
+                  AND COALESCE(i.is_deleted, false) = false
+                  AND COALESCE(ib.is_deleted, false) = false
+                  AND sod.system_id IN (
+                      SELECT soh.system_id
+                      FROM erp_mirror_so_header soh
+                      WHERE soh.is_deleted = false
+                        AND soh.so_id = :so_number
+                  )
                 ORDER BY ib.handling_code NULLS LAST, sod.sequence
                 """,
                 {"so_number": str(so_number)},
@@ -579,10 +606,15 @@ class OrdersMixin:
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 WHERE soh.so_id = ?
+                  AND sod.system_id IN (
+                      SELECT soh.system_id
+                      FROM so_header soh
+                      WHERE soh.so_id = ?
+                  )
                 ORDER BY ib.handling_code, sod.sequence
             """
 
-            cursor.execute(query, (so_number,))
+            cursor.execute(query, (so_number, so_number))
             rows = cursor.fetchall()
 
             items = []

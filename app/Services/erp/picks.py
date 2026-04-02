@@ -31,9 +31,12 @@ class PicksMixin:
                         MAX(sh.loaded_date) AS loaded_date,
                         MAX(sh.status_flag_delivery) AS status_flag_delivery
                     FROM erp_mirror_shipments_header sh
-                    WHERE sh.invoice_date >= CURRENT_DATE - INTERVAL '180 days'
-                       OR sh.ship_date    >= CURRENT_DATE - INTERVAL '180 days'
-                       OR UPPER(COALESCE(sh.status_flag, '')) NOT IN ('C', 'X')
+                    WHERE sh.is_deleted = false
+                      AND (
+                        sh.invoice_date >= CURRENT_DATE - INTERVAL '180 days'
+                        OR sh.ship_date    >= CURRENT_DATE - INTERVAL '180 days'
+                        OR UPPER(COALESCE(sh.status_flag, '')) NOT IN ('C', 'X')
+                      )
                     GROUP BY sh.system_id, sh.so_id
                 ),
                 pick_rollup AS (
@@ -46,7 +49,9 @@ class PicksMixin:
                     JOIN erp_mirror_pick_detail pd
                         ON ph.pick_id = pd.pick_id
                        AND ph.system_id = pd.system_id
-                    WHERE UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET'
+                    WHERE ph.is_deleted = false
+                      AND pd.is_deleted = false
+                      AND UPPER(COALESCE(ph.print_status, '')) = 'PICK TICKET'
                       AND UPPER(COALESCE(pd.tran_type, '')) = 'SO'
                       AND ph.created_date >= CURRENT_DATE - INTERVAL '30 days'
                     GROUP BY pd.system_id, pd.tran_id
@@ -82,13 +87,15 @@ class PicksMixin:
                    AND soh.so_id = sod.so_id
                 LEFT JOIN erp_mirror_item i
                     ON i.item_ptr = sod.item_ptr
+                   AND i.is_deleted = false
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id
                    AND ib.item_ptr = sod.item_ptr
+                   AND ib.is_deleted = false
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                    ON cs.system_id = soh.system_id AND TRIM(cs.cust_key) = TRIM(soh.cust_key)
                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN shipment_rollup sh
                     ON sh.system_id = soh.system_id
@@ -97,6 +104,7 @@ class PicksMixin:
                     ON ph.system_id = soh.system_id
                    AND ph.so_id = soh.so_id
                 WHERE soh.is_deleted = false
+                  AND sod.is_deleted = false
                   AND UPPER(COALESCE(soh.so_status, '')) != 'C'
                   AND (
                     (UPPER(COALESCE(soh.so_status, '')) IN ('K', 'P', 'S'))
@@ -299,7 +307,7 @@ class PicksMixin:
                 SELECT COUNT(DISTINCT (soh.system_id, soh.so_id)) AS cnt
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id AND sh.is_deleted = false
                 WHERE soh.is_deleted = false
                   AND """ + _PICK_STATUS_FILTER.format(today_param=':today') + """
                 """,
@@ -317,10 +325,11 @@ class PicksMixin:
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id AND soh.so_id = sod.so_id
                 LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
+                    ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr AND ib.is_deleted = false
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id AND sh.is_deleted = false
                 WHERE soh.is_deleted = false
+                  AND sod.is_deleted = false
                   AND """ + _PICK_STATUS_FILTER.format(today_param=':today') + """
                 GROUP BY UPPER(COALESCE(ib.handling_code, ''))
                 """,

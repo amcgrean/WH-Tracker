@@ -134,7 +134,7 @@ class WorkOrdersMixin:
                 LEFT JOIN erp_mirror_so_header soh
                     ON soh.so_id = wh.source_id
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
                 WHERE wh.is_deleted = false
                   AND UPPER(COALESCE(wh.wo_status, '')) NOT IN ('COMPLETED', 'CANCELED', 'C')
                 ORDER BY wh.wo_id DESC
