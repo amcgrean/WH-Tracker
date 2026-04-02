@@ -285,21 +285,21 @@ The shipment sequence suffix (e.g. `-001`) is parsed separately and stored as-is
 ## Purchasing Module
 
 The purchasing module (`/purchasing`) is live with Phase 1 complete:
-- **Routes**: `app/Routes/purchasing.py` (blueprint `purchasing_bp`, prefix `/purchasing`)
+- **Routes**: `app/Routes/purchasing/` (package: `views.py`, `api.py`) — blueprint `purchasing_bp`, prefix `/purchasing`
 - **Service**: `app/Services/purchasing_service.py` — manager dashboard, buyer workspace, PO workspace, work queue, suggested buys
 - **Templates**: `app/templates/purchasing/` — manager_dashboard, buyer_dashboard, po_workspace, suggested_buys
-- **Read models used**: `app_po_search`, `app_po_header` (mat view), `app_po_detail`, `app_po_receiving_summary`, `app_suggested_po_summary`
-- **Suggested buys** come from `app_suggested_po_summary` view (not `erp_mirror_ppo_header` — those columns differ)
-- **Spend at risk** uses `po_total` from `app_po_header` (not `open_amount` or `total_amount`)
+- **Read models used**: `app_po_search`, `app_po_header` (mat view), `app_po_detail`, `app_po_receiving_summary`
+- **Suggested buys** come from `erp_mirror_ppo_header` table (aligned in PR #117)
+- **Spend at risk** uses `COALESCE(open_amount, total_amount, 0)` from `app_po_header`
 - App-owned workflow tables: `purchasing_work_queue`, `purchasing_assignments`, `purchasing_notes`, `purchasing_tasks`, `purchasing_approvals`, `purchasing_exception_events`, `purchasing_activity`, `purchasing_dashboard_snapshots`
 - Flask migrations own only app-owned tables — never ERP mirrors or Supabase-managed views
 
 ## Consolidation Roadmap
 
 This app is the single operational platform. Other apps are being merged in:
-- **beisser-takeoff** — Estimating/takeoff tools. Merge-prep done (PR #116). `bids` schema in Supabase. Users seeded into `app_users` via `estimating_user_id` bridge column.
-- **po-app** (`amcgrean/po-app`, TypeScript) — Purchase order management. Next to be migrated. DB tables likely already exist since it shares the same Postgres.
-- **po-pics** (`amcgrean/po-pics`, TypeScript) — PO photo capture. Will fold into PO module.
+- **po-app** (`amcgrean/po-app`, TypeScript) — **DONE**. PO check-in, review, and open PO views are fully implemented in `Routes/po/`. PO photo upload uses R2. Purchasing workbench (buyer/manager dashboards, suggested buys, approvals, tasks, notes) is in `Routes/purchasing/`.
+- **po-pics** (`amcgrean/po-pics`, TypeScript) — **DONE**. Photo capture is handled by `/po/api/upload` endpoint (R2 storage).
+- **beisser-takeoff** — Estimating/takeoff tools. Merge-prep done (PR #116). `bids` schema in Supabase. Users seeded into `app_users` via `estimating_user_id` bridge column. `estimating_api.py` stub exists in `Routes/main/`. Next migration target.
 
 The app is being rebranded from "WH-Tracker / Beisser Ops" to **LiveEdge** (separate effort in progress).
 
