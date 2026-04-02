@@ -26,15 +26,20 @@ No formal test suite — test scripts are ad-hoc (`test_*.py` in root).
 
 ```
 app/
-  Routes/              # Flask Blueprints (each is a package or module)
-    main/              # Pick/pack, work orders, admin (split into sub-modules)
-    sales/             # Sales orders, transactions, customer workspace
-    dispatch/          # Delivery tracking, route management
-    auth/              # Passwordless OTP login
-    files.py           # File upload/download via R2
+  Routes/              # Flask Blueprints — ALL are packages (directory with __init__.py)
+    main/              # Pick/pack, work orders, admin (picks, work_orders, warehouse, kiosk, tv, api, etc.)
+    sales/             # Sales orders, transactions, customer workspace (hub, transactions, customers, history, reports, api)
+    dispatch/          # Delivery tracking, route management (board, stops, planning, api)
+    auth/              # Passwordless OTP login (login, admin)
+    po/                # PO check-in & open PO views (checkin, review, open_pos, api, helpers)
+    purchasing/        # Purchasing workbench (views, api)
+    files/             # File upload/download via R2 (routes)
   Services/            # Business logic
     erp_service.py     # Core ERP layer (~145KB)
-    storage_service.py # Cloudflare R2 client (S3-compatible via boto3)
+    po_service.py      # PO read-model queries (materialized views)
+    purchasing_service.py # Purchasing workbench logic, approvals, tasks
+    dispatch_service.py   # Route planning, driver/truck management
+    storage_service.py    # Cloudflare R2 client (S3-compatible via boto3)
   Models/models.py     # All SQLAlchemy models
   templates/           # Jinja2 (base.html has blocks: title, head, content, scripts, navbar)
   static/              # CSS (style.css has design system), JS, icons
@@ -48,7 +53,9 @@ app/
 | `sales_bp` | `/sales` | `Routes.sales` | Sales orders, transactions, customer workspace |
 | `dispatch_bp` | `/dispatch` | `Routes.dispatch` | Delivery tracking, route management |
 | `auth_bp` | `/auth` | `Routes.auth` | Passwordless OTP login |
-| `files` | `/files` | `Routes.files` | File upload/download/list via R2 |
+| `po_bp` | `/po` | `Routes.po` | PO check-in, review, open PO views |
+| `purchasing_bp` | `/purchasing` | `Routes.purchasing` | Buyer/manager dashboards, suggested buys, approvals |
+| `files_bp` | `/files` | `Routes.files` | File upload/download/list via R2 |
 
 ### Database Architecture
 
@@ -268,8 +275,20 @@ The shipment sequence suffix (e.g. `-001`) is parsed separately and stored as-is
 ## Consolidation Roadmap
 
 This app is the single operational platform. Other apps are being merged in:
-- **po-app** (`amcgrean/po-app`, TypeScript) — Purchase order management. Next to be migrated. DB tables likely already exist since it shares the same Postgres. R2 storage already configured.
-- **estimating-app** / **beisser-takeoff** — Estimating/takeoff tools. Future migration. Will need file attachments (R2 ready for this).
-- **po-pics** (`amcgrean/po-pics`, TypeScript) — PO photo capture. Will fold into PO module.
+- **po-app** (`amcgrean/po-app`, TypeScript) — **DONE**. PO check-in, review, and open PO views are fully implemented in `Routes/po/`. PO photo upload uses R2. Purchasing workbench (buyer/manager dashboards, suggested buys, approvals, tasks, notes) is in `Routes/purchasing/`.
+- **po-pics** (`amcgrean/po-pics`, TypeScript) — **DONE**. Photo capture is handled by `/po/api/upload` endpoint (R2 storage).
+- **estimating-app** / **beisser-takeoff** — Future migration. `estimating_api.py` stub exists in `Routes/main/`. Will need file attachments (R2 ready for this via `Routes/files/`).
 
 The app is being rebranded from "WH-Tracker / Beisser Ops" to **LiveEdge** (separate effort in progress).
+
+### Blueprint Package Convention
+
+All blueprints follow the same package structure:
+```
+Routes/<module>/
+  __init__.py    # Creates Blueprint, imports sub-modules
+  views.py       # Page routes (render_template)
+  api.py         # JSON API routes (jsonify)
+  helpers.py     # Shared helpers (optional)
+```
+When adding a new module, follow this pattern. Register the blueprint in `app/__init__.py`.
