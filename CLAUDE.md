@@ -35,7 +35,17 @@ app/
     purchasing/        # Purchasing workbench (views, api)
     files/             # File upload/download via R2 (routes)
   Services/            # Business logic
-    erp_service.py     # Core ERP layer (~145KB)
+    erp_service.py     # Backward-compatible shim — re-exports ERPService from erp/
+    erp/               # Core ERP layer, split into domain mixins:
+      __init__.py      #   Composes ERPService from all mixins
+      base.py          #   Infrastructure: mirror_query, cache, connection, SQL helpers
+      picks.py         #   Open picks, pick counts, delivery count
+      work_orders.py   #   Work orders by barcode, open WO list
+      orders.py        #   SO summary, order board, SO header/detail
+      dispatch.py      #   Dispatch stops, enrichment, shipment lines
+      delivery.py      #   Delivery tracker, KPIs, historical stats
+      sales.py         #   Hub metrics, order status, transactions
+      customers.py     #   Customer search, products, reports, salespeople
     po_service.py      # PO read-model queries (materialized views)
     purchasing_service.py # Purchasing workbench logic, approvals, tasks
     dispatch_service.py   # Route planning, driver/truck management
@@ -226,7 +236,7 @@ Every variable used in Jinja2 templates must be passed via `render_template()`. 
 ## Common Patterns
 
 ### Adding a new ERP query
-1. Add method to `ERPService` in `erp_service.py`
+1. Add method to the appropriate domain mixin in `Services/erp/` (e.g., `sales.py` for sales queries, `customers.py` for customer queries). The method is automatically available on `ERPService` via mixin composition.
 2. Write the PostgreSQL path first (uses `self._mirror_query()` with named `:params`)
 3. Add SQL Server fallback after `self._require_central_db_for_cloud_mode()` (uses `cursor.execute()` with `?` positional params)
 4. Both paths must return the same dict structure
