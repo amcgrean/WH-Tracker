@@ -212,11 +212,9 @@ class DispatchMixin:
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
                     ON c.system_id = soh.system_id
-                   AND c.is_deleted = false
                    AND TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
                     ON cs.system_id = soh.system_id
-                   AND cs.is_deleted = false
                    AND TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                     AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
@@ -868,3 +866,4 @@ class DispatchMixin:
         except Exception as e:
             print(f"ERP Connection Error (Delivery Orders): {e}")
             return []
+
