@@ -22,7 +22,9 @@ class CustomersMixin:
                     MAX({qty_expr}) AS quantity_on_hand
                 FROM erp_mirror_item i
                 LEFT JOIN erp_mirror_item_branch ib
-                    ON ib.item_ptr = i.item_ptr
+                    ON ib.system_id = i.system_id
+                   AND ib.item_ptr = i.item_ptr
+                   AND ib.is_deleted = false
                 WHERE i.is_deleted = false
                 {search_filter}
                 GROUP BY i.item, i.description
@@ -127,7 +129,7 @@ class CustomersMixin:
                     COUNT(DISTINCT soh.so_id) AS order_count
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
                 WHERE soh.is_deleted = false
                   AND soh.expect_date >= :since
                   {branch_join_clause}
