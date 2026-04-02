@@ -59,7 +59,7 @@ def suggested_buys():
         "purchasing/suggested_buys.html",
         suggestions=suggestions,
         branch=system_id or current_user.get("branch") or "ALL",
-        is_limited_preview=bool(suggestions),
+        is_limited_preview=False,
     )
 
 
