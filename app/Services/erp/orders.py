@@ -88,6 +88,9 @@ class OrdersMixin:
         if self.central_db_mode:
             backorder_expr = self._mirror_so_detail_backorder_expr()
             filters = [
+                "soh.is_deleted = false",
+                "sod.is_deleted = false",
+                "ib.is_deleted = false",
                 "UPPER(COALESCE(soh.so_status, '')) = 'K'",
                 f"COALESCE({backorder_expr}, 0) = 0",
             ]
@@ -563,6 +566,15 @@ class OrdersMixin:
                 LEFT JOIN erp_mirror_item_branch ib
                     ON ib.system_id = sod.system_id AND ib.item_ptr = sod.item_ptr
                 WHERE sod.so_id = :so_number
+                  AND sod.is_deleted = false
+                  AND COALESCE(i.is_deleted, false) = false
+                  AND COALESCE(ib.is_deleted, false) = false
+                  AND sod.system_id IN (
+                      SELECT soh.system_id
+                      FROM erp_mirror_so_header soh
+                      WHERE soh.is_deleted = false
+                        AND soh.so_id = :so_number
+                  )
                 ORDER BY ib.handling_code NULLS LAST, sod.sequence
                 """,
                 {"so_number": str(so_number)},
@@ -594,10 +606,15 @@ class OrdersMixin:
                 JOIN item i ON i.item_ptr = sod.item_ptr
                 JOIN item_branch ib ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 WHERE soh.so_id = ?
+                  AND sod.system_id IN (
+                      SELECT soh.system_id
+                      FROM so_header soh
+                      WHERE soh.so_id = ?
+                  )
                 ORDER BY ib.handling_code, sod.sequence
             """
 
-            cursor.execute(query, (so_number,))
+            cursor.execute(query, (so_number, so_number))
             rows = cursor.fetchall()
 
             items = []

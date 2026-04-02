@@ -218,7 +218,7 @@ class DispatchMixin:
                    AND TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                     AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
-                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
+                    ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id AND sh.is_deleted = false
                 WHERE {' AND '.join(filters)}
                 ORDER BY COALESCE(sh.expect_date, soh.expect_date), soh.so_id
                 """,
