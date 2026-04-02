@@ -294,14 +294,38 @@ The purchasing module (`/purchasing`) is live with Phase 1 complete:
 - App-owned workflow tables: `purchasing_work_queue`, `purchasing_assignments`, `purchasing_notes`, `purchasing_tasks`, `purchasing_approvals`, `purchasing_exception_events`, `purchasing_activity`, `purchasing_dashboard_snapshots`
 - Flask migrations own only app-owned tables — never ERP mirrors or Supabase-managed views
 
-## Consolidation Roadmap
+## Migration to LiveEdge (TypeScript)
 
-This app is the single operational platform. Other apps are being merged in:
-- **po-app** (`amcgrean/po-app`, TypeScript) — **DONE**. PO check-in, review, and open PO views are fully implemented in `Routes/po/`. PO photo upload uses R2. Purchasing workbench (buyer/manager dashboards, suggested buys, approvals, tasks, notes) is in `Routes/purchasing/`.
-- **po-pics** (`amcgrean/po-pics`, TypeScript) — **DONE**. Photo capture is handled by `/po/api/upload` endpoint (R2 storage).
-- **beisser-takeoff** — Estimating/takeoff tools. Merge-prep done (PR #116). `bids` schema in Supabase. Users seeded into `app_users` via `estimating_user_id` bridge column. `estimating_api.py` stub exists in `Routes/main/`. Next migration target.
+**This Python/Flask codebase is being migrated to a new TypeScript app: [`amcgrean/liveedge`](https://github.com/amcgrean/liveedge).**
 
-The app is being rebranded from "WH-Tracker / Beisser Ops" to **LiveEdge** (separate effort in progress).
+The LiveEdge app reads from the **agility-api Supabase database** (live ERP mirror). All ERP queries in this codebase serve as the reference implementation to be ported. Before porting, queries must comply with the Supabase query rules below.
+
+### Supabase Query Rules (agility-api)
+
+1. **Always filter by `system_id` first** — it's the partition key. Queries without it do full-table scans.
+2. **Never query raw `erp_mirror_*` tables for dashboard/list data** — use matviews:
+   - `app_mv_open_picks_by_branch`, `app_mv_handling_by_branch`, `app_mv_shipment_status_by_so`, `app_mv_board_open_orders`, `app_po_header`
+3. **Always include `is_deleted = false`** on direct mirror table reads.
+4. **Join so_detail ↔ item_branch on BOTH `(system_id, item_ptr)`** — never item_ptr alone.
+5. **Use Supabase RPCs** for app-facing reads: `get_board_open_orders({ p_system_id })`, `get_po_detail()`.
+6. **No new indexes without review** — index:data ratio is already high on so_detail and item_branch.
+
+### Query Violations to Fix Before Porting
+
+| Issue | Files | Count | Severity |
+|-------|-------|-------|----------|
+| Missing `system_id` on `erp_mirror_cust` joins | sales, picks, dispatch, delivery, customers | 10 | CRITICAL |
+| Missing `system_id` on `item_branch` join | customers.py line ~23 | 1 | HIGH |
+| `COUNT(*)` without `system_id` in WHERE | orders.py line ~375 | 1 | MEDIUM |
+| Dashboard queries on raw mirror tables (should use matviews) | picks.py, orders.py | multiple | HIGH |
+
+See `docs/LIVEEDGE_MIGRATION.md` for the full agent handoff prompt.
+
+### Consolidation Status
+
+- **po-app** — **DONE**. Fully in `Routes/po/` + `Routes/purchasing/`.
+- **po-pics** — **DONE**. Photo capture via `/po/api/upload` (R2).
+- **beisser-takeoff** — Merge-prep done (PR #116). `estimating_api.py` stub in `Routes/main/`.
 
 ### Blueprint Package Convention
 
