@@ -26,15 +26,30 @@ No formal test suite — test scripts are ad-hoc (`test_*.py` in root).
 
 ```
 app/
-  Routes/              # Flask Blueprints (each is a package or module)
-    main/              # Pick/pack, work orders, admin (split into sub-modules)
-    sales/             # Sales orders, transactions, customer workspace
-    dispatch/          # Delivery tracking, route management
-    auth/              # Passwordless OTP login
-    files.py           # File upload/download via R2
+  Routes/              # Flask Blueprints — ALL are packages (directory with __init__.py)
+    main/              # Pick/pack, work orders, admin (picks, work_orders, warehouse, kiosk, tv, api, etc.)
+    sales/             # Sales orders, transactions, customer workspace (hub, transactions, customers, history, reports, api)
+    dispatch/          # Delivery tracking, route management (board, stops, planning, api)
+    auth/              # Passwordless OTP login (login, admin)
+    po/                # PO check-in & open PO views (checkin, review, open_pos, api, helpers)
+    purchasing/        # Purchasing workbench (views, api)
+    files/             # File upload/download via R2 (routes)
   Services/            # Business logic
-    erp_service.py     # Core ERP layer (~145KB)
-    storage_service.py # Cloudflare R2 client (S3-compatible via boto3)
+    erp_service.py     # Backward-compatible shim — re-exports ERPService from erp/
+    erp/               # Core ERP layer, split into domain mixins:
+      __init__.py      #   Composes ERPService from all mixins
+      base.py          #   Infrastructure: mirror_query, cache, connection, SQL helpers
+      picks.py         #   Open picks, pick counts, delivery count
+      work_orders.py   #   Work orders by barcode, open WO list
+      orders.py        #   SO summary, order board, SO header/detail
+      dispatch.py      #   Dispatch stops, enrichment, shipment lines
+      delivery.py      #   Delivery tracker, KPIs, historical stats
+      sales.py         #   Hub metrics, order status, transactions
+      customers.py     #   Customer search, products, reports, salespeople
+    po_service.py      # PO read-model queries (materialized views)
+    purchasing_service.py # Purchasing workbench logic, approvals, tasks
+    dispatch_service.py   # Route planning, driver/truck management
+    storage_service.py    # Cloudflare R2 client (S3-compatible via boto3)
   Models/models.py     # All SQLAlchemy models
   templates/           # Jinja2 (base.html has blocks: title, head, content, scripts, navbar)
   static/              # CSS (style.css has design system), JS, icons
@@ -48,7 +63,9 @@ app/
 | `sales_bp` | `/sales` | `Routes.sales` | Sales orders, transactions, customer workspace |
 | `dispatch_bp` | `/dispatch` | `Routes.dispatch` | Delivery tracking, route management |
 | `auth_bp` | `/auth` | `Routes.auth` | Passwordless OTP login |
-| `files` | `/files` | `Routes.files` | File upload/download/list via R2 |
+| `po_bp` | `/po` | `Routes.po` | PO check-in, review, open PO views |
+| `purchasing_bp` | `/purchasing` | `Routes.purchasing` | Buyer/manager dashboards, suggested buys, approvals |
+| `files_bp` | `/files` | `Routes.files` | File upload/download/list via R2 |
 
 ### Database Architecture
 
@@ -59,21 +76,26 @@ app/
 
 ### Dashboard Stats (Pre-computed Counts)
 
-The `dashboard_stats` table (single row, id=1) holds pre-computed dashboard counts so the homepage avoids heavy multi-join ERP queries. Updated by the **Pi sync worker** (`sync_erp.py`) each cycle from already-fetched data.
+The `dashboard_stats` table holds **one row per branch** (`system_id` TEXT PRIMARY KEY) with pre-computed dashboard counts, so the homepage avoids heavy multi-join ERP queries. Updated by the **Pi sync worker** (`sync_erp.py`) each cycle via `ON CONFLICT (system_id) DO UPDATE`.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `open_picks` | int | Distinct open SOs (not pick lines) |
-| `handling_breakdown_json` | text | JSON dict of distinct SO counts per handling code, e.g. `{"LBR": 5, "HDW": 3}` |
-| `open_work_orders` | int | Count of open WO headers |
+| `system_id` | text PK | Branch code e.g. `20GR`, `25BW`, `40CV`, `10FD` |
+| `open_picks` | int | Distinct open SO count for this branch |
+| `handling_breakdown_json` | text | JSON dict of distinct SO counts per handling code, e.g. `{"DOOR1": 5, "EWP": 3, "UNROUTED": 42}` |
+| `open_work_orders` | int | Open WO count for this branch |
 | `updated_at` | datetime | Last update timestamp |
 
-**Dashboard route** (`picks.py:_read_dashboard_stats()`) reads this row first; falls back to live ERP queries if the row is missing or stale (>5 minutes). The 5-minute staleness threshold accounts for Pi connectivity issues.
+**`UNROUTED`** is the key used for picks with no handling code assigned (not an em-dash).
+
+**Dashboard route** (`picks.py:_read_dashboard_stats(branch)`) accepts a branch filter, queries the relevant row(s), and aggregates. `DSM` is treated as `20GR + 25BW` combined. Falls back to live ERP queries if any row is missing or stale (>5 minutes).
+
+**`open_work_orders` is currently 0 for all branches** — `wo_header.branch_code` was recently added to the sync and existing rows backfill as they are touched in ERP. Do not rely on per-branch WO counts yet.
 
 **Important**: When adding new dashboard stats, update three places:
 1. `DashboardStats` model in `models.py`
-2. `_update_dashboard_stats()` in `sync_erp.py` (Pi-side computation)
-3. `_read_dashboard_stats()` in `picks.py` (web-side read + fallback)
+2. `_update_dashboard_stats()` in `sync_erp.py` (Pi-side computation — groups by system_id, upserts per branch)
+3. `_read_dashboard_stats()` in `picks.py` (web-side read + aggregation + fallback)
 
 ### Key ERP Data Model
 
@@ -214,7 +236,7 @@ Every variable used in Jinja2 templates must be passed via `render_template()`. 
 ## Common Patterns
 
 ### Adding a new ERP query
-1. Add method to `ERPService` in `erp_service.py`
+1. Add method to the appropriate domain mixin in `Services/erp/` (e.g., `sales.py` for sales queries, `customers.py` for customer queries). The method is automatically available on `ERPService` via mixin composition.
 2. Write the PostgreSQL path first (uses `self._mirror_query()` with named `:params`)
 3. Add SQL Server fallback after `self._require_central_db_for_cloud_mode()` (uses `cursor.execute()` with `?` positional params)
 4. Both paths must return the same dict structure
@@ -280,3 +302,15 @@ This app is the single operational platform. Other apps are being merged in:
 - **po-pics** (`amcgrean/po-pics`, TypeScript) — PO photo capture. Will fold into PO module.
 
 The app is being rebranded from "WH-Tracker / Beisser Ops" to **LiveEdge** (separate effort in progress).
+
+### Blueprint Package Convention
+
+All blueprints follow the same package structure:
+```
+Routes/<module>/
+  __init__.py    # Creates Blueprint, imports sub-modules
+  views.py       # Page routes (render_template)
+  api.py         # JSON API routes (jsonify)
+  helpers.py     # Shared helpers (optional)
+```
+When adding a new module, follow this pattern. Register the blueprint in `app/__init__.py`.

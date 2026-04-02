@@ -1,5 +1,4 @@
-"""
-File management blueprint — upload, download, list, and soft-delete files.
+"""File management routes — upload, download, list, and soft-delete files.
 
 All file binaries are stored in Cloudflare R2 (S3-compatible).
 Metadata lives in the `files` and `file_versions` Postgres tables.
@@ -7,14 +6,13 @@ Metadata lives in the `files` and `file_versions` Postgres tables.
 
 import os
 
-from flask import Blueprint, jsonify, request, redirect, abort, session
+from flask import jsonify, request, redirect, abort, session
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.Models.models import File, FileVersion
+from app.Routes.files import files_bp
 from app.Services.storage_service import StorageService
-
-files = Blueprint('files', __name__, url_prefix='/files')
 
 ALLOWED_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.gif', '.webp',
@@ -30,7 +28,7 @@ def _get_uploader():
     return session.get('display_name') or session.get('email') or 'unknown'
 
 
-@files.route('/upload', methods=['POST'])
+@files_bp.route('/upload', methods=['POST'])
 def upload():
     """
     Upload one or more files and attach to an entity.
@@ -111,7 +109,7 @@ def upload():
     return jsonify({'uploaded': results}), 201
 
 
-@files.route('/<int:file_id>')
+@files_bp.route('/<int:file_id>')
 def download(file_id):
     """Redirect to a presigned R2 URL for the file."""
     file_record = File.query.get_or_404(file_id)
@@ -123,7 +121,7 @@ def download(file_id):
     return redirect(url)
 
 
-@files.route('/<int:file_id>/info')
+@files_bp.route('/<int:file_id>/info')
 def info(file_id):
     """Return JSON metadata for a file."""
     file_record = File.query.get_or_404(file_id)
@@ -154,7 +152,7 @@ def info(file_id):
     })
 
 
-@files.route('/<int:file_id>', methods=['DELETE'])
+@files_bp.route('/<int:file_id>', methods=['DELETE'])
 def delete(file_id):
     """Soft-delete a file (set is_deleted=True). Does not remove from R2."""
     file_record = File.query.get_or_404(file_id)
@@ -163,7 +161,7 @@ def delete(file_id):
     return jsonify({'status': 'deleted', 'id': file_id})
 
 
-@files.route('/entity/<entity_type>/<entity_id>')
+@files_bp.route('/entity/<entity_type>/<entity_id>')
 def list_for_entity(entity_type, entity_id):
     """List all active files for a given entity."""
     records = File.query.filter_by(
