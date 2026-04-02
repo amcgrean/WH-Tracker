@@ -211,9 +211,11 @@ class DispatchMixin:
                     soh.system_id AS branch
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON c.system_id = soh.system_id
+                   AND TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON cs.system_id = soh.system_id
+                   AND TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                     AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
@@ -789,9 +791,9 @@ class DispatchMixin:
                 JOIN erp_mirror_so_header soh
                     ON soh.system_id = sod.system_id AND soh.so_id = sod.so_id
                 LEFT JOIN erp_mirror_cust c
-                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key) AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
+                    ON cs.system_id = soh.system_id AND TRIM(cs.cust_key) = TRIM(soh.cust_key) AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
                 WHERE soh.is_deleted = false
@@ -864,5 +866,4 @@ class DispatchMixin:
         except Exception as e:
             print(f"ERP Connection Error (Delivery Orders): {e}")
             return []
-
 
