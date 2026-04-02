@@ -254,15 +254,29 @@ The shipment sequence suffix (e.g. `-001`) is parsed separately and stored as-is
 ## Deployment
 
 - **Fly.io** (primary) — auto-runs migrations on startup (`RUN_MIGRATIONS_ON_START` defaults to `True` on Fly)
-- Auth gated by `AUTH_REQUIRED` env var
+- **Auth is enforced** — `AUTH_REQUIRED=true` is set as a Fly secret; `enforce_auth` in `app/__init__.py` gates all routes globally. Per-blueprint `before_request` guards on `main_bp`, `dispatch_bp`, and `sales_bp` act as a second layer.
+- **Exempt paths** — kiosk (`/kiosk/*`), TV (`/tv/*`), picker flow (`/pick_tracker`, `/confirm_picker/*`, `/input_pick/*`, `/complete_pick/*`, `/start_pick/*`, `/api/smart_scan`), and auth endpoints are permanently unauthenticated.
+- New users must be created via `/auth/users` (admin only) before they can log in.
 - ERP sync worker runs separately (`SYNC_INTERVAL_SECONDS=5`)
 - File storage via Cloudflare R2 (secrets set in Fly dashboard)
+
+## Purchasing Module
+
+The purchasing module (`/purchasing`) is live with Phase 1 complete:
+- **Routes**: `app/Routes/purchasing.py` (blueprint `purchasing_bp`, prefix `/purchasing`)
+- **Service**: `app/Services/purchasing_service.py` — manager dashboard, buyer workspace, PO workspace, work queue, suggested buys
+- **Templates**: `app/templates/purchasing/` — manager_dashboard, buyer_dashboard, po_workspace, suggested_buys
+- **Read models used**: `app_po_search`, `app_po_header` (mat view), `app_po_detail`, `app_po_receiving_summary`, `app_suggested_po_summary`
+- **Suggested buys** come from `app_suggested_po_summary` view (not `erp_mirror_ppo_header` — those columns differ)
+- **Spend at risk** uses `po_total` from `app_po_header` (not `open_amount` or `total_amount`)
+- App-owned workflow tables: `purchasing_work_queue`, `purchasing_assignments`, `purchasing_notes`, `purchasing_tasks`, `purchasing_approvals`, `purchasing_exception_events`, `purchasing_activity`, `purchasing_dashboard_snapshots`
+- Flask migrations own only app-owned tables — never ERP mirrors or Supabase-managed views
 
 ## Consolidation Roadmap
 
 This app is the single operational platform. Other apps are being merged in:
-- **po-app** (`amcgrean/po-app`, TypeScript) — Purchase order management. Next to be migrated. DB tables likely already exist since it shares the same Postgres. R2 storage already configured.
-- **estimating-app** / **beisser-takeoff** — Estimating/takeoff tools. Future migration. Will need file attachments (R2 ready for this).
+- **beisser-takeoff** — Estimating/takeoff tools. Merge-prep done (PR #116). `bids` schema in Supabase. Users seeded into `app_users` via `estimating_user_id` bridge column.
+- **po-app** (`amcgrean/po-app`, TypeScript) — Purchase order management. Next to be migrated. DB tables likely already exist since it shares the same Postgres.
 - **po-pics** (`amcgrean/po-pics`, TypeScript) — PO photo capture. Will fold into PO module.
 
 The app is being rebranded from "WH-Tracker / Beisser Ops" to **LiveEdge** (separate effort in progress).
