@@ -32,23 +32,23 @@
             <tr>
               <th>Suggestion #</th>
               <th>Supplier</th>
-              <th>Buyer</th>
+              <th>Created By</th>
               <th>System</th>
-              <th>Status</th>
+              <th>Lines</th>
               <th>Total</th>
-              <th>Generated</th>
+              <th>Created</th>
             </tr>
           </thead>
           <tbody>
             {% for item in suggestions %}
             <tr>
-              <td class="font-weight-bold">{{ item.suggestion_number }}</td>
+              <td class="font-weight-bold">{{ item.suggested_po_number }}</td>
               <td>{{ item.supplier_name or '-' }}</td>
-              <td>{{ item.buyer_id or '-' }}</td>
+              <td>{{ item.created_by or '-' }}</td>
               <td>{{ item.system_id or '-' }}</td>
-              <td><span class="badge badge-light border">{{ item.status or 'open' }}</span></td>
+              <td>{{ item.line_count or '-' }}</td>
               <td>{{ '${:,.0f}'.format(item.total_amount) if item.total_amount else '-' }}</td>
-              <td>{{ item.generated_at[:10] if item.generated_at else '-' }}</td>
+              <td>{{ item.created_date[:10] if item.created_date else '-' }}</td>
             </tr>
             {% else %}
             <tr><td colspan="7" class="text-center text-muted py-5">Suggested buy data is not available yet. Once the ERP mirror is populated and validated, batches will show here.</td></tr>

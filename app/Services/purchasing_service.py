@@ -144,24 +144,22 @@ class PurchasingService:
         if system_id and system_id != "__UNASSIGNED__":
             system_clause = "AND COALESCE(system_id, '') = :system_id"
             params["system_id"] = system_id
-        ppo_columns = get_read_model_columns("erp_mirror_ppo_header")
-        order_column = "generated_at" if "generated_at" in ppo_columns or not ppo_columns else "suggestion_number"
 
         rows = self._query_rows(
             f"""
             SELECT {build_select_projection(
-                "erp_mirror_ppo_header",
-                ["suggestion_number", "supplier_name", "buyer_id", "system_id", "status", "total_amount", "generated_at"],
+                "app_suggested_po_summary",
+                ["suggested_po_number", "supplier_name", "created_by", "system_id", "total_amount", "line_count", "created_date"],
             )}
-            FROM erp_mirror_ppo_header
+            FROM app_suggested_po_summary
             WHERE 1=1 {system_clause}
-            ORDER BY {order_column} DESC NULLS LAST
+            ORDER BY created_date DESC NULLS LAST
             LIMIT :limit
             """,
             params,
         )
         for row in rows:
-            row["generated_at"] = _safe_iso(row.get("generated_at"))
+            row["created_date"] = _safe_iso(row.get("created_date"))
             row["total_amount"] = _decimal_to_float(row.get("total_amount"))
         return rows
 
@@ -251,24 +249,22 @@ class PurchasingService:
             })
 
         for suggestion in self._suggested_buys(system_id=system_id, limit=60):
-            status = (suggestion.get("status") or "").lower()
-            if status and status not in {"pending", "review", "saved", "draft", "open"}:
-                continue
+            spo_number = suggestion.get("suggested_po_number")
             items.append({
-                "id": f"virtual-spo-{suggestion.get('suggestion_number')}",
+                "id": f"virtual-spo-{spo_number}",
                 "queue_type": "suggested_buy",
                 "reference_type": "suggested_po",
-                "reference_number": suggestion.get("suggestion_number"),
+                "reference_number": spo_number,
                 "po_number": None,
                 "system_id": suggestion.get("system_id"),
                 "supplier_name": suggestion.get("supplier_name"),
-                "title": f"Review suggested buy {suggestion.get('suggestion_number')}",
+                "title": f"Review suggested buy {spo_number}",
                 "description": f"Supplier {suggestion.get('supplier_name') or 'Unknown'}",
                 "status": "open",
                 "priority": "medium",
                 "severity": "medium",
-                "due_at": _safe_iso(suggestion.get("generated_at")),
-                "buyer_name": suggestion.get("buyer_id"),
+                "due_at": suggestion.get("created_date"),
+                "buyer_name": suggestion.get("created_by"),
             })
 
         items.sort(key=lambda item: ((item.get("priority") != "high"), item.get("due_at") or "9999"))
@@ -484,11 +480,11 @@ class PurchasingService:
     def _header_spend_expression(self) -> str:
         columns = get_read_model_columns("app_po_header")
         if not columns:
-            return "COALESCE(open_amount, total_amount, 0)"
-        if "open_amount" in columns and "total_amount" in columns:
-            return "COALESCE(open_amount, total_amount, 0)"
+            return "COALESCE(po_total, 0)"
         if "open_amount" in columns:
             return "COALESCE(open_amount, 0)"
+        if "po_total" in columns:
+            return "COALESCE(po_total, 0)"
         if "total_amount" in columns:
             return "COALESCE(total_amount, 0)"
         return "0"
