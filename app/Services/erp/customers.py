@@ -129,7 +129,7 @@ class CustomersMixin:
                     COUNT(DISTINCT soh.so_id) AS order_count
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 WHERE soh.is_deleted = false
                   AND soh.expect_date >= :since
                   {branch_join_clause}

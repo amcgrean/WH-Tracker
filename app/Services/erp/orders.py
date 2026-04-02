@@ -124,11 +124,9 @@ class OrdersMixin:
                 JOIN erp_mirror_item_branch ib
                     ON ib.item_ptr = sod.item_ptr AND sod.system_id = ib.system_id
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND TRIM(c.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON TRIM(c.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND TRIM(cs.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON TRIM(cs.cust_key) = TRIM(CAST(soh.cust_key AS TEXT))
                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 WHERE {where_clause}
                 GROUP BY soh.so_id, soh.system_id, c.cust_name, cs.address_1, cs.city,
@@ -244,9 +242,9 @@ class OrdersMixin:
                     ON ib.system_id = sod.system_id
                    AND ib.item_ptr = sod.item_ptr
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 WHERE soh.is_deleted = false AND {' AND '.join(filters)}
                 GROUP BY soh.so_id, c.cust_name, cs.address_1, cs.city, soh.reference, ib.handling_code
@@ -451,12 +449,10 @@ class OrdersMixin:
                     sh.status_flag_delivery
                 FROM erp_mirror_so_header soh
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id
-                   AND TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                    ON TRIM(CAST(c.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id
-                   AND TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
-                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
+                    ON TRIM(CAST(cs.cust_key AS TEXT)) = TRIM(CAST(soh.cust_key AS TEXT))
+                   AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN erp_mirror_shipments_header sh
                     ON sh.system_id = soh.system_id AND sh.so_id = soh.so_id
                 WHERE soh.is_deleted = false

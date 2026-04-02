@@ -25,9 +25,10 @@ Last updated: 2026-03-27
 
 ## 4. Customer join rules (critical query logic)
 
-- `erp_mirror_cust` and `erp_mirror_cust_shipto` store ALL customers under `system_id = '00CO'`
+- `erp_mirror_cust` and `erp_mirror_cust_shipto` store ALL customers under `system_id = '00CO'` (confirmed 2026-04-02 via `SELECT DISTINCT system_id FROM erp_mirror_cust` — only `00CO` and `NONE` exist)
 - Orders in `erp_mirror_so_header` use branch-specific system_ids: `10FD`, `20GR`, `25BW`, `30CD`, `40CV`
 - **Customer/shipto joins must NOT include `system_id`** — only use TRIM on `cust_key` and `seq_num`
+- PR #120 incorrectly added `c.system_id = soh.system_id` to cust joins — this caused customer names to resolve as NULL on all queries. Fixed in `fix/cust-join-system-id-regression`.
 - All other mirror table joins (so_header <-> so_detail, item_branch, shipments, picks) correctly use `system_id`
 
 ## 5. `vw_board_open_orders` Supabase view is broken/obsolete

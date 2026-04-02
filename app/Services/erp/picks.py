@@ -93,9 +93,9 @@ class PicksMixin:
                    AND ib.item_ptr = sod.item_ptr
                    AND ib.is_deleted = false
                 LEFT JOIN erp_mirror_cust c
-                    ON c.system_id = soh.system_id AND TRIM(c.cust_key) = TRIM(soh.cust_key)
+                    ON TRIM(c.cust_key) = TRIM(soh.cust_key)
                 LEFT JOIN erp_mirror_cust_shipto cs
-                    ON cs.system_id = soh.system_id AND TRIM(cs.cust_key) = TRIM(soh.cust_key)
+                    ON TRIM(cs.cust_key) = TRIM(soh.cust_key)
                    AND TRIM(CAST(cs.seq_num AS TEXT)) = TRIM(CAST(soh.shipto_seq_num AS TEXT))
                 LEFT JOIN shipment_rollup sh
                     ON sh.system_id = soh.system_id
